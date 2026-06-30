@@ -559,8 +559,11 @@ def assert_workflow_contract() -> None:
         "actions/checkout@v4",
         "actions/setup-python@v5",
         'python-version: "3.11"',
+        "actions/setup-java@v4",
+        "java-version: \"17\"",
         "pip install pyyaml",
         "python3 scripts/validate_contract.py",
+        "./gradlew :apps:api:test",
     ]
     for snippet in required_snippets:
         if snippet not in text:

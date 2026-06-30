@@ -1,0 +1,235 @@
+package com.gagastudio.finmate.api.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.List;
+import java.util.Map;
+
+public final class ApiDtos {
+    private ApiDtos() {
+    }
+
+    public record OnboardingDiagnosisRequest(
+            @NotBlank String occupationStatus,
+            @NotBlank String incomeBand,
+            @NotBlank String householdType,
+            @NotBlank String goalType,
+            @NotBlank String painPoint
+    ) {
+    }
+
+    public record OnboardingDiagnosisResponse(
+            String diagnosisId,
+            String onboardingToken,
+            String goalType,
+            String recommendedPersonaId,
+            String cohortLabel,
+            String expiresAt
+    ) {
+    }
+
+    public record MockConsentRequest(
+            @NotBlank String diagnosisId,
+            @NotBlank String consentVersion,
+            @NotEmpty List<String> scopes
+    ) {
+    }
+
+    public record MockConsentResponse(
+            String mydataConnectionId,
+            String status,
+            String dataMode,
+            String agreedAt
+    ) {
+    }
+
+    public record PrivacyConsentsRequest(
+            @NotNull Boolean anonymousPortfolioOptIn,
+            @NotBlank String friendShareDefault,
+            @NotEmpty List<String> exposedFields,
+            @NotBlank String consentVersion
+    ) {
+    }
+
+    public record PrivacyConsentsResponse(
+            String privacySettingsId,
+            List<String> consentHistoryIds,
+            boolean previewAvailable
+    ) {
+    }
+
+    public record DemoSessionRequest(
+            @NotBlank String mode,
+            String diagnosisId,
+            String mydataConnectionId,
+            String personaId,
+            String goalType
+    ) {
+    }
+
+    public record DemoSessionResponse(
+            String userId,
+            String accessToken,
+            String selectedPersonaId,
+            String goalType,
+            String expiresAt
+    ) {
+    }
+
+    public record HomeResponse(
+            String userId,
+            Goal goal,
+            int todayBudget,
+            SpendingSummary spendingSummary,
+            AssetSummary assetSummary,
+            TodayMissionCandidate todayMissionCandidate,
+            PeerTeaser peerTeaser
+    ) {
+    }
+
+    public record Goal(String goalType, String label) {
+    }
+
+    public record SpendingSummary(int monthlySpent, double fixedCostRatio) {
+    }
+
+    public record AssetSummary(int cashLikeAssets, double emergencyFundMonths) {
+    }
+
+    public record TodayMissionCandidate(String title, String recommendationSource) {
+    }
+
+    public record PeerTeaser(String portfolioId, String title, double similarityScore, String mainDifference) {
+    }
+
+    public record PortfolioResponse(
+            String portfolioId,
+            String displayName,
+            String status,
+            String visibility,
+            String dataMode,
+            FinancialSummary financialSummary,
+            List<RoutineCard> routineCards,
+            List<String> privacyBadges
+    ) {
+    }
+
+    public record FinancialSummary(double emergencyFundMonths, double savingsRate, double fixedCostRatio) {
+    }
+
+    public record RoutineCard(String title, String description) {
+    }
+
+    public record ComparisonRequest(@NotBlank String peerPortfolioId) {
+    }
+
+    public record ComparisonResponse(
+            String comparisonId,
+            String peerPortfolioId,
+            MainGap mainGap,
+            double similarityScore,
+            List<GapItem> gapItems,
+            ComparisonNextAction nextAction
+    ) {
+    }
+
+    public record MainGap(String type, String label, double normalizedGap) {
+    }
+
+    public record GapItem(String type, double userValue, double peerValue, String unit) {
+    }
+
+    public record ComparisonNextAction(String label, String scenarioType) {
+    }
+
+    public record SimulationRequest(
+            @NotBlank String comparisonId,
+            @NotBlank String scenarioType,
+            @NotNull Integer monthlyAdditionalSaving,
+            @NotNull Integer periodMonths
+    ) {
+    }
+
+    public record SimulationResponse(
+            String simulationId,
+            String comparisonId,
+            String scenarioType,
+            int periodMonths,
+            int monthlyAdditionalSaving,
+            Map<String, Number> before,
+            Map<String, Number> after,
+            String insight,
+            SimulationNextAction nextAction,
+            String disclaimer
+    ) {
+    }
+
+    public record SimulationNextAction(String label, String missionTemplateId) {
+    }
+
+    public record MissionRequest(
+            @NotBlank String simulationId,
+            @NotBlank String missionTemplateId,
+            @NotBlank String triggerSource,
+            @NotBlank String recommendationSource,
+            @NotBlank String difficulty
+    ) {
+    }
+
+    public record MissionResponse(
+            String missionId,
+            String title,
+            String description,
+            String difficulty,
+            String verificationType,
+            int rewardPoints,
+            String status,
+            String localDate,
+            PrivacySharePreview privacySharePreview
+    ) {
+    }
+
+    public record PrivacySharePreview(String shareableText, boolean containsAmount) {
+    }
+
+    public record PrivacySettingsPatchRequest(
+            Boolean anonymousPortfolioOptIn,
+            String friendShareDefault,
+            List<String> exposedFields
+    ) {
+        public boolean isEmpty() {
+            return anonymousPortfolioOptIn == null && friendShareDefault == null && exposedFields == null;
+        }
+    }
+
+    public record PrivacySettingsResponse(
+            String privacySettingsId,
+            boolean anonymousPortfolioOptIn,
+            String friendShareDefault,
+            String ownPortfolioId,
+            List<String> exposedFields,
+            PrivacyPreview preview,
+            String consentVersion,
+            String updatedAt
+    ) {
+    }
+
+    public record PrivacyPreview(String portfolioId, String displayName, List<String> hiddenFields) {
+    }
+
+    public record PrivacyWithdrawRequest(
+            @NotBlank String scope,
+            String portfolioId,
+            String reason
+    ) {
+    }
+
+    public record PrivacyWithdrawResponse(
+            String status,
+            String withdrawnAt,
+            List<String> affectedPortfolioIds
+    ) {
+    }
+}
