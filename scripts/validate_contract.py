@@ -57,13 +57,26 @@ FORBIDDEN_LEDGER_DESCRIPTIONS = [
     "오늘의집",
     "티머니",
 ]
-OLD_SCORE_COMPONENT = "householdType" + "Match"
+LEGACY_SCORE_COMPONENTS = [
+    "incomeBand" + "Match",
+    "occupationStatus" + "Match",
+    "householdType" + "Match",
+    "goalType" + "Match",
+    "demoContext" + "Match",
+]
 EXPECTED_PEER_SCORE_COMPONENTS = {
-    "incomeBandMatch": 1.0,
-    "occupationStatusMatch": 1.0,
-    "demoContextMatch": 0.2,
-    "goalTypeMatch": 1.0,
+    "incomeProximityScore": 1.0,
+    "lifeStageProximityScore": 1.0,
+    "demoContextScore": 0.2,
+    "goalAlignmentScore": 1.0,
     "similarityScore": 0.84,
+}
+EXPECTED_OWN_SCORE_COMPONENTS = {
+    "incomeProximityScore": 1.0,
+    "lifeStageProximityScore": 1.0,
+    "demoContextScore": 1.0,
+    "goalAlignmentScore": 1.0,
+    "similarityScore": 1.0,
 }
 
 
@@ -95,6 +108,12 @@ def collect_operations(openapi: dict) -> list[tuple[str, str, dict]]:
 def schema_props(openapi: dict, schema_name: str) -> dict:
     schema = openapi["components"]["schemas"][schema_name]
     return schema.get("properties", {})
+
+
+def assert_no_legacy_score_components(mapping: dict, label: str) -> None:
+    for field in LEGACY_SCORE_COMPONENTS:
+        if field in mapping:
+            fail(f"{label} contains a legacy similarity component")
 
 
 def assert_openapi_contract(openapi: dict) -> None:
@@ -141,6 +160,24 @@ def assert_openapi_contract(openapi: dict) -> None:
     peer_teaser_props = schema_props(openapi, "HomeResponse")["peerTeaser"]["properties"]
     if "portfolioId" not in peer_teaser_props:
         fail("HomeResponse.peerTeaser missing portfolioId")
+
+    comparison_props = schema_props(openapi, "ComparisonResponse")
+    main_gap_schema = comparison_props["mainGap"]
+    main_gap_required = main_gap_schema.get("required", [])
+    main_gap_props = main_gap_schema.get("properties", {})
+    if "normalizedGap" not in main_gap_required or "normalizedGap" not in main_gap_props:
+        fail("ComparisonResponse gap metric must require normalizedGap")
+    if "score" in main_gap_required or "score" in main_gap_props:
+        fail("ComparisonResponse gap metric must not use the legacy field")
+
+    comparison_response = paths["/api/comparisons"]["post"]["responses"]["200"]
+    comparison_examples = comparison_response["content"]["application/json"]["examples"]
+    comparison_value = next(iter(comparison_examples.values()))["value"]
+    main_gap_value = comparison_value.get("mainGap", {})
+    if main_gap_value.get("normalizedGap") != 0.47:
+        fail("Comparison example normalizedGap must be 0.47")
+    if "score" in main_gap_value:
+        fail("Comparison example must not include the legacy gap metric")
 
 
 def section_between(text: str, start_marker: str, end_marker: str) -> str:
@@ -189,6 +226,7 @@ def assert_openapi_text_contract(path: Path) -> None:
         for schema_name, fields in EXPECTED_RESPONSE_FIELDS.items()
     }
     required_schema_fields["HomeResponse"].append("portfolioId:")
+    required_schema_fields["ComparisonResponse"].append("normalizedGap:")
     for schema_name, fields in required_schema_fields.items():
         next_marker = {
             "HomeResponse": "    PortfolioResponse:",
@@ -202,6 +240,12 @@ def assert_openapi_text_contract(path: Path) -> None:
         for field in fields:
             if field not in section:
                 fail(f"{schema_name} missing {field.rstrip(':')}")
+
+    comparison_section = section_between(text, "    ComparisonResponse:", "    SimulationRequest:")
+    if ("score" + ": 0.5333") in text:
+        fail("OpenAPI contains a legacy gap metric example")
+    if re.search(r"^\s+score:\s*$", comparison_section, re.MULTILINE):
+        fail("ComparisonResponse gap metric must not expose the legacy field")
 
 
 def assert_seed_contract() -> None:
@@ -323,15 +367,20 @@ def assert_seed_contract() -> None:
         if "privacyBadges" not in portfolio:
             fail(f"{portfolio_id} missing privacyBadges")
         feature_snapshot = portfolio.get("featureSnapshot", {})
-        if OLD_SCORE_COMPONENT in feature_snapshot:
-            fail("featureSnapshot must use demoContextMatch instead of the old household score component")
-        if "demoContextMatch" not in feature_snapshot:
-            fail(f"{portfolio_id} featureSnapshot missing demoContextMatch")
+        assert_no_legacy_score_components(feature_snapshot, f"{portfolio_id} featureSnapshot")
+        for field in EXPECTED_PEER_SCORE_COMPONENTS:
+            if field not in feature_snapshot:
+                fail(f"{portfolio_id} featureSnapshot missing normalized similarity field: {field}")
 
     peer_snapshot = portfolios["peer-portfolio-023"]["featureSnapshot"]
     for field, expected in EXPECTED_PEER_SCORE_COMPONENTS.items():
         if peer_snapshot.get(field) != expected:
             fail(f"peer-portfolio-023 featureSnapshot {field} must be {expected}")
+
+    own_snapshot = portfolios["own-portfolio-001"]["featureSnapshot"]
+    for field, expected in EXPECTED_OWN_SCORE_COMPONENTS.items():
+        if own_snapshot.get(field) != expected:
+            fail(f"own-portfolio-001 featureSnapshot {field} must be {expected}")
 
 
 def assert_dataset_link_contract() -> None:
@@ -443,14 +492,16 @@ def assert_dataset_link_contract() -> None:
                 fail(f"normalization-map {finmate_id} {metric_name}.finmateSeed must be {expected}")
 
     peer_components = normalization_items["peer-portfolio-023"].get("scoreComponents", {})
-    if OLD_SCORE_COMPONENT in peer_components:
-        fail("normalization-map scoreComponents must not use old household score component")
+    assert_no_legacy_score_components(peer_components, "normalization-map scoreComponents")
     for field, expected in EXPECTED_PEER_SCORE_COMPONENTS.items():
         if peer_components.get(field) != expected:
             fail(f"normalization-map peer score component {field} must be {expected}")
 
     portfolios = {item["id"]: item for item in load_json(SEED_DIR / "portfolios.json")}
     personas = {item["id"]: item for item in load_json(SEED_DIR / "personas.json")}
+    peer_snapshot = portfolios["peer-portfolio-023"].get("featureSnapshot", {})
+    if set(peer_snapshot) != set(peer_components):
+        fail("seed and normalization-map peer similarity component fields must match")
     if portfolios["peer-portfolio-023"].get("personaProfileId") != mappings["peer-portfolio-023"]:
         fail("peer-portfolio-023 personaProfileId must match dataset source persona P003")
     if "P003" not in personas:
@@ -485,7 +536,7 @@ def assert_dataset_link_contract() -> None:
     doc_checks = [
         (ROOT / "README.md", ["Dataset Source", "financial-sns-mydata-202606", "data/source-dataset.md", "계약/문서/seed/검증 패키지"]),
         (SEED_DIR / "README.md", ["financial-sns-mydata-202606", "P001", "P003"]),
-        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED", "demoContextMatch"]),
+        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED", "demoContextScore", "normalizedGap"]),
         (DATA_DIR / "source-dataset.md", ["정규화 실행 데이터", "DEMO_NORMALIZED", "normalization-map.json"]),
         (ROOT / "docs" / "01_presentation_plan_v1.0.md", ["P001", "P003", "DEMO_NORMALIZED"]),
         (DATA_P0_DIR / "README.md", ["normalization-map.json"]),
@@ -577,6 +628,8 @@ def assert_request_contract() -> None:
         fail("Request template must use friendShareDefault enum values")
     if "after.cashLikeAssets=700000" not in text:
         fail("Request template must document after.cashLikeAssets=700000")
+    if "normalizedGap=0.47" not in text:
+        fail("Request template must document normalizedGap=0.47")
 
 
 def assert_evidence_placeholders() -> None:
@@ -602,12 +655,14 @@ def assert_text_regressions() -> None:
     forbidden = [
         "이번 주 자동이체 " + "3만 원",
         '"source"' + ': "SIMULATION"',
-        OLD_SCORE_COMPONENT,
+        "score" + ": 0.5333",
+        '"' + "score" + '": 0.5333',
         "v1." + "4.2",
         "1." + "4.2",
         "v1." + "4.1",
         "1." + "4.1",
     ]
+    forbidden.extend(LEGACY_SCORE_COMPONENTS)
 
     for path in ROOT.rglob("*"):
         if not path.is_file():
@@ -618,6 +673,8 @@ def assert_text_regressions() -> None:
         for phrase in forbidden:
             if phrase in text:
                 fail(f"Forbidden phrase found in {path.relative_to(ROOT)}: {phrase}")
+        if re.search(r"main" + r"Gap.{0,80}" + r"score", text):
+            fail(f"Forbidden legacy gap metric reference found in {path.relative_to(ROOT)}")
 
 
 def main() -> int:

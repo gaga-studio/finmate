@@ -78,7 +78,7 @@ GET {{baseUrl}}/api/explore/portfolios/{{peerPortfolioId}}
 Authorization: Bearer {{accessToken}}
 
 ### 7. 비교 생성
-# Expected: 200, comparisonId=cmp-001, mainGap.type=EMERGENCY_FUND, similarityScore=0.84
+# Expected: 200, comparisonId=cmp-001, mainGap.type=EMERGENCY_FUND, normalizedGap=0.47, similarityScore=0.84
 POST {{baseUrl}}/api/comparisons
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json

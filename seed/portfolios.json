@@ -13,10 +13,10 @@
       "fixedCostRatio": 0.38
     },
     "featureSnapshot": {
-      "incomeBandMatch": 1.0,
-      "occupationStatusMatch": 1.0,
-      "demoContextMatch": 0.2,
-      "goalTypeMatch": 1.0,
+      "incomeProximityScore": 1.0,
+      "lifeStageProximityScore": 1.0,
+      "demoContextScore": 0.2,
+      "goalAlignmentScore": 1.0,
       "similarityScore": 0.84
     },
     "routineCards": [
@@ -53,10 +53,10 @@
       "fixedCostRatio": 0.42
     },
     "featureSnapshot": {
-      "incomeBandMatch": 1.0,
-      "occupationStatusMatch": 1.0,
-      "demoContextMatch": 1.0,
-      "goalTypeMatch": 1.0,
+      "incomeProximityScore": 1.0,
+      "lifeStageProximityScore": 1.0,
+      "demoContextScore": 1.0,
+      "goalAlignmentScore": 1.0,
       "similarityScore": 1.0
     },
     "routineCards": [

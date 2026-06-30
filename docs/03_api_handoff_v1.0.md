@@ -303,7 +303,7 @@ Response 핵심:
   "mainGap": {
     "type": "EMERGENCY_FUND",
     "label": "비상금 준비율",
-    "score": 0.5333
+    "normalizedGap": 0.47
   },
   "similarityScore": 0.84,
   "gapItems": [
@@ -330,20 +330,22 @@ fixedCostGap = abs(userFixedCostRatio - peerFixedCostRatio) / 0.5
 
 mainGap = max(emergencyFundGap, savingsRateGap, fixedCostGap)
 tie-break = EMERGENCY_FUND -> SAVINGS_RATE -> FIXED_COST_RATIO
+
+P0 normalizedGap = round(abs(1.8 - 0.4) / 3.0, 2) = 0.47
 ```
 
 similarityScore 계산식:
 
 ```text
-incomeBandMatch * 0.35
-+ occupationStatusMatch * 0.25
-+ demoContextMatch * 0.20
-+ goalTypeMatch * 0.20
+incomeProximityScore * 0.35
++ lifeStageProximityScore * 0.25
++ demoContextScore * 0.20
++ goalAlignmentScore * 0.20
 ```
 
 데모 고정값은 `0.84`를 사용한다.
 
-`demoContextMatch`는 raw 가구형태 일치 점수가 아니라 P0 발표용 정규화 맥락 점수다. `similarityScore=0.84`는 P0 발표용 `DEMO_NORMALIZED` 점수이며, 원본 `feature_matrix.csv`의 raw cluster distance나 실제 유사도 모델 결과가 아니라 P001/P003의 페르소나 방향성을 유지하면서 7분 데모 비교 흐름을 설명하기 쉽게 정규화한 값이다.
+`incomeProximityScore`, `lifeStageProximityScore`, `demoContextScore`, `goalAlignmentScore`는 정확 일치 여부가 아니라 P0 발표용 정규화 근접도/정렬 점수다. `similarityScore=0.84`는 P0 발표용 `DEMO_NORMALIZED` 점수이며, 원본 `feature_matrix.csv`의 raw cluster distance나 실제 유사도 모델 결과가 아니라 P001/P003의 페르소나 방향성을 유지하면서 7분 데모 비교 흐름을 설명하기 쉽게 정규화한 값이다.
 
 ### 6.8 POST /api/simulations
 

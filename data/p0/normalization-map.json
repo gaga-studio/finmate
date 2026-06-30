@@ -139,12 +139,11 @@
         }
       },
       "scoreComponents": {
-        "incomeBandMatch": 1.0,
-        "occupationStatusMatch": 1.0,
-        "demoContextMatch": 0.2,
-        "goalTypeMatch": 1.0,
-        "similarityScore": 0.84,
-        "similarityScoreMode": "DEMO_NORMALIZED"
+        "incomeProximityScore": 1.0,
+        "lifeStageProximityScore": 1.0,
+        "demoContextScore": 0.2,
+        "goalAlignmentScore": 1.0,
+        "similarityScore": 0.84
       }
     }
   ]

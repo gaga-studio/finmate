@@ -339,7 +339,7 @@ paths:
                     mainGap:
                       type: EMERGENCY_FUND
                       label: 비상금 준비율
-                      score: 0.5333
+                      normalizedGap: 0.47
                     similarityScore: 0.84
                     gapItems:
                       - type: EMERGENCY_FUND
@@ -972,14 +972,14 @@ components:
           type: string
         mainGap:
           type: object
-          required: [type, label, score]
+          required: [type, label, normalizedGap]
           properties:
             type:
               type: string
               enum: [EMERGENCY_FUND, SAVINGS_RATE, FIXED_COST_RATIO]
             label:
               type: string
-            score:
+            normalizedGap:
               type: number
         similarityScore:
           type: number
