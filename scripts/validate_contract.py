@@ -120,6 +120,10 @@ def assert_openapi_contract(openapi: dict) -> None:
     if openapi.get("info", {}).get("version") != "1.0.0":
         fail("OpenAPI info.version must be 1.0.0")
 
+    openapi_text = OPENAPI_PATH.read_text(encoding="utf-8")
+    if "비상금 준비율이 1.4개월 차이" not in openapi_text:
+        fail("OpenAPI home example must document peerTeaser.mainDifference as 1.4 months")
+
     server_urls = [server.get("url") for server in openapi.get("servers", [])]
     if server_urls != ["http://localhost:3000", "http://localhost:8080"]:
         fail("OpenAPI servers must include frontend mock/API route and backend API URLs")
@@ -195,6 +199,8 @@ def assert_openapi_text_contract(path: Path) -> None:
 
     if "  version: 1.0.0" not in text:
         fail("OpenAPI info.version must be 1.0.0")
+    if "비상금 준비율이 1.4개월 차이" not in text:
+        fail("OpenAPI home example must document peerTeaser.mainDifference as 1.4 months")
     if "url: http://localhost:3000" not in text or "url: http://localhost:8080" not in text:
         fail("OpenAPI text must include both localhost:3000 and localhost:8080 servers")
     if "/api/coach/recommendations" in text:
@@ -610,6 +616,7 @@ def assert_request_contract() -> None:
         "PATCH {{baseUrl}}/api/privacy/settings",
         "POST {{baseUrl}}/api/privacy/withdraw",
         "GET {{baseUrl}}/api/explore/portfolios/{{ownPortfolioId}}",
+        "peerTeaser.mainDifference=\"비상금 준비율이 1.4개월 차이\"",
     ]
     for snippet in required_snippets:
         if snippet not in text:
@@ -660,6 +667,7 @@ def assert_text_regressions() -> None:
         '"source"' + ': "SIMULATION"',
         "score" + ": 0.5333",
         '"' + "score" + '": 0.5333',
+        "1." + "6개월",
         "v1." + "4.2",
         "1." + "4.2",
         "v1." + "4.1",
@@ -670,7 +678,9 @@ def assert_text_regressions() -> None:
     for path in ROOT.rglob("*"):
         if not path.is_file():
             continue
-        if path.suffix not in {".md", ".yaml", ".http", ".json", ".py"}:
+        if any(part in {".git", ".gradle", "node_modules", "dist", "build"} for part in path.parts):
+            continue
+        if path.suffix not in {".md", ".yaml", ".http", ".json", ".py", ".java", ".ts", ".tsx"}:
             continue
         text = path.read_text(encoding="utf-8")
         for phrase in forbidden:

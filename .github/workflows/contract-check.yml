@@ -23,13 +23,24 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyyaml
+          npm ci --prefix apps/web
 
       - name: Validate FinMate P0 contract
         run: python3 scripts/validate_contract.py
 
       - name: Test Spring Boot mock API
         run: ./gradlew :apps:api:test
+
+      - name: Build Vite web skeleton
+        run: npm run build --prefix apps/web

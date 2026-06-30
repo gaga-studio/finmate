@@ -241,7 +241,7 @@ Response 주요 필드:
     "portfolioId": "peer-portfolio-023",
     "title": "비상금 루틴형 B",
     "similarityScore": 0.84,
-    "mainDifference": "비상금 준비율이 1.6개월 차이"
+    "mainDifference": "비상금 준비율이 1.4개월 차이"
   }
 }
 ```
@@ -432,7 +432,8 @@ Response:
 Idempotency:
 
 - `simulationId + missionTemplateId + localDate`가 같으면 기존 `missionId`를 반환한다.
-- 같은 `Idempotency-Key` 재요청은 동일 response를 반환한다.
+- P0 mock runtime은 `Idempotency-Key` header를 저장하지 않고, 위 body 기반 key로 mission 중복 생성을 막는다.
+- 제품 단계에서는 같은 `Idempotency-Key` 재요청이 동일 response를 반환하도록 확장한다.
 - `MissionRequest`에는 `source` 필드를 사용하지 않는다.
 
 ### 6.10 GET /api/privacy/settings

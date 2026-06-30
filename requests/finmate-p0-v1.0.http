@@ -4,6 +4,10 @@
 @peerPortfolioId = peer-portfolio-023
 @ownPortfolioId = own-portfolio-001
 
+# Idempotency-Key headers are product-contract references in this P0 template.
+# The current mock runtime only simulates idempotency for mission creation via
+# simulationId + missionTemplateId + localDate.
+
 ### 1. 30초 진단 생성
 # Expected: 200, diagnosisId=diag-001, onboardingToken=onb-token-001, cohortLabel=학생/알바 · 월소득 150~250만 원 · 1인 가구
 POST {{baseUrl}}/api/onboarding/diagnosis
@@ -68,7 +72,7 @@ Idempotency-Key: demo-session-001
 }
 
 ### 5. 홈 조회
-# Expected: 200, peerTeaser.portfolioId=peer-portfolio-023
+# Expected: 200, peerTeaser.portfolioId=peer-portfolio-023, peerTeaser.mainDifference="비상금 준비율이 1.4개월 차이"
 GET {{baseUrl}}/api/home
 Authorization: Bearer {{accessToken}}
 

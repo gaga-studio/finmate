@@ -106,6 +106,7 @@ class FinmateApiApplicationTests {
         mockMvc.perform(get("/api/home").header("Authorization", ACCESS_AUTH))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.peerTeaser.portfolioId").value("peer-portfolio-023"))
+                .andExpect(jsonPath("$.peerTeaser.mainDifference").value("비상금 준비율이 1.4개월 차이"))
                 .andExpect(jsonPath("$.todayMissionCandidate.recommendationSource").value("RULE_BASED"));
 
         mockMvc.perform(get("/api/explore/portfolios/peer-portfolio-023").header("Authorization", ACCESS_AUTH))

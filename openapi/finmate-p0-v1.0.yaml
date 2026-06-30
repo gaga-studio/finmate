@@ -233,7 +233,7 @@ paths:
                       portfolioId: peer-portfolio-023
                       title: 비상금 루틴형 B
                       similarityScore: 0.84
-                      mainDifference: 비상금 준비율이 1.6개월 차이
+                      mainDifference: 비상금 준비율이 1.4개월 차이
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

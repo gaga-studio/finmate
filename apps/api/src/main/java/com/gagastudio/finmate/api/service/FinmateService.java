@@ -111,6 +111,8 @@ public class FinmateService {
     public HomeResponse getHome() {
         Map<String, Object> feature = requireFeature(DEMO_USER_ID);
         Map<String, Object> peer = requirePortfolio(PEER_PORTFOLIO_ID);
+        FinancialSummary peerSummary = summary(peer);
+        double emergencyFundGapMonths = Math.abs(peerSummary.emergencyFundMonths() - number(feature.get("emergencyFundMonths")));
         Map<String, Object> template = requireSeed("mission-templates.json", MISSION_TEMPLATE_ID);
         return new HomeResponse(
                 DEMO_USER_ID,
@@ -123,7 +125,7 @@ public class FinmateService {
                         PEER_PORTFOLIO_ID,
                         peer.get("displayName").toString(),
                         0.84,
-                        "비상금 준비율이 1.6개월 차이"
+                        "비상금 준비율이 " + round1(emergencyFundGapMonths) + "개월 차이"
                 )
         );
     }
