@@ -22,6 +22,7 @@ FinMate 공개 레포에는 원본 데이터셋 전체를 복사하지 않는다
 | 파일 | 역할 |
 | --- | --- |
 | `p0/dataset-persona-map.json` | FinMate seed ID와 원본 persona ID의 대응 |
+| `p0/normalization-map.json` | 원본 feature 값과 FinMate seed 정규화 값의 관계 |
 | `p0/feature-matrix.demo.csv` | P0 설명에 필요한 P001/P003 feature subset |
 | `p0/ledger-sample.demo.csv` | 발표 데모 맥락을 설명하는 최소 거래 샘플. 공개 레포에서는 거래처를 UI-safe label로 마스킹 |
 

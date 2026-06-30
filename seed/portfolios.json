@@ -15,7 +15,7 @@
     "featureSnapshot": {
       "incomeBandMatch": 1.0,
       "occupationStatusMatch": 1.0,
-      "householdTypeMatch": 0.2,
+      "demoContextMatch": 0.2,
       "goalTypeMatch": 1.0,
       "similarityScore": 0.84
     },
@@ -55,7 +55,7 @@
     "featureSnapshot": {
       "incomeBandMatch": 1.0,
       "occupationStatusMatch": 1.0,
-      "householdTypeMatch": 1.0,
+      "demoContextMatch": 1.0,
       "goalTypeMatch": 1.0,
       "similarityScore": 1.0
     },

@@ -5,7 +5,9 @@ info:
   description: Public v1.0 P0 contract for the FinMate final presentation demo.
 servers:
   - url: http://localhost:3000
-    description: Local demo server
+    description: Frontend mock/API route
+  - url: http://localhost:8080
+    description: Backend API
 security:
   - BearerAuth: []
 tags:

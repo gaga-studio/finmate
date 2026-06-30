@@ -19,6 +19,8 @@ SEED_DIR = ROOT / "seed"
 REQUEST_PATH = ROOT / "requests" / "finmate-p0-v1.0.http"
 DATA_DIR = ROOT / "data"
 DATA_P0_DIR = DATA_DIR / "p0"
+NORMALIZATION_MAP_PATH = DATA_P0_DIR / "normalization-map.json"
+WORKFLOW_PATH = ROOT / ".github" / "workflows" / "contract-check.yml"
 
 HTTP_METHODS = {"get", "post", "patch", "put", "delete", "options", "head", "trace"}
 EXPECTED_RESPONSE_FIELDS = {
@@ -55,6 +57,14 @@ FORBIDDEN_LEDGER_DESCRIPTIONS = [
     "오늘의집",
     "티머니",
 ]
+OLD_SCORE_COMPONENT = "householdType" + "Match"
+EXPECTED_PEER_SCORE_COMPONENTS = {
+    "incomeBandMatch": 1.0,
+    "occupationStatusMatch": 1.0,
+    "demoContextMatch": 0.2,
+    "goalTypeMatch": 1.0,
+    "similarityScore": 0.84,
+}
 
 
 def fail(message: str) -> None:
@@ -90,6 +100,10 @@ def schema_props(openapi: dict, schema_name: str) -> dict:
 def assert_openapi_contract(openapi: dict) -> None:
     if openapi.get("info", {}).get("version") != "1.0.0":
         fail("OpenAPI info.version must be 1.0.0")
+
+    server_urls = [server.get("url") for server in openapi.get("servers", [])]
+    if server_urls != ["http://localhost:3000", "http://localhost:8080"]:
+        fail("OpenAPI servers must include frontend mock/API route and backend API URLs")
 
     paths = openapi.get("paths", {})
     if "/api/coach/recommendations" in paths:
@@ -144,6 +158,8 @@ def assert_openapi_text_contract(path: Path) -> None:
 
     if "  version: 1.0.0" not in text:
         fail("OpenAPI info.version must be 1.0.0")
+    if "url: http://localhost:3000" not in text or "url: http://localhost:8080" not in text:
+        fail("OpenAPI text must include both localhost:3000 and localhost:8080 servers")
     if "/api/coach/recommendations" in text:
         fail("POST /api/coach/recommendations must not be a public P0 API")
 
@@ -306,6 +322,16 @@ def assert_seed_contract() -> None:
             fail(f"{portfolio_id} missing dataMode")
         if "privacyBadges" not in portfolio:
             fail(f"{portfolio_id} missing privacyBadges")
+        feature_snapshot = portfolio.get("featureSnapshot", {})
+        if OLD_SCORE_COMPONENT in feature_snapshot:
+            fail("featureSnapshot must use demoContextMatch instead of the old household score component")
+        if "demoContextMatch" not in feature_snapshot:
+            fail(f"{portfolio_id} featureSnapshot missing demoContextMatch")
+
+    peer_snapshot = portfolios["peer-portfolio-023"]["featureSnapshot"]
+    for field, expected in EXPECTED_PEER_SCORE_COMPONENTS.items():
+        if peer_snapshot.get(field) != expected:
+            fail(f"peer-portfolio-023 featureSnapshot {field} must be {expected}")
 
 
 def assert_dataset_link_contract() -> None:
@@ -314,6 +340,7 @@ def assert_dataset_link_contract() -> None:
         DATA_DIR / "source-dataset.md",
         DATA_P0_DIR / "README.md",
         DATA_P0_DIR / "dataset-persona-map.json",
+        NORMALIZATION_MAP_PATH,
         DATA_P0_DIR / "feature-matrix.demo.csv",
         DATA_P0_DIR / "ledger-sample.demo.csv",
     ]
@@ -351,6 +378,77 @@ def assert_dataset_link_contract() -> None:
     if mappings != expected_mappings:
         fail("dataset-persona-map must map demo/own to P001 and peer to P003")
 
+    normalization = load_json(NORMALIZATION_MAP_PATH)
+    if normalization.get("publicPackageVersion") != "v1.0.0":
+        fail("normalization-map publicPackageVersion must be v1.0.0")
+    if normalization.get("policy", {}).get("similarityScoreMode") != "DEMO_NORMALIZED":
+        fail("normalization-map must document DEMO_NORMALIZED similarity score mode")
+    normalization_items = {
+        item["finmateId"]: item
+        for item in normalization.get("items", [])
+    }
+    if set(normalization_items) != {"demo-user-001", "own-portfolio-001", "peer-portfolio-023"}:
+        fail("normalization-map must contain demo, own preview, and peer portfolio items")
+    expected_normalization_sources = {
+        "demo-user-001": "P001",
+        "own-portfolio-001": "P001",
+        "peer-portfolio-023": "P003",
+    }
+    for finmate_id, source_persona_id in expected_normalization_sources.items():
+        item = normalization_items[finmate_id]
+        if item.get("sourcePersonaId") != source_persona_id:
+            fail(f"normalization-map {finmate_id} must source from {source_persona_id}")
+        if item.get("normalizedForDemo") is not True:
+            fail(f"normalization-map {finmate_id} must mark normalizedForDemo true")
+
+    expected_seed_metrics = {
+        "demo-user-001": {
+            "monthlyIncomeKrw": 2200000,
+            "monthlySpendingKrw": 1680000,
+            "monthlySavingKrw": 180000,
+            "savingsRate": 0.08,
+            "fixedCostRatio": 0.42,
+            "cashLikeAssets": 400000,
+            "monthlyEssentialSpending": 1000000,
+            "emergencyFundMonths": 0.4,
+        },
+        "own-portfolio-001": {
+            "monthlyIncomeKrw": 2200000,
+            "monthlySpendingKrw": 1680000,
+            "monthlySavingKrw": 180000,
+            "savingsRate": 0.08,
+            "fixedCostRatio": 0.42,
+            "cashLikeAssets": 400000,
+            "monthlyEssentialSpending": 1000000,
+            "emergencyFundMonths": 0.4,
+        },
+        "peer-portfolio-023": {
+            "monthlyIncomeKrw": 2300000,
+            "monthlySpendingKrw": 1450000,
+            "monthlySavingKrw": 480000,
+            "savingsRate": 0.21,
+            "fixedCostRatio": 0.38,
+            "cashLikeAssets": 1800000,
+            "monthlyEssentialSpending": 1000000,
+            "emergencyFundMonths": 1.8,
+        },
+    }
+    for finmate_id, metrics in expected_seed_metrics.items():
+        item_metrics = normalization_items[finmate_id].get("metrics", {})
+        for metric_name, expected in metrics.items():
+            metric = item_metrics.get(metric_name)
+            if not isinstance(metric, dict):
+                fail(f"normalization-map {finmate_id} missing metric {metric_name}")
+            if metric.get("finmateSeed") != expected:
+                fail(f"normalization-map {finmate_id} {metric_name}.finmateSeed must be {expected}")
+
+    peer_components = normalization_items["peer-portfolio-023"].get("scoreComponents", {})
+    if OLD_SCORE_COMPONENT in peer_components:
+        fail("normalization-map scoreComponents must not use old household score component")
+    for field, expected in EXPECTED_PEER_SCORE_COMPONENTS.items():
+        if peer_components.get(field) != expected:
+            fail(f"normalization-map peer score component {field} must be {expected}")
+
     portfolios = {item["id"]: item for item in load_json(SEED_DIR / "portfolios.json")}
     personas = {item["id"]: item for item in load_json(SEED_DIR / "personas.json")}
     if portfolios["peer-portfolio-023"].get("personaProfileId") != mappings["peer-portfolio-023"]:
@@ -385,17 +483,37 @@ def assert_dataset_link_contract() -> None:
             fail(f"ledger-sample.demo.csv must use masked descriptions, found: {merchant}")
 
     doc_checks = [
-        (ROOT / "README.md", ["Dataset Source", "financial-sns-mydata-202606", "data/source-dataset.md"]),
+        (ROOT / "README.md", ["Dataset Source", "financial-sns-mydata-202606", "data/source-dataset.md", "계약/문서/seed/검증 패키지"]),
         (SEED_DIR / "README.md", ["financial-sns-mydata-202606", "P001", "P003"]),
-        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED"]),
-        (DATA_DIR / "source-dataset.md", ["정규화 실행 데이터", "DEMO_NORMALIZED"]),
+        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED", "demoContextMatch"]),
+        (DATA_DIR / "source-dataset.md", ["정규화 실행 데이터", "DEMO_NORMALIZED", "normalization-map.json"]),
         (ROOT / "docs" / "01_presentation_plan_v1.0.md", ["P001", "P003", "DEMO_NORMALIZED"]),
+        (DATA_P0_DIR / "README.md", ["normalization-map.json"]),
     ]
     for path, snippets in doc_checks:
         text = path.read_text(encoding="utf-8")
         for snippet in snippets:
             if snippet not in text:
                 fail(f"{path.relative_to(ROOT)} missing dataset-link snippet: {snippet}")
+
+
+def assert_workflow_contract() -> None:
+    if not WORKFLOW_PATH.exists():
+        fail("Missing GitHub Actions contract-check workflow")
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    required_snippets = [
+        "name: Contract Check",
+        "push:",
+        "pull_request:",
+        "actions/checkout@v4",
+        "actions/setup-python@v5",
+        'python-version: "3.11"',
+        "pip install pyyaml",
+        "python3 scripts/validate_contract.py",
+    ]
+    for snippet in required_snippets:
+        if snippet not in text:
+            fail(f"contract-check workflow missing: {snippet}")
 
 
 def assert_onboarding_examples_contract() -> None:
@@ -484,6 +602,7 @@ def assert_text_regressions() -> None:
     forbidden = [
         "이번 주 자동이체 " + "3만 원",
         '"source"' + ': "SIMULATION"',
+        OLD_SCORE_COMPONENT,
         "v1." + "4.2",
         "1." + "4.2",
         "v1." + "4.1",
@@ -509,6 +628,7 @@ def main() -> int:
         assert_openapi_text_contract(OPENAPI_PATH)
     assert_seed_contract()
     assert_dataset_link_contract()
+    assert_workflow_contract()
     assert_onboarding_examples_contract()
     assert_request_contract()
     assert_evidence_placeholders()

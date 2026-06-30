@@ -1,0 +1,151 @@
+{
+  "publicPackageVersion": "v1.0.0",
+  "purpose": "Explain how source synthetic personas are normalized into FinMate P0 demo seed values.",
+  "policy": {
+    "sourcePersonaRole": "Source personas provide persona character and transaction context.",
+    "seedRole": "Seed JSON provides normalized execution data for stable P0 screens and calculations.",
+    "copyPolicy": "Do not copy the full source dataset into this repository.",
+    "similarityScoreMode": "DEMO_NORMALIZED"
+  },
+  "items": [
+    {
+      "finmateId": "demo-user-001",
+      "sourcePersonaId": "P001",
+      "role": "demo_user",
+      "normalizedForDemo": true,
+      "reason": "The 7-minute demo needs simple monthly income, spending, saving, and emergency-fund figures while preserving the low-saving baseline persona.",
+      "metrics": {
+        "monthlyIncomeKrw": {
+          "source": 1700000,
+          "finmateSeed": 2200000
+        },
+        "monthlySpendingKrw": {
+          "source": 2115200,
+          "finmateSeed": 1680000
+        },
+        "monthlySavingKrw": {
+          "source": 150000,
+          "finmateSeed": 180000
+        },
+        "savingsRate": {
+          "source": 0.0882,
+          "finmateSeed": 0.08
+        },
+        "fixedCostRatio": {
+          "source": null,
+          "finmateSeed": 0.42,
+          "note": "Not present as a raw source feature; fixed for the P0 screen/API contract."
+        },
+        "cashLikeAssets": {
+          "source": null,
+          "finmateSeed": 400000,
+          "note": "Not present as a raw source feature; fixed for the P0 simulation."
+        },
+        "monthlyEssentialSpending": {
+          "source": null,
+          "finmateSeed": 1000000,
+          "note": "Not present as a raw source feature; fixed so emergencyFundMonths is explainable."
+        },
+        "emergencyFundMonths": {
+          "source": null,
+          "finmateSeed": 0.4,
+          "note": "Calculated from FinMate seed cashLikeAssets / monthlyEssentialSpending."
+        }
+      }
+    },
+    {
+      "finmateId": "own-portfolio-001",
+      "sourcePersonaId": "P001",
+      "role": "own_masked_portfolio_preview",
+      "normalizedForDemo": true,
+      "reason": "The privacy preview reuses the demo user's P001 direction but keeps the portfolio as MOCK_MYDATA with masked fields.",
+      "metrics": {
+        "monthlyIncomeKrw": {
+          "source": 1700000,
+          "finmateSeed": 2200000
+        },
+        "monthlySpendingKrw": {
+          "source": 2115200,
+          "finmateSeed": 1680000
+        },
+        "monthlySavingKrw": {
+          "source": 150000,
+          "finmateSeed": 180000
+        },
+        "savingsRate": {
+          "source": 0.0882,
+          "finmateSeed": 0.08
+        },
+        "fixedCostRatio": {
+          "source": null,
+          "finmateSeed": 0.42
+        },
+        "cashLikeAssets": {
+          "source": null,
+          "finmateSeed": 400000
+        },
+        "monthlyEssentialSpending": {
+          "source": null,
+          "finmateSeed": 1000000
+        },
+        "emergencyFundMonths": {
+          "source": null,
+          "finmateSeed": 0.4
+        }
+      }
+    },
+    {
+      "finmateId": "peer-portfolio-023",
+      "sourcePersonaId": "P003",
+      "role": "peer_portfolio",
+      "normalizedForDemo": true,
+      "reason": "The peer card uses P003's early-career emergency-fund routine direction while normalizing values for a simple 1:1 comparison.",
+      "metrics": {
+        "monthlyIncomeKrw": {
+          "source": 3160000,
+          "finmateSeed": 2300000
+        },
+        "monthlySpendingKrw": {
+          "source": 3211300,
+          "finmateSeed": 1450000
+        },
+        "monthlySavingKrw": {
+          "source": 1100000,
+          "finmateSeed": 480000
+        },
+        "savingsRate": {
+          "source": 0.3481,
+          "finmateSeed": 0.21
+        },
+        "fixedCostRatio": {
+          "source": null,
+          "finmateSeed": 0.38,
+          "note": "Not present as a raw source feature; fixed for the P0 screen/API contract."
+        },
+        "cashLikeAssets": {
+          "source": null,
+          "finmateSeed": 1800000,
+          "note": "Not present as a raw source feature; fixed for the P0 comparison."
+        },
+        "monthlyEssentialSpending": {
+          "source": null,
+          "finmateSeed": 1000000,
+          "note": "Not present as a raw source feature; fixed so emergencyFundMonths is explainable."
+        },
+        "emergencyFundMonths": {
+          "source": null,
+          "finmateSeed": 1.8,
+          "note": "Calculated from FinMate seed cashLikeAssets / monthlyEssentialSpending."
+        }
+      },
+      "scoreComponents": {
+        "incomeBandMatch": 1.0,
+        "occupationStatusMatch": 1.0,
+        "demoContextMatch": 0.2,
+        "goalTypeMatch": 1.0,
+        "similarityScore": 0.84,
+        "similarityScoreMode": "DEMO_NORMALIZED"
+      }
+    }
+  ]
+}
