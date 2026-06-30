@@ -34,9 +34,9 @@ paths:
             examples:
               default:
                 value:
-                  occupationStatus: COLLEGE_STUDENT
-                  incomeBand: UNDER_1M
-                  householdType: LIVING_WITH_FAMILY
+                  occupationStatus: PART_TIME_STUDENT
+                  incomeBand: INCOME_150_250
+                  householdType: SINGLE
                   goalType: EMERGENCY_FUND
                   painPoint: SAVE_CONSISTENTLY
       responses:
@@ -53,7 +53,7 @@ paths:
                     onboardingToken: onb-token-001
                     goalType: EMERGENCY_FUND
                     recommendedPersonaId: P001
-                    cohortLabel: 소득 100만 원 미만 대학생
+                    cohortLabel: 학생/알바 · 월소득 150~250만 원 · 1인 가구
                     expiresAt: "2026-06-30T15:30:00+09:00"
         "422":
           $ref: "#/components/responses/ValidationError"
@@ -718,13 +718,13 @@ components:
       properties:
         occupationStatus:
           type: string
-          example: COLLEGE_STUDENT
+          example: PART_TIME_STUDENT
         incomeBand:
           type: string
-          example: UNDER_1M
+          example: INCOME_150_250
         householdType:
           type: string
-          example: LIVING_WITH_FAMILY
+          example: SINGLE
         goalType:
           $ref: "#/components/schemas/GoalType"
         painPoint:

@@ -29,6 +29,32 @@ EXPECTED_RESPONSE_FIELDS = {
     "MissionResponse": ["description", "difficulty", "verificationType", "privacySharePreview"],
     "PrivacySettingsResponse": ["exposedFields", "ownPortfolioId"],
 }
+EXPECTED_ONBOARDING_VALUES = {
+    "occupationStatus": "PART_TIME_STUDENT",
+    "incomeBand": "INCOME_150_250",
+    "householdType": "SINGLE",
+    "goalType": "EMERGENCY_FUND",
+    "painPoint": "SAVE_CONSISTENTLY",
+    "cohortLabel": "학생/알바 · 월소득 150~250만 원 · 1인 가구",
+}
+FORBIDDEN_ONBOARDING_SNIPPETS = [
+    "COLLEGE" + "_STUDENT",
+    "UNDER" + "_1M",
+    "LIVING_WITH" + "_FAMILY",
+    "소득 100만 원 미만 " + "대학생",
+]
+FORBIDDEN_LEDGER_DESCRIPTIONS = [
+    "두끼",
+    "노티드",
+    "CU",
+    "타다",
+    "11번가",
+    "김밥천국",
+    "배스킨라빈스",
+    "노션",
+    "오늘의집",
+    "티머니",
+]
 
 
 def fail(message: str) -> None:
@@ -194,6 +220,7 @@ def assert_seed_contract() -> None:
     for fixed_id, collection in [
         ("demo-user-001", users),
         ("P001", personas),
+        ("P003", personas),
         ("diag-001", diagnoses),
         ("mydata-mock-001", connections),
         ("privacy-001", settings),
@@ -218,6 +245,40 @@ def assert_seed_contract() -> None:
         fail("peer-portfolio-023 must start ACTIVE")
     if portfolios["own-portfolio-001"]["status"] != "ACTIVE":
         fail("own-portfolio-001 must start ACTIVE")
+    if portfolios["peer-portfolio-023"].get("personaProfileId") != "P003":
+        fail("peer-portfolio-023 personaProfileId must be P003")
+    if portfolios["own-portfolio-001"].get("personaProfileId") is not None:
+        fail("own-portfolio-001 must keep personaProfileId null because it is MOCK_MYDATA preview")
+
+    p001 = personas["P001"]
+    expected_p001 = {
+        "occupationStatus": "PART_TIME_STUDENT",
+        "incomeBand": "INCOME_150_250",
+        "householdType": "SINGLE",
+        "goalType": "EMERGENCY_FUND",
+    }
+    for field, expected in expected_p001.items():
+        if p001.get(field) != expected:
+            fail(f"P001 {field} must be {expected}")
+
+    p003 = personas["P003"]
+    expected_p003 = {
+        "label": "비상금 루틴형 B",
+        "occupationStatus": "FIRST_JOB",
+        "incomeBand": "INCOME_250_350",
+        "householdType": "SINGLE",
+        "goalType": "EMERGENCY_FUND",
+    }
+    for field, expected in expected_p003.items():
+        if p003.get(field) != expected:
+            fail(f"P003 {field} must be {expected}")
+
+    diagnosis = diagnoses["diag-001"]
+    for field in ["occupationStatus", "incomeBand", "householdType", "goalType", "painPoint"]:
+        if diagnosis.get(field) != EXPECTED_ONBOARDING_VALUES[field]:
+            fail(f"diag-001 {field} must match P001 onboarding example")
+    if diagnosis.get("cohortLabel") != EXPECTED_ONBOARDING_VALUES["cohortLabel"]:
+        fail("diag-001 cohortLabel must match P001 source direction")
 
     if settings["privacy-001"]["preview"]["portfolioId"] != "own-portfolio-001":
         fail("Privacy preview must point to own-portfolio-001")
@@ -290,6 +351,15 @@ def assert_dataset_link_contract() -> None:
     if mappings != expected_mappings:
         fail("dataset-persona-map must map demo/own to P001 and peer to P003")
 
+    portfolios = {item["id"]: item for item in load_json(SEED_DIR / "portfolios.json")}
+    personas = {item["id"]: item for item in load_json(SEED_DIR / "personas.json")}
+    if portfolios["peer-portfolio-023"].get("personaProfileId") != mappings["peer-portfolio-023"]:
+        fail("peer-portfolio-023 personaProfileId must match dataset source persona P003")
+    if "P003" not in personas:
+        fail("seed/personas.json must include P003 because peer-portfolio-023 maps to P003")
+    if portfolios["own-portfolio-001"].get("personaProfileId") is not None:
+        fail("own-portfolio-001 must stay MOCK_MYDATA preview with null personaProfileId")
+
     with (DATA_P0_DIR / "feature-matrix.demo.csv").open("r", encoding="utf-8", newline="") as file:
         feature_rows = list(csv.DictReader(file))
     feature_ids = {row["finmate_id"] for row in feature_rows}
@@ -309,17 +379,46 @@ def assert_dataset_link_contract() -> None:
         fail("ledger-sample.demo.csv must only include demo user and peer portfolio contexts")
     if ledger_source_ids != {"P001", "P003"}:
         fail("ledger-sample.demo.csv must contain only P001 and P003 source personas")
+    ledger_text = (DATA_P0_DIR / "ledger-sample.demo.csv").read_text(encoding="utf-8")
+    for merchant in FORBIDDEN_LEDGER_DESCRIPTIONS:
+        if merchant in ledger_text:
+            fail(f"ledger-sample.demo.csv must use masked descriptions, found: {merchant}")
 
     doc_checks = [
         (ROOT / "README.md", ["Dataset Source", "financial-sns-mydata-202606", "data/source-dataset.md"]),
         (SEED_DIR / "README.md", ["financial-sns-mydata-202606", "P001", "P003"]),
-        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003"]),
+        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED"]),
+        (DATA_DIR / "source-dataset.md", ["정규화 실행 데이터", "DEMO_NORMALIZED"]),
+        (ROOT / "docs" / "01_presentation_plan_v1.0.md", ["P001", "P003", "DEMO_NORMALIZED"]),
     ]
     for path, snippets in doc_checks:
         text = path.read_text(encoding="utf-8")
         for snippet in snippets:
             if snippet not in text:
                 fail(f"{path.relative_to(ROOT)} missing dataset-link snippet: {snippet}")
+
+
+def assert_onboarding_examples_contract() -> None:
+    paths = [
+        OPENAPI_PATH,
+        ROOT / "docs" / "03_api_handoff_v1.0.md",
+        REQUEST_PATH,
+        SEED_DIR / "onboarding-diagnoses.json",
+    ]
+    required_snippets = [
+        EXPECTED_ONBOARDING_VALUES["occupationStatus"],
+        EXPECTED_ONBOARDING_VALUES["incomeBand"],
+        EXPECTED_ONBOARDING_VALUES["householdType"],
+        EXPECTED_ONBOARDING_VALUES["cohortLabel"],
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for snippet in required_snippets:
+            if snippet not in text:
+                fail(f"{path.relative_to(ROOT)} missing P001 onboarding snippet: {snippet}")
+        for snippet in FORBIDDEN_ONBOARDING_SNIPPETS:
+            if snippet in text:
+                fail(f"{path.relative_to(ROOT)} contains stale onboarding snippet: {snippet}")
 
 
 def assert_request_contract() -> None:
@@ -410,6 +509,7 @@ def main() -> int:
         assert_openapi_text_contract(OPENAPI_PATH)
     assert_seed_contract()
     assert_dataset_link_contract()
+    assert_onboarding_examples_contract()
     assert_request_contract()
     assert_evidence_placeholders()
     assert_text_regressions()

@@ -92,9 +92,9 @@ Request:
 
 ```json
 {
-  "occupationStatus": "COLLEGE_STUDENT",
-  "incomeBand": "UNDER_1M",
-  "householdType": "LIVING_WITH_FAMILY",
+  "occupationStatus": "PART_TIME_STUDENT",
+  "incomeBand": "INCOME_150_250",
+  "householdType": "SINGLE",
   "goalType": "EMERGENCY_FUND",
   "painPoint": "SAVE_CONSISTENTLY"
 }
@@ -108,7 +108,7 @@ Response:
   "onboardingToken": "onb-token-001",
   "goalType": "EMERGENCY_FUND",
   "recommendedPersonaId": "P001",
-  "cohortLabel": "소득 100만 원 미만 대학생",
+  "cohortLabel": "학생/알바 · 월소득 150~250만 원 · 1인 가구",
   "expiresAt": "2026-06-30T15:30:00+09:00"
 }
 ```
@@ -342,6 +342,8 @@ incomeBandMatch * 0.35
 ```
 
 데모 고정값은 `0.84`를 사용한다.
+
+`similarityScore=0.84`는 P0 발표용 `DEMO_NORMALIZED` 점수다. 원본 `feature_matrix.csv`의 raw cluster distance나 실제 유사도 모델 결과가 아니라, P001/P003의 페르소나 방향성을 유지하면서 7분 데모 비교 흐름을 설명하기 쉽게 정규화한 값이다.
 
 ### 6.8 POST /api/simulations
 

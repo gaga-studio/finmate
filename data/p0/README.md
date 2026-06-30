@@ -8,7 +8,7 @@
 | --- | --- |
 | `dataset-persona-map.json` | FinMate seed ID와 원본 persona ID 매핑 |
 | `feature-matrix.demo.csv` | P001/P003의 핵심 feature subset |
-| `ledger-sample.demo.csv` | 발표 설명용 거래 샘플 |
+| `ledger-sample.demo.csv` | 발표 설명용 거래 샘플. `description`은 P0 UI 원칙에 맞춰 거래처 원문 대신 마스킹 label 사용 |
 
 ## Mapping Summary
 

@@ -1,12 +1,20 @@
 [
   {
     "id": "P001",
-    "label": "비상금 루틴형 B",
-    "occupationStatus": "COLLEGE_STUDENT",
-    "incomeBand": "UNDER_1M",
-    "householdType": "LIVING_WITH_FAMILY",
+    "label": "학생/알바 1인가구",
+    "occupationStatus": "PART_TIME_STUDENT",
+    "incomeBand": "INCOME_150_250",
+    "householdType": "SINGLE",
     "goalType": "EMERGENCY_FUND",
-    "description": "소액 자동이체 루틴으로 비상금 준비율을 먼저 높이는 또래 사례"
+    "description": "저축률이 낮은 학생/알바 1인가구 데모 사용자 기준 페르소나"
+  },
+  {
+    "id": "P003",
+    "label": "비상금 루틴형 B",
+    "occupationStatus": "FIRST_JOB",
+    "incomeBand": "INCOME_250_350",
+    "householdType": "SINGLE",
+    "goalType": "EMERGENCY_FUND",
+    "description": "사회초년생 1인가구의 비상금 자동저축 루틴 사례"
   }
 ]
-
