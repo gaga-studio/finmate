@@ -1,0 +1,14 @@
+[
+  {
+    "id": "onb-session-001",
+    "userId": "demo-user-001",
+    "diagnosisId": "diag-001",
+    "onboardingToken": "onb-token-001",
+    "expectedAccessToken": "demo-token",
+    "status": "IN_PROGRESS",
+    "expiresAt": "2026-06-30T15:30:00+09:00",
+    "completedAt": null,
+    "createdAt": "2026-06-30T15:00:00+09:00"
+  }
+]
+

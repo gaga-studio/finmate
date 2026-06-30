@@ -1,0 +1,77 @@
+[
+  {
+    "id": "peer-portfolio-023",
+    "ownerUserId": "peer-user-023",
+    "personaProfileId": "P001",
+    "displayName": "비상금 루틴형 B",
+    "status": "ACTIVE",
+    "visibility": "PUBLIC",
+    "dataMode": "SYNTHETIC_PERSONA",
+    "financialSummary": {
+      "emergencyFundMonths": 1.8,
+      "savingsRate": 0.21,
+      "fixedCostRatio": 0.38
+    },
+    "featureSnapshot": {
+      "incomeBandMatch": 1.0,
+      "occupationStatusMatch": 1.0,
+      "householdTypeMatch": 0.2,
+      "goalTypeMatch": 1.0,
+      "similarityScore": 0.84
+    },
+    "routineCards": [
+      {
+        "title": "월급 다음 날 10만 원 자동이체",
+        "description": "소비 전 저축을 먼저 고정합니다."
+      },
+      {
+        "title": "평일 점심 예산 1만 원 상한",
+        "description": "예산을 넘긴 날은 다음 날 간식비를 줄입니다."
+      }
+    ],
+    "privacyBadges": [
+      "가명 처리",
+      "거래처 비공개",
+      "금액 구간 표시"
+    ],
+    "createdAt": "2026-06-30T15:00:00+09:00",
+    "updatedAt": "2026-06-30T15:00:00+09:00",
+    "publishedAt": "2026-06-30T15:00:00+09:00",
+    "withdrawnAt": null
+  },
+  {
+    "id": "own-portfolio-001",
+    "ownerUserId": "demo-user-001",
+    "personaProfileId": null,
+    "displayName": "나의 공개 미리보기",
+    "status": "ACTIVE",
+    "visibility": "PUBLIC",
+    "dataMode": "MOCK_MYDATA",
+    "financialSummary": {
+      "emergencyFundMonths": 0.4,
+      "savingsRate": 0.08,
+      "fixedCostRatio": 0.42
+    },
+    "featureSnapshot": {
+      "incomeBandMatch": 1.0,
+      "occupationStatusMatch": 1.0,
+      "householdTypeMatch": 1.0,
+      "goalTypeMatch": 1.0,
+      "similarityScore": 1.0
+    },
+    "routineCards": [
+      {
+        "title": "남은 돈 저축 방식",
+        "description": "월말에 남는 돈을 비상금 계좌로 옮깁니다."
+      }
+    ],
+    "privacyBadges": [
+      "공개 미리보기",
+      "계좌번호 비공개"
+    ],
+    "createdAt": "2026-06-30T15:02:00+09:00",
+    "updatedAt": "2026-06-30T15:02:00+09:00",
+    "publishedAt": "2026-06-30T15:02:00+09:00",
+    "withdrawnAt": null
+  }
+]

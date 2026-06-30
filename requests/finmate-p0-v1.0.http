@@ -1,0 +1,158 @@
+@baseUrl = http://localhost:3000
+@onboardingToken = onb-token-001
+@accessToken = demo-token
+@peerPortfolioId = peer-portfolio-023
+@ownPortfolioId = own-portfolio-001
+
+### 1. 30초 진단 생성
+# Expected: 200, diagnosisId=diag-001, onboardingToken=onb-token-001
+POST {{baseUrl}}/api/onboarding/diagnosis
+Content-Type: application/json
+
+{
+  "occupationStatus": "COLLEGE_STUDENT",
+  "incomeBand": "UNDER_1M",
+  "householdType": "LIVING_WITH_FAMILY",
+  "goalType": "EMERGENCY_FUND",
+  "painPoint": "SAVE_CONSISTENTLY"
+}
+
+### 2. mock 마이데이터 동의
+# Expected: 200, mydataConnectionId=mydata-mock-001, status=CONNECTED
+POST {{baseUrl}}/api/mydata/mock-consent
+Authorization: Bearer {{onboardingToken}}
+Content-Type: application/json
+Idempotency-Key: mydata-mock-001
+
+{
+  "diagnosisId": "diag-001",
+  "consentVersion": "mydata-mock-v1.0",
+  "scopes": [
+    "ACCOUNT_SUMMARY",
+    "CARD_SPENDING",
+    "INVESTMENT_SUMMARY"
+  ]
+}
+
+### 3. 개인정보/익명 포트폴리오 공개 동의
+# Expected: 200, privacySettingsId=privacy-001, previewAvailable=true
+POST {{baseUrl}}/api/privacy/consents
+Authorization: Bearer {{onboardingToken}}
+Content-Type: application/json
+Idempotency-Key: privacy-consents-001
+
+{
+  "anonymousPortfolioOptIn": true,
+  "friendShareDefault": "NONE",
+  "exposedFields": [
+    "ageBand",
+    "incomeBand",
+    "goalType",
+    "financialSummary",
+    "routineCards"
+  ],
+  "consentVersion": "privacy-v1.0"
+}
+
+### 4. 데모 세션 시작
+# Expected: 200, userId=demo-user-001, accessToken=demo-token
+POST {{baseUrl}}/api/demo/session
+Authorization: Bearer {{onboardingToken}}
+Content-Type: application/json
+Idempotency-Key: demo-session-001
+
+{
+  "mode": "QUICK_DIAGNOSIS",
+  "diagnosisId": "diag-001",
+  "mydataConnectionId": "mydata-mock-001"
+}
+
+### 5. 홈 조회
+# Expected: 200, peerTeaser.portfolioId=peer-portfolio-023
+GET {{baseUrl}}/api/home
+Authorization: Bearer {{accessToken}}
+
+### 6. 또래 포트폴리오 조회
+# Expected: 200, portfolioId=peer-portfolio-023, routineCards present
+GET {{baseUrl}}/api/explore/portfolios/{{peerPortfolioId}}
+Authorization: Bearer {{accessToken}}
+
+### 7. 비교 생성
+# Expected: 200, comparisonId=cmp-001, mainGap.type=EMERGENCY_FUND, similarityScore=0.84
+POST {{baseUrl}}/api/comparisons
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "peerPortfolioId": "peer-portfolio-023"
+}
+
+### 8. 3개월 시뮬레이션 생성
+# Expected: 200, simulationId=sim-001, monthlyAdditionalSaving=100000, after.cashLikeAssets=700000, after.emergencyFundMonths=0.7
+POST {{baseUrl}}/api/simulations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "comparisonId": "cmp-001",
+  "scenarioType": "FOLLOW_PEER_ROUTINE",
+  "monthlyAdditionalSaving": 100000,
+  "periodMonths": 3
+}
+
+### 9. 오늘의 미션 생성
+# Expected: 200, missionId=mis-001, title="이번 달 비상금 자동이체 10만 원 설정하기"
+POST {{baseUrl}}/api/missions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Idempotency-Key: mission-2026-06-30
+
+{
+  "simulationId": "sim-001",
+  "missionTemplateId": "MISSION_AUTO_TRANSFER_SMALL",
+  "triggerSource": "SIMULATION",
+  "recommendationSource": "RULE_BASED",
+  "difficulty": "EASY"
+}
+
+### 10. 개인정보 설정/공개 미리보기 조회
+# Expected: 200, preview.portfolioId=own-portfolio-001, exposedFields present
+GET {{baseUrl}}/api/privacy/settings
+Authorization: Bearer {{accessToken}}
+
+### 11. 개인정보 설정 partial update
+# Expected: 200, omitted fields preserved, friendShareDefault=MISSION_ONLY
+PATCH {{baseUrl}}/api/privacy/settings
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "friendShareDefault": "MISSION_ONLY",
+  "exposedFields": [
+    "ageBand",
+    "goalType",
+    "financialSummary"
+  ]
+}
+
+### 12. 내 공개 포트폴리오 철회
+# Expected: 200, status=WITHDRAWN, affectedPortfolioIds includes own-portfolio-001
+POST {{baseUrl}}/api/privacy/withdraw
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "scope": "ANONYMOUS_PORTFOLIO",
+  "portfolioId": "own-portfolio-001",
+  "reason": "DEMO_PRIVACY_CHECK"
+}
+
+### 13. Privacy verification: own portfolio is unavailable after withdraw
+# Expected: 410, code=PORTFOLIO_NOT_AVAILABLE
+GET {{baseUrl}}/api/explore/portfolios/{{ownPortfolioId}}
+Authorization: Bearer {{accessToken}}
+
+### 14. Privacy verification: peer portfolio is still available
+# Expected: 200, portfolioId=peer-portfolio-023
+GET {{baseUrl}}/api/explore/portfolios/{{peerPortfolioId}}
+Authorization: Bearer {{accessToken}}

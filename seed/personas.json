@@ -1,0 +1,12 @@
+[
+  {
+    "id": "P001",
+    "label": "비상금 루틴형 B",
+    "occupationStatus": "COLLEGE_STUDENT",
+    "incomeBand": "UNDER_1M",
+    "householdType": "LIVING_WITH_FAMILY",
+    "goalType": "EMERGENCY_FUND",
+    "description": "소액 자동이체 루틴으로 비상금 준비율을 먼저 높이는 또래 사례"
+  }
+]
+

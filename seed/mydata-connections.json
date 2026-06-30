@@ -1,0 +1,18 @@
+[
+  {
+    "id": "mydata-mock-001",
+    "userId": "demo-user-001",
+    "diagnosisId": "diag-001",
+    "consentVersion": "mydata-mock-v1.0",
+    "scopes": [
+      "ACCOUNT_SUMMARY",
+      "CARD_SPENDING",
+      "INVESTMENT_SUMMARY"
+    ],
+    "status": "CONNECTED",
+    "dataMode": "MOCK_MYDATA",
+    "agreedAt": "2026-06-30T15:01:00+09:00",
+    "revokedAt": null
+  }
+]
+

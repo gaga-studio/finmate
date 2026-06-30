@@ -1,0 +1,17 @@
+[
+  {
+    "id": "demo-user-001",
+    "displayName": "데모 사용자",
+    "dataMode": "MOCK_MYDATA",
+    "createdAt": "2026-06-30T15:00:00+09:00",
+    "updatedAt": "2026-06-30T15:00:00+09:00"
+  },
+  {
+    "id": "peer-user-023",
+    "displayName": "비상금 루틴형 B 소유자",
+    "dataMode": "MOCK_MYDATA",
+    "createdAt": "2026-06-30T15:00:00+09:00",
+    "updatedAt": "2026-06-30T15:00:00+09:00"
+  }
+]
+

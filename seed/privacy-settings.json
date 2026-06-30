@@ -1,0 +1,29 @@
+[
+  {
+    "id": "privacy-001",
+    "userId": "demo-user-001",
+    "anonymousPortfolioOptIn": true,
+    "friendShareDefault": "NONE",
+    "ownPortfolioId": "own-portfolio-001",
+    "exposedFields": [
+      "ageBand",
+      "incomeBand",
+      "goalType",
+      "financialSummary",
+      "routineCards"
+    ],
+    "preview": {
+      "portfolioId": "own-portfolio-001",
+      "displayName": "나의 공개 미리보기",
+      "hiddenFields": [
+        "name",
+        "accountNumber",
+        "merchantName",
+        "exactTransactionTime"
+      ]
+    },
+    "consentVersion": "privacy-v1.0",
+    "createdAt": "2026-06-30T15:02:00+09:00",
+    "updatedAt": "2026-06-30T15:02:00+09:00"
+  }
+]

@@ -1,0 +1,15 @@
+[
+  {
+    "id": "diag-001",
+    "userId": "demo-user-001",
+    "occupationStatus": "COLLEGE_STUDENT",
+    "incomeBand": "UNDER_1M",
+    "householdType": "LIVING_WITH_FAMILY",
+    "goalType": "EMERGENCY_FUND",
+    "painPoint": "SAVE_CONSISTENTLY",
+    "recommendedPersonaId": "P001",
+    "cohortLabel": "소득 100만 원 미만 대학생",
+    "createdAt": "2026-06-30T15:00:00+09:00"
+  }
+]
+

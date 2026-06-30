@@ -1,0 +1,26 @@
+[
+  {
+    "id": "fv-demo-2026-06",
+    "userId": "demo-user-001",
+    "periodMonth": "2026-06",
+    "emergencyFundMonths": 0.4,
+    "savingsRate": 0.08,
+    "fixedCostRatio": 0.42,
+    "cashLikeAssets": 400000,
+    "monthlyEssentialSpending": 1000000,
+    "monthlyIncome": 2200000,
+    "createdAt": "2026-06-30T15:00:00+09:00"
+  },
+  {
+    "id": "fv-peer-023-2026-06",
+    "userId": "peer-user-023",
+    "periodMonth": "2026-06",
+    "emergencyFundMonths": 1.8,
+    "savingsRate": 0.21,
+    "fixedCostRatio": 0.38,
+    "cashLikeAssets": 1800000,
+    "monthlyEssentialSpending": 1000000,
+    "monthlyIncome": 2300000,
+    "createdAt": "2026-06-30T15:00:00+09:00"
+  }
+]

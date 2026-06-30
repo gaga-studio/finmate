@@ -1,0 +1,13 @@
+[
+  {
+    "id": "MISSION_AUTO_TRANSFER_SMALL",
+    "goalType": "EMERGENCY_FUND",
+    "titleTemplate": "이번 달 비상금 자동이체 10만 원 설정하기",
+    "descriptionTemplate": "월급이나 용돈이 들어온 다음 날 비상금 계좌로 10만 원 자동이체를 예약합니다.",
+    "defaultDifficulty": "EASY",
+    "defaultVerificationType": "SELF_CHECK",
+    "defaultRewardPoints": 100,
+    "active": true
+  }
+]
+

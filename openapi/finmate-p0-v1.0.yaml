@@ -1,0 +1,1215 @@
+openapi: 3.1.0
+info:
+  title: FinMate P0 API
+  version: 1.0.0
+  description: Public v1.0 P0 contract for the FinMate final presentation demo.
+servers:
+  - url: http://localhost:3000
+    description: Local demo server
+security:
+  - BearerAuth: []
+tags:
+  - name: Onboarding
+  - name: Demo
+  - name: Home
+  - name: Explore
+  - name: Comparison
+  - name: Simulation
+  - name: Mission
+  - name: Privacy
+paths:
+  /api/onboarding/diagnosis:
+    post:
+      operationId: createOnboardingDiagnosis
+      tags: [Onboarding]
+      security: []
+      summary: Create 30-second diagnosis and issue onboarding token
+      description: The frontend does not send userId. The server creates or links demo-user-001 internally and maps onboardingToken to actorUserId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingDiagnosisRequest"
+            examples:
+              default:
+                value:
+                  occupationStatus: COLLEGE_STUDENT
+                  incomeBand: UNDER_1M
+                  householdType: LIVING_WITH_FAMILY
+                  goalType: EMERGENCY_FUND
+                  painPoint: SAVE_CONSISTENTLY
+      responses:
+        "200":
+          description: Diagnosis created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingDiagnosisResponse"
+              examples:
+                default:
+                  value:
+                    diagnosisId: diag-001
+                    onboardingToken: onb-token-001
+                    goalType: EMERGENCY_FUND
+                    recommendedPersonaId: P001
+                    cohortLabel: 소득 100만 원 미만 대학생
+                    expiresAt: "2026-06-30T15:30:00+09:00"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/mydata/mock-consent:
+    post:
+      operationId: createMockMyDataConsent
+      tags: [Onboarding]
+      summary: Record mock MyData consent for demo
+      description: Uses onboardingToken before accessToken exists. Audit actorUserId is resolved from onboardingToken.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MockConsentRequest"
+            examples:
+              default:
+                value:
+                  diagnosisId: diag-001
+                  consentVersion: mydata-mock-v1.0
+                  scopes:
+                    - ACCOUNT_SUMMARY
+                    - CARD_SPENDING
+                    - INVESTMENT_SUMMARY
+      responses:
+        "200":
+          description: Mock MyData consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockConsentResponse"
+              examples:
+                default:
+                  value:
+                    mydataConnectionId: mydata-mock-001
+                    status: CONNECTED
+                    dataMode: MOCK_MYDATA
+                    agreedAt: "2026-06-30T15:01:00+09:00"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/privacy/consents:
+    post:
+      operationId: createPrivacyConsents
+      tags: [Privacy, Onboarding]
+      summary: Record privacy consent during onboarding
+      description: Uses onboardingToken before accessToken exists. ConsentHistory.actorUserId is resolved from onboardingToken.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacyConsentsRequest"
+            examples:
+              default:
+                value:
+                  anonymousPortfolioOptIn: true
+                  friendShareDefault: NONE
+                  exposedFields:
+                    - ageBand
+                    - incomeBand
+                    - goalType
+                    - financialSummary
+                    - routineCards
+                  consentVersion: privacy-v1.0
+      responses:
+        "200":
+          description: Privacy consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacyConsentsResponse"
+              examples:
+                default:
+                  value:
+                    privacySettingsId: privacy-001
+                    consentHistoryIds:
+                      - consent-privacy-001
+                      - consent-portfolio-001
+                    previewAvailable: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/demo/session:
+    post:
+      operationId: createDemoSession
+      tags: [Demo]
+      summary: Convert onboarding flow to access-token demo session
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoSessionRequest"
+            examples:
+              quickDiagnosis:
+                value:
+                  mode: QUICK_DIAGNOSIS
+                  diagnosisId: diag-001
+                  mydataConnectionId: mydata-mock-001
+              samplePersona:
+                value:
+                  mode: SAMPLE_PERSONA
+                  personaId: P001
+                  goalType: EMERGENCY_FUND
+      responses:
+        "200":
+          description: Demo session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoSessionResponse"
+              examples:
+                default:
+                  value:
+                    userId: demo-user-001
+                    accessToken: demo-token
+                    selectedPersonaId: P001
+                    goalType: EMERGENCY_FUND
+                    expiresAt: "2026-06-30T16:00:00+09:00"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/home:
+    get:
+      operationId: getHome
+      tags: [Home]
+      summary: Get home summary and peer teaser
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Home summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeResponse"
+              examples:
+                default:
+                  value:
+                    userId: demo-user-001
+                    goal:
+                      goalType: EMERGENCY_FUND
+                      label: 비상금 1개월 만들기
+                    todayBudget: 18000
+                    spendingSummary:
+                      monthlySpent: 420000
+                      fixedCostRatio: 0.42
+                    assetSummary:
+                      cashLikeAssets: 400000
+                      emergencyFundMonths: 0.4
+                    todayMissionCandidate:
+                      title: 이번 달 비상금 자동이체 10만 원 설정하기
+                      recommendationSource: RULE_BASED
+                    peerTeaser:
+                      portfolioId: peer-portfolio-023
+                      title: 비상금 루틴형 B
+                      similarityScore: 0.84
+                      mainDifference: 비상금 준비율이 1.6개월 차이
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/explore/portfolios/{id}:
+    get:
+      operationId: getExplorePortfolio
+      tags: [Explore]
+      summary: Get anonymized portfolio detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            peer:
+              value: peer-portfolio-023
+            own:
+              value: own-portfolio-001
+      responses:
+        "200":
+          description: Portfolio detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioResponse"
+              examples:
+                peer:
+                  value:
+                    portfolioId: peer-portfolio-023
+                    displayName: 비상금 루틴형 B
+                    status: ACTIVE
+                    visibility: PUBLIC
+                    dataMode: SYNTHETIC_PERSONA
+                    financialSummary:
+                      emergencyFundMonths: 1.8
+                      savingsRate: 0.21
+                      fixedCostRatio: 0.38
+                    routineCards:
+                      - title: 월급 다음 날 10만 원 자동이체
+                        description: 소비 전 저축을 먼저 고정합니다.
+                    privacyBadges:
+                      - 가명 처리
+                      - 거래처 비공개
+                      - 금액 구간 표시
+                ownPreview:
+                  value:
+                    portfolioId: own-portfolio-001
+                    displayName: 나의 공개 미리보기
+                    status: ACTIVE
+                    visibility: PUBLIC
+                    dataMode: MOCK_MYDATA
+                    financialSummary:
+                      emergencyFundMonths: 0.4
+                      savingsRate: 0.08
+                      fixedCostRatio: 0.42
+                    routineCards:
+                      - title: 남은 돈 저축 방식
+                        description: 월말에 남는 돈을 비상금 계좌로 옮깁니다.
+                    privacyBadges:
+                      - 공개 미리보기
+                      - 계좌번호 비공개
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          $ref: "#/components/responses/PortfolioNotAvailable"
+  /api/comparisons:
+    post:
+      operationId: createComparison
+      tags: [Comparison]
+      summary: Compare viewer data with selected peer portfolio
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComparisonRequest"
+            examples:
+              default:
+                value:
+                  peerPortfolioId: peer-portfolio-023
+      responses:
+        "200":
+          description: Comparison created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComparisonResponse"
+              examples:
+                default:
+                  value:
+                    comparisonId: cmp-001
+                    peerPortfolioId: peer-portfolio-023
+                    mainGap:
+                      type: EMERGENCY_FUND
+                      label: 비상금 준비율
+                      score: 0.5333
+                    similarityScore: 0.84
+                    gapItems:
+                      - type: EMERGENCY_FUND
+                        userValue: 0.4
+                        peerValue: 1.8
+                        unit: months
+                      - type: SAVINGS_RATE
+                        userValue: 0.08
+                        peerValue: 0.21
+                        unit: ratio
+                      - type: FIXED_COST_RATIO
+                        userValue: 0.42
+                        peerValue: 0.38
+                        unit: ratio
+                    nextAction:
+                      label: 3개월 시뮬레이션 보기
+                      scenarioType: FOLLOW_PEER_ROUTINE
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          $ref: "#/components/responses/PortfolioNotAvailable"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/simulations:
+    post:
+      operationId: createSimulation
+      tags: [Simulation]
+      summary: Create three-month simulation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationRequest"
+            examples:
+              default:
+                value:
+                  comparisonId: cmp-001
+                  scenarioType: FOLLOW_PEER_ROUTINE
+                  monthlyAdditionalSaving: 100000
+                  periodMonths: 3
+      responses:
+        "200":
+          description: Simulation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResponse"
+              examples:
+                default:
+                  value:
+                    simulationId: sim-001
+                    comparisonId: cmp-001
+                    scenarioType: FOLLOW_PEER_ROUTINE
+                    periodMonths: 3
+                    monthlyAdditionalSaving: 100000
+                    before:
+                      emergencyFundMonths: 0.4
+                      cashLikeAssets: 400000
+                    after:
+                      emergencyFundMonths: 0.7
+                      cashLikeAssets: 700000
+                    insight: 3개월 동안 매월 10만 원을 먼저 떼어두면 비상금 준비율이 0.4개월에서 0.7개월로 올라갑니다.
+                    nextAction:
+                      label: 오늘의 미션 만들기
+                      missionTemplateId: MISSION_AUTO_TRANSFER_SMALL
+                    disclaimer: 이 시뮬레이션은 합성 데이터 기반 가정이며 금융상품 권유나 수익 보장이 아닙니다.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/missions:
+    post:
+      operationId: createMission
+      tags: [Mission]
+      summary: Create today's mission from simulation
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MissionRequest"
+            examples:
+              default:
+                value:
+                  simulationId: sim-001
+                  missionTemplateId: MISSION_AUTO_TRANSFER_SMALL
+                  triggerSource: SIMULATION
+                  recommendationSource: RULE_BASED
+                  difficulty: EASY
+      responses:
+        "200":
+          description: Mission created or existing idempotent mission returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionResponse"
+              examples:
+                default:
+                  value:
+                    missionId: mis-001
+                    title: 이번 달 비상금 자동이체 10만 원 설정하기
+                    description: 월급이나 용돈이 들어온 다음 날 비상금 계좌로 10만 원 자동이체를 예약합니다.
+                    difficulty: EASY
+                    verificationType: SELF_CHECK
+                    rewardPoints: 100
+                    status: CREATED
+                    localDate: "2026-06-30"
+                    privacySharePreview:
+                      shareableText: 오늘 비상금 자동이체 미션을 시작했어요.
+                      containsAmount: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/privacy/settings:
+    get:
+      operationId: getPrivacySettings
+      tags: [Privacy]
+      summary: Get privacy settings and public preview
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Privacy settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacySettingsResponse"
+              examples:
+                default:
+                  value:
+                    privacySettingsId: privacy-001
+                    anonymousPortfolioOptIn: true
+                    friendShareDefault: NONE
+                    ownPortfolioId: own-portfolio-001
+                    exposedFields:
+                      - ageBand
+                      - incomeBand
+                      - goalType
+                      - financialSummary
+                      - routineCards
+                    preview:
+                      portfolioId: own-portfolio-001
+                      displayName: 나의 공개 미리보기
+                      hiddenFields:
+                        - name
+                        - accountNumber
+                        - merchantName
+                        - exactTransactionTime
+                    consentVersion: privacy-v1.0
+                    updatedAt: "2026-06-30T15:02:00+09:00"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    patch:
+      operationId: updatePrivacySettings
+      tags: [Privacy]
+      summary: Partially update privacy settings
+      description: Omitted fields keep existing values. Empty request body returns 422.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacySettingsPatchRequest"
+            examples:
+              default:
+                value:
+                  friendShareDefault: MISSION_ONLY
+                  exposedFields:
+                    - ageBand
+                    - goalType
+                    - financialSummary
+      responses:
+        "200":
+          description: Privacy settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacySettingsResponse"
+              examples:
+                default:
+                  value:
+                    privacySettingsId: privacy-001
+                    anonymousPortfolioOptIn: true
+                    friendShareDefault: MISSION_ONLY
+                    ownPortfolioId: own-portfolio-001
+                    exposedFields:
+                      - ageBand
+                      - goalType
+                      - financialSummary
+                    preview:
+                      portfolioId: own-portfolio-001
+                      displayName: 나의 공개 미리보기
+                      hiddenFields:
+                        - name
+                        - accountNumber
+                        - merchantName
+                        - exactTransactionTime
+                    consentVersion: privacy-v1.0
+                    updatedAt: "2026-06-30T15:20:00+09:00"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/privacy/withdraw:
+    post:
+      operationId: withdrawPrivacyConsent
+      tags: [Privacy]
+      summary: Withdraw anonymous portfolio publication or data contribution consent
+      description: P0 uses ANONYMOUS_PORTFOLIO only. Already-withdrawn requests still return 200 with status WITHDRAWN.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacyWithdrawRequest"
+            examples:
+              anonymousPortfolio:
+                value:
+                  scope: ANONYMOUS_PORTFOLIO
+                  portfolioId: own-portfolio-001
+                  reason: DEMO_PRIVACY_CHECK
+              dataContribution:
+                value:
+                  scope: DATA_CONTRIBUTION
+                  reason: USER_REQUEST
+      responses:
+        "200":
+          description: Consent withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacyWithdrawResponse"
+              examples:
+                default:
+                  value:
+                    status: WITHDRAWN
+                    withdrawnAt: "2026-06-30T15:25:00+09:00"
+                    affectedPortfolioIds:
+                      - own-portfolio-001
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token
+      description: Use onboardingToken before demo session and accessToken after demo session.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      example: idem-mission-001
+  responses:
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            default:
+              value:
+                code: UNAUTHORIZED
+                message: Authentication required.
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            default:
+              value:
+                code: FORBIDDEN
+                message: You do not have permission to access this resource.
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            default:
+              value:
+                code: NOT_FOUND
+                message: Resource not found.
+    PortfolioNotAvailable:
+      description: Portfolio was withdrawn or is private
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            default:
+              value:
+                code: PORTFOLIO_NOT_AVAILABLE
+                message: This portfolio is no longer available.
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            default:
+              value:
+                code: VALIDATION_ERROR
+                message: Request validation failed.
+                fieldErrors:
+                  - field: portfolioId
+                    message: portfolioId is required when scope is ANONYMOUS_PORTFOLIO.
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    GoalType:
+      type: string
+      enum: [EMERGENCY_FUND, REDUCE_SPENDING, START_INVESTING, PAY_DEBT]
+    OnboardingDiagnosisRequest:
+      type: object
+      additionalProperties: false
+      required: [occupationStatus, incomeBand, householdType, goalType, painPoint]
+      properties:
+        occupationStatus:
+          type: string
+          example: COLLEGE_STUDENT
+        incomeBand:
+          type: string
+          example: UNDER_1M
+        householdType:
+          type: string
+          example: LIVING_WITH_FAMILY
+        goalType:
+          $ref: "#/components/schemas/GoalType"
+        painPoint:
+          type: string
+          example: SAVE_CONSISTENTLY
+    OnboardingDiagnosisResponse:
+      type: object
+      required: [diagnosisId, onboardingToken, goalType, recommendedPersonaId, cohortLabel, expiresAt]
+      properties:
+        diagnosisId:
+          type: string
+          example: diag-001
+        onboardingToken:
+          type: string
+          example: onb-token-001
+        goalType:
+          $ref: "#/components/schemas/GoalType"
+        recommendedPersonaId:
+          type: string
+          example: P001
+        cohortLabel:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    MockConsentRequest:
+      type: object
+      additionalProperties: false
+      required: [diagnosisId, consentVersion, scopes]
+      properties:
+        diagnosisId:
+          type: string
+          example: diag-001
+        consentVersion:
+          type: string
+          example: mydata-mock-v1.0
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+    MockConsentResponse:
+      type: object
+      required: [mydataConnectionId, status, dataMode, agreedAt]
+      properties:
+        mydataConnectionId:
+          type: string
+          example: mydata-mock-001
+        status:
+          type: string
+          enum: [CONNECTED]
+        dataMode:
+          type: string
+          enum: [MOCK_MYDATA]
+        agreedAt:
+          type: string
+          format: date-time
+    PrivacyConsentsRequest:
+      type: object
+      additionalProperties: false
+      required: [anonymousPortfolioOptIn, friendShareDefault, exposedFields, consentVersion]
+      properties:
+        anonymousPortfolioOptIn:
+          type: boolean
+        friendShareDefault:
+          $ref: "#/components/schemas/FriendShareDefault"
+        exposedFields:
+          $ref: "#/components/schemas/ExposedFields"
+        consentVersion:
+          type: string
+          example: privacy-v1.0
+    PrivacyConsentsResponse:
+      type: object
+      required: [privacySettingsId, consentHistoryIds, previewAvailable]
+      properties:
+        privacySettingsId:
+          type: string
+          example: privacy-001
+        consentHistoryIds:
+          type: array
+          items:
+            type: string
+        previewAvailable:
+          type: boolean
+    DemoSessionRequest:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode, diagnosisId, mydataConnectionId]
+          properties:
+            mode:
+              const: QUICK_DIAGNOSIS
+            diagnosisId:
+              type: string
+              example: diag-001
+            mydataConnectionId:
+              type: string
+              example: mydata-mock-001
+        - type: object
+          additionalProperties: false
+          required: [mode, personaId, goalType]
+          properties:
+            mode:
+              const: SAMPLE_PERSONA
+            personaId:
+              type: string
+              example: P001
+            goalType:
+              $ref: "#/components/schemas/GoalType"
+    DemoSessionResponse:
+      type: object
+      required: [userId, accessToken, selectedPersonaId, goalType, expiresAt]
+      properties:
+        userId:
+          type: string
+          example: demo-user-001
+        accessToken:
+          type: string
+          example: demo-token
+        selectedPersonaId:
+          type: string
+          example: P001
+        goalType:
+          $ref: "#/components/schemas/GoalType"
+        expiresAt:
+          type: string
+          format: date-time
+    HomeResponse:
+      type: object
+      required: [userId, goal, todayBudget, spendingSummary, assetSummary, todayMissionCandidate, peerTeaser]
+      properties:
+        userId:
+          type: string
+        goal:
+          type: object
+          required: [goalType, label]
+          properties:
+            goalType:
+              $ref: "#/components/schemas/GoalType"
+            label:
+              type: string
+        todayBudget:
+          type: integer
+        spendingSummary:
+          type: object
+          required: [monthlySpent, fixedCostRatio]
+          properties:
+            monthlySpent:
+              type: integer
+            fixedCostRatio:
+              type: number
+        assetSummary:
+          type: object
+          required: [cashLikeAssets, emergencyFundMonths]
+          properties:
+            cashLikeAssets:
+              type: integer
+            emergencyFundMonths:
+              type: number
+        todayMissionCandidate:
+          type: object
+          required: [title, recommendationSource]
+          properties:
+            title:
+              type: string
+            recommendationSource:
+              type: string
+              enum: [RULE_BASED, LLM_OPTIONAL]
+        peerTeaser:
+          type: object
+          required: [portfolioId, title, similarityScore, mainDifference]
+          properties:
+            portfolioId:
+              type: string
+              example: peer-portfolio-023
+            title:
+              type: string
+            similarityScore:
+              type: number
+            mainDifference:
+              type: string
+    PortfolioResponse:
+      type: object
+      required: [portfolioId, displayName, status, visibility, dataMode, financialSummary, routineCards, privacyBadges]
+      properties:
+        portfolioId:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, WITHDRAWN, PRIVATE]
+        visibility:
+          type: string
+          enum: [PUBLIC, PRIVATE]
+        dataMode:
+          type: string
+          enum: [MOCK_MYDATA, SYNTHETIC_PERSONA]
+        financialSummary:
+          $ref: "#/components/schemas/FinancialSummary"
+        routineCards:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoutineCard"
+        privacyBadges:
+          type: array
+          items:
+            type: string
+    FinancialSummary:
+      type: object
+      required: [emergencyFundMonths, savingsRate, fixedCostRatio]
+      properties:
+        emergencyFundMonths:
+          type: number
+        savingsRate:
+          type: number
+        fixedCostRatio:
+          type: number
+    RoutineCard:
+      type: object
+      required: [title, description]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+    ComparisonRequest:
+      type: object
+      additionalProperties: false
+      required: [peerPortfolioId]
+      properties:
+        peerPortfolioId:
+          type: string
+          example: peer-portfolio-023
+    ComparisonResponse:
+      type: object
+      required: [comparisonId, peerPortfolioId, mainGap, similarityScore, gapItems, nextAction]
+      properties:
+        comparisonId:
+          type: string
+          example: cmp-001
+        peerPortfolioId:
+          type: string
+        mainGap:
+          type: object
+          required: [type, label, score]
+          properties:
+            type:
+              type: string
+              enum: [EMERGENCY_FUND, SAVINGS_RATE, FIXED_COST_RATIO]
+            label:
+              type: string
+            score:
+              type: number
+        similarityScore:
+          type: number
+        gapItems:
+          type: array
+          items:
+            type: object
+            required: [type, userValue, peerValue, unit]
+            properties:
+              type:
+                type: string
+              userValue:
+                type: number
+              peerValue:
+                type: number
+              unit:
+                type: string
+        nextAction:
+          type: object
+          required: [label, scenarioType]
+          properties:
+            label:
+              type: string
+            scenarioType:
+              type: string
+              enum: [FOLLOW_PEER_ROUTINE]
+    SimulationRequest:
+      type: object
+      additionalProperties: false
+      required: [comparisonId, scenarioType, monthlyAdditionalSaving, periodMonths]
+      properties:
+        comparisonId:
+          type: string
+          example: cmp-001
+        scenarioType:
+          type: string
+          enum: [FOLLOW_PEER_ROUTINE]
+        monthlyAdditionalSaving:
+          type: integer
+          example: 100000
+        periodMonths:
+          type: integer
+          example: 3
+    SimulationResponse:
+      type: object
+      required: [simulationId, comparisonId, scenarioType, periodMonths, monthlyAdditionalSaving, before, after, insight, nextAction, disclaimer]
+      properties:
+        simulationId:
+          type: string
+          example: sim-001
+        comparisonId:
+          type: string
+        scenarioType:
+          type: string
+        periodMonths:
+          type: integer
+        monthlyAdditionalSaving:
+          type: integer
+        before:
+          type: object
+          additionalProperties:
+            type: number
+        after:
+          type: object
+          additionalProperties:
+            type: number
+        insight:
+          type: string
+        nextAction:
+          type: object
+          required: [label, missionTemplateId]
+          properties:
+            label:
+              type: string
+            missionTemplateId:
+              type: string
+        disclaimer:
+          type: string
+    MissionRequest:
+      type: object
+      additionalProperties: false
+      required: [simulationId, missionTemplateId, triggerSource, recommendationSource, difficulty]
+      properties:
+        simulationId:
+          type: string
+          example: sim-001
+        missionTemplateId:
+          type: string
+          example: MISSION_AUTO_TRANSFER_SMALL
+        triggerSource:
+          type: string
+          enum: [SIMULATION, HOME, MANUAL]
+        recommendationSource:
+          type: string
+          enum: [RULE_BASED, LLM_OPTIONAL]
+        difficulty:
+          type: string
+          enum: [EASY, NORMAL, HARD]
+    MissionResponse:
+      type: object
+      required: [missionId, title, description, difficulty, verificationType, rewardPoints, status, localDate, privacySharePreview]
+      properties:
+        missionId:
+          type: string
+          example: mis-001
+        title:
+          type: string
+        description:
+          type: string
+        difficulty:
+          type: string
+        verificationType:
+          type: string
+          enum: [SELF_CHECK, DATA_CHECK, QUIZ]
+        rewardPoints:
+          type: integer
+        status:
+          type: string
+          enum: [CREATED, IN_PROGRESS, COMPLETED, SKIPPED]
+        localDate:
+          type: string
+          format: date
+        privacySharePreview:
+          type: object
+          required: [shareableText, containsAmount]
+          properties:
+            shareableText:
+              type: string
+            containsAmount:
+              type: boolean
+    PrivacySettingsResponse:
+      type: object
+      required: [privacySettingsId, anonymousPortfolioOptIn, friendShareDefault, ownPortfolioId, exposedFields, preview, consentVersion, updatedAt]
+      properties:
+        privacySettingsId:
+          type: string
+          example: privacy-001
+        anonymousPortfolioOptIn:
+          type: boolean
+        friendShareDefault:
+          $ref: "#/components/schemas/FriendShareDefault"
+        ownPortfolioId:
+          type: string
+          example: own-portfolio-001
+        exposedFields:
+          $ref: "#/components/schemas/ExposedFields"
+        preview:
+          type: object
+          required: [portfolioId, displayName, hiddenFields]
+          properties:
+            portfolioId:
+              type: string
+              example: own-portfolio-001
+            displayName:
+              type: string
+            hiddenFields:
+              type: array
+              items:
+                type: string
+        consentVersion:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    PrivacySettingsPatchRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        anonymousPortfolioOptIn:
+          type: boolean
+        friendShareDefault:
+          $ref: "#/components/schemas/FriendShareDefault"
+        exposedFields:
+          $ref: "#/components/schemas/ExposedFields"
+    PrivacyWithdrawRequest:
+      oneOf:
+        - $ref: "#/components/schemas/AnonymousPortfolioWithdrawRequest"
+        - $ref: "#/components/schemas/DataContributionWithdrawRequest"
+    AnonymousPortfolioWithdrawRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, portfolioId]
+      properties:
+        scope:
+          const: ANONYMOUS_PORTFOLIO
+        portfolioId:
+          type: string
+          example: own-portfolio-001
+        reason:
+          type: string
+          example: DEMO_PRIVACY_CHECK
+    DataContributionWithdrawRequest:
+      type: object
+      additionalProperties: false
+      required: [scope]
+      properties:
+        scope:
+          const: DATA_CONTRIBUTION
+        portfolioId:
+          type: string
+          example: own-portfolio-001
+        reason:
+          type: string
+          example: USER_REQUEST
+    PrivacyWithdrawResponse:
+      type: object
+      required: [status, withdrawnAt, affectedPortfolioIds]
+      properties:
+        status:
+          type: string
+          enum: [WITHDRAWN]
+        withdrawnAt:
+          type: string
+          format: date-time
+        affectedPortfolioIds:
+          type: array
+          items:
+            type: string
+    ExposedFields:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        enum:
+          - ageBand
+          - incomeBand
+          - occupationStatus
+          - householdType
+          - goalType
+          - financialSummary
+          - routineCards
+    FriendShareDefault:
+      type: string
+      enum: [NONE, MISSION_ONLY, ACHIEVEMENT_ONLY]
