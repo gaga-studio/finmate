@@ -38,10 +38,10 @@
 | 호출 API | `GET /api/home` |
 | 로딩 | “오늘의 금융 상태를 불러오는 중이에요.” |
 | 빈 상태 | 세션 없음: ONB-02 이동 CTA |
-| 성공 | `goal`, `summary`, `peerTeaser`, `todayMissionCandidate` 표시 |
+| 성공 | `goal`, `todayBudget`, `spendingSummary`, `assetSummary`, `peerTeaser`, `todayMissionCandidate` 표시 |
 | 버튼 이동 | 또래 사례 보기 → `/explore/portfolios/{peerTeaser.portfolioId}` |
 | error copy | `UNAUTHORIZED`: “세션이 만료됐어요. 다시 시작해주세요.” |
-| 사용 데이터 | `goal.goalType`, `goal.label`, `summary`, `peerTeaser.portfolioId`, `todayMissionCandidate.recommendationSource` |
+| 사용 데이터 | `goal.goalType`, `goal.label`, `todayBudget`, `spendingSummary.monthlySpent`, `spendingSummary.fixedCostRatio`, `assetSummary.cashLikeAssets`, `assetSummary.emergencyFundMonths`, `peerTeaser.portfolioId`, `todayMissionCandidate.recommendationSource` |
 
 ## 4. EXP-03 또래 포트폴리오 상세
 
@@ -50,11 +50,11 @@
 | 목적 | 합성 또래 사례 카드와 루틴 표시 |
 | 호출 API | `GET /api/explore/portfolios/{id}` |
 | 로딩 | “또래 사례를 불러오는 중이에요.” |
-| 성공 | `alias`, `financialSummary`, `routineCards`, `privacyBadges` 표시 |
+| 성공 | `displayName`, `financialSummary`, `routineCards`, `privacyBadges` 표시 |
 | 버튼 이동 | 비교하기 → `/explore/compare/{portfolioId}` |
 | error copy | `PORTFOLIO_NOT_AVAILABLE`: “해당 사례 카드는 더 이상 공개되지 않아요.” |
 | modal | privacy badge 클릭 시 “이 카드는 가명 처리되고 금액은 구간으로 표시됩니다.” |
-| 사용 데이터 | `portfolioId`, `alias`, `financialSummary`, `routineCards`, `privacyBadges` |
+| 사용 데이터 | `portfolioId`, `displayName`, `status`, `visibility`, `dataMode`, `financialSummary`, `routineCards`, `privacyBadges` |
 
 ## 5. EXP-04 1:1 비교
 
@@ -67,7 +67,8 @@
 | 버튼 이동 | 3개월 시뮬레이션 보기 → `/simulations/{comparisonId}` |
 | error copy | `PORTFOLIO_NOT_AVAILABLE`: “해당 사례 카드는 더 이상 공개되지 않아요.” |
 | error copy | `COHORT_TOO_SMALL`: “비교 기준이 부족해 일부 항목을 숨겼어요.” |
-| 사용 데이터 | `comparisonId`, `similarityScore`, `mainGap`, `gapItems`, `nextAction.scenarioType` |
+| 표시 기준 | `gapItems`는 항목별 리스트 표시용이고, 강조/정렬 수치는 `mainGap.normalizedGap`만 사용 |
+| 사용 데이터 | `comparisonId`, `similarityScore`, `mainGap.type`, `mainGap.label`, `mainGap.normalizedGap`, `gapItems`, `nextAction.scenarioType` |
 
 ## 6. SIM-01 3개월 시뮬레이션
 
@@ -109,4 +110,3 @@
 | toast | “공개 범위가 저장됐어요.”, “공개 동의가 철회됐어요.” |
 | error copy | `FORBIDDEN`: “본인의 공개 범위만 변경할 수 있어요.” |
 | 사용 데이터 | `ownPortfolioId`, `anonymousPortfolioOptIn`, `friendShareDefault`, `exposedFields`, `preview`, `consentVersion` |
-

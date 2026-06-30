@@ -123,6 +123,12 @@ curl http://localhost:8080/health
 
 수동 리허설은 `requests/finmate-p0-v1.0.http`를 `@baseUrl = http://localhost:8080` 기준으로 순서대로 실행합니다. `GET /health`는 운영 확인용 endpoint이며 OpenAPI P0 12개 API에는 포함하지 않습니다.
 
+프론트 연결 기준:
+
+- API base URL은 `http://localhost:8080`입니다.
+- CORS는 `http://localhost:3000`, `http://localhost:5173` origin을 허용합니다.
+- P0 mock API는 발표 안정성을 위해 고정 입력에 strict합니다. ONB-02 선택값과 request payload는 `requests/finmate-p0-v1.0.http`의 값과 맞춰야 합니다.
+
 ## Role-Based Reading Guide
 
 | 역할 | 먼저 읽을 문서 |

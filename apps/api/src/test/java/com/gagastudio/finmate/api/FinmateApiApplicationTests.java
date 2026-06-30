@@ -10,9 +10,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -205,6 +208,26 @@ class FinmateApiApplicationTests {
     }
 
     @Test
+    void rejectsWrongTokens() throws Exception {
+        mockMvc.perform(post("/api/mydata/mock-consent")
+                        .header("Authorization", "Bearer wrong-onboarding-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "diagnosisId": "diag-001",
+                                  "consentVersion": "mydata-mock-v1.0",
+                                  "scopes": ["ACCOUNT_SUMMARY"]
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+        mockMvc.perform(get("/api/home").header("Authorization", "Bearer wrong-access-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
     void rejectsEmptyPrivacyPatch() throws Exception {
         mockMvc.perform(patch("/api/privacy/settings")
                         .header("Authorization", ACCESS_AUTH)
@@ -212,5 +235,69 @@ class FinmateApiApplicationTests {
                         .content("{}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsInvalidExposedFields() throws Exception {
+        mockMvc.perform(patch("/api/privacy/settings")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "exposedFields": ["ageBand", "merchantName"]
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsPeerPortfolioWithdrawTarget() throws Exception {
+        mockMvc.perform(post("/api/privacy/withdraw")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scope": "ANONYMOUS_PORTFOLIO",
+                                  "portfolioId": "peer-portfolio-023"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void dataContributionWithdrawDoesNotChangePortfolioAvailability() throws Exception {
+        mockMvc.perform(post("/api/privacy/withdraw")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scope": "DATA_CONTRIBUTION",
+                                  "reason": "USER_REQUEST"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WITHDRAWN"))
+                .andExpect(jsonPath("$.affectedPortfolioIds", hasSize(0)));
+
+        mockMvc.perform(get("/api/explore/portfolios/own-portfolio-001").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.portfolioId").value("own-portfolio-001"));
+    }
+
+    @Test
+    void corsAllowsLocalFrontendOrigins() throws Exception {
+        mockMvc.perform(options("/api/home")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+
+        mockMvc.perform(options("/health")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
     }
 }
