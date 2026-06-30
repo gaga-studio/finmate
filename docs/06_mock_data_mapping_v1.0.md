@@ -5,6 +5,18 @@
 
 범위: 공개 v1.0은 발표 데모와 개발 착수를 위해 seed JSON, HTTP request template, demo reset runbook, validator를 포함한다.
 
+## 0. 원본 합성 데이터셋 연결
+
+FinMate v1.0 seed는 `gaga-studio/financial-sns-mydata-202606` 합성 데이터셋을 출처로 삼되, 원본 전체를 공개 레포에 복사하지 않는다.
+
+| FinMate ID | Source Persona | 사용 방식 |
+| --- | --- | --- |
+| `demo-user-001` | `P001` | 데모 사용자 feature의 기준 |
+| `own-portfolio-001` | `P001` | 본인 공개 미리보기와 철회 path의 마스킹 snapshot |
+| `peer-portfolio-023` | `P003` | 또래 비교 카드와 비상금 루틴형 사례 |
+
+발표용 seed 값은 원본 데이터를 P0 데모에 맞게 정규화한 값이다. 따라서 `data/p0/`의 feature와 ledger 샘플은 출처와 방향성을 설명하는 subset이며, 전체 원본 ledger 재현을 목적으로 하지 않는다.
+
 ## 1. 고정 ID
 
 | 항목 | 값 | 설명 |

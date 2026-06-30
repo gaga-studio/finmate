@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import csv
 from pathlib import Path
 
 try:
@@ -16,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = ROOT / "openapi" / "finmate-p0-v1.0.yaml"
 SEED_DIR = ROOT / "seed"
 REQUEST_PATH = ROOT / "requests" / "finmate-p0-v1.0.http"
+DATA_DIR = ROOT / "data"
+DATA_P0_DIR = DATA_DIR / "p0"
 
 HTTP_METHODS = {"get", "post", "patch", "put", "delete", "options", "head", "trace"}
 EXPECTED_RESPONSE_FIELDS = {
@@ -244,6 +247,81 @@ def assert_seed_contract() -> None:
             fail(f"{portfolio_id} missing privacyBadges")
 
 
+def assert_dataset_link_contract() -> None:
+    required_paths = [
+        DATA_DIR / "README.md",
+        DATA_DIR / "source-dataset.md",
+        DATA_P0_DIR / "README.md",
+        DATA_P0_DIR / "dataset-persona-map.json",
+        DATA_P0_DIR / "feature-matrix.demo.csv",
+        DATA_P0_DIR / "ledger-sample.demo.csv",
+    ]
+    for path in required_paths:
+        if not path.exists():
+            fail(f"Missing dataset link file: {path.relative_to(ROOT)}")
+
+    for path in DATA_DIR.rglob("*"):
+        if not path.is_file():
+            continue
+        if "bundles" in path.parts:
+            fail("Do not copy source dataset bundles into data/")
+        if "aggregates" in path.parts:
+            fail("Do not copy source dataset aggregates into data/")
+        if path.name == "ledger_all.csv":
+            fail("Do not copy full ledger_all.csv into data/")
+        if path.suffix.lower() == ".xlsx":
+            fail("Do not copy Excel source artifacts into data/")
+
+    mapping = load_json(DATA_P0_DIR / "dataset-persona-map.json")
+    if mapping.get("publicPackageVersion") != "v1.0.0":
+        fail("dataset-persona-map publicPackageVersion must be v1.0.0")
+    if mapping.get("sourceRepository") != "https://github.com/gaga-studio/financial-sns-mydata-202606":
+        fail("dataset-persona-map sourceRepository must point to the source dataset repo")
+
+    mappings = {
+        item["finmateId"]: item["sourcePersonaId"]
+        for item in mapping.get("mappings", [])
+    }
+    expected_mappings = {
+        "demo-user-001": "P001",
+        "own-portfolio-001": "P001",
+        "peer-portfolio-023": "P003",
+    }
+    if mappings != expected_mappings:
+        fail("dataset-persona-map must map demo/own to P001 and peer to P003")
+
+    with (DATA_P0_DIR / "feature-matrix.demo.csv").open("r", encoding="utf-8", newline="") as file:
+        feature_rows = list(csv.DictReader(file))
+    feature_ids = {row["finmate_id"] for row in feature_rows}
+    feature_source_ids = {row["source_persona_id"] for row in feature_rows}
+    if feature_ids != {"demo-user-001", "own-portfolio-001", "peer-portfolio-023"}:
+        fail("feature-matrix.demo.csv must contain only the three FinMate P0 mapped IDs")
+    if feature_source_ids != {"P001", "P003"}:
+        fail("feature-matrix.demo.csv must contain only P001 and P003 source personas")
+
+    with (DATA_P0_DIR / "ledger-sample.demo.csv").open("r", encoding="utf-8", newline="") as file:
+        ledger_rows = list(csv.DictReader(file))
+    if len(ledger_rows) > 20:
+        fail("ledger-sample.demo.csv must stay a small P0 subset")
+    ledger_contexts = {row["finmate_context"] for row in ledger_rows}
+    ledger_source_ids = {row["source_persona_id"] for row in ledger_rows}
+    if ledger_contexts != {"demo-user-001", "peer-portfolio-023"}:
+        fail("ledger-sample.demo.csv must only include demo user and peer portfolio contexts")
+    if ledger_source_ids != {"P001", "P003"}:
+        fail("ledger-sample.demo.csv must contain only P001 and P003 source personas")
+
+    doc_checks = [
+        (ROOT / "README.md", ["Dataset Source", "financial-sns-mydata-202606", "data/source-dataset.md"]),
+        (SEED_DIR / "README.md", ["financial-sns-mydata-202606", "P001", "P003"]),
+        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003"]),
+    ]
+    for path, snippets in doc_checks:
+        text = path.read_text(encoding="utf-8")
+        for snippet in snippets:
+            if snippet not in text:
+                fail(f"{path.relative_to(ROOT)} missing dataset-link snippet: {snippet}")
+
+
 def assert_request_contract() -> None:
     text = REQUEST_PATH.read_text(encoding="utf-8")
 
@@ -331,6 +409,7 @@ def main() -> int:
     else:
         assert_openapi_text_contract(OPENAPI_PATH)
     assert_seed_contract()
+    assert_dataset_link_contract()
     assert_request_contract()
     assert_evidence_placeholders()
     assert_text_regressions()

@@ -1,0 +1,31 @@
+{
+  "publicPackageVersion": "v1.0.0",
+  "sourceRepository": "https://github.com/gaga-studio/financial-sns-mydata-202606",
+  "sourceDatasetName": "Financial SNS MyData Synthetic Dataset 2026-06",
+  "sourceDatasetMonth": "2026-06",
+  "mappingPolicy": {
+    "copyPolicy": "Do not copy the full source dataset into this repository. Keep only the P0 demo subset.",
+    "normalizationPolicy": "FinMate seed values are normalized for the P0 presentation flow and are not a full ledger replay.",
+    "privacyPolicy": "Only synthetic, masked, and presentation-safe fields are exposed in this public package."
+  },
+  "mappings": [
+    {
+      "finmateId": "demo-user-001",
+      "sourcePersonaId": "P001",
+      "role": "demo_user",
+      "reason": "Low-saving one-person youth persona suitable for the P0 gap demo."
+    },
+    {
+      "finmateId": "own-portfolio-001",
+      "sourcePersonaId": "P001",
+      "role": "own_masked_portfolio_preview",
+      "reason": "Masked public preview and withdrawal path for the demo user."
+    },
+    {
+      "finmateId": "peer-portfolio-023",
+      "sourcePersonaId": "P003",
+      "role": "peer_portfolio",
+      "reason": "One-person early-career persona with emergency-fund goal and stronger saving routine."
+    }
+  ]
+}

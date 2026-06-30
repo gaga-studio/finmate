@@ -1,0 +1,14 @@
+finmate_context,source_persona_id,transaction_id,date,type,category,subcategory,description,amount_krw,cashflow_bucket,mapping_note
+demo-user-001,P001,P001-T0011,2026-06-25,이체,저축,예적금/청약,비상금 이체,-30000,저축,Shows a small existing emergency-fund habit before FinMate mission.
+demo-user-001,P001,P001-T0017,2026-06-30,지출,식비,한식,두끼 노량진역점,-11400,소비,Food spending sample for spending-summary context.
+demo-user-001,P001,P001-T0054,2026-06-29,지출,카페/간식,디저트/떡,노티드,-3100,소비,Variable spending sample.
+demo-user-001,P001,P001-T0057,2026-06-26,지출,생활,편의점,CU,-9800,소비,Everyday spending sample.
+demo-user-001,P001,P001-T0013,2026-06-30,지출,교통,택시,타다,-15700,소비,Transport spending sample.
+demo-user-001,P001,P001-T0079,2026-06-29,지출,온라인쇼핑,인터넷쇼핑,11번가,-55100,소비,Online-shopping sample.
+peer-portfolio-023,P003,P003-T0001,2026-06-26,수입,근로소득,급여,6월 월급,3160000,소득,Peer income context.
+peer-portfolio-023,P003,P003-T0007,2026-06-28,이체,저축,예적금/청약,적금 자동이체,-720000,저축,Peer saving routine that inspires the mission.
+peer-portfolio-023,P003,P003-T0066,2026-06-30,지출,식비,한식,김밥천국 홍대점,-22400,소비,Peer everyday spending sample.
+peer-portfolio-023,P003,P003-T0100,2026-06-30,지출,카페/간식,디저트/떡,배스킨라빈스,-6400,소비,Peer variable spending sample.
+peer-portfolio-023,P003,P003-T0053,2026-06-30,지출,생활,서비스구독,노션,-27100,소비,Subscription sample for routine-card context.
+peer-portfolio-023,P003,P003-T0108,2026-06-30,지출,교통,대중교통,티머니,-9300,소비,Peer transport spending sample.
+peer-portfolio-023,P003,P003-T0060,2026-06-30,지출,온라인쇼핑,인터넷쇼핑,오늘의집,-63600,소비,Peer online-shopping sample.
