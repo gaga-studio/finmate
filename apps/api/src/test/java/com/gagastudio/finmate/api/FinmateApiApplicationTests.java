@@ -84,7 +84,7 @@ class FinmateApiApplicationTests {
     }
 
     @Test
-    void productMvpAuthOnboardingStartsWithEmptyUserState() throws Exception {
+    void productMvpAuthOnboardingCreatesStarterUserState() throws Exception {
         String email = "user-" + UUID.randomUUID() + "@finmate.local";
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -111,6 +111,10 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("민준"))
                 .andExpect(jsonPath("$.pointBalance").value(0));
+
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
 
         mockMvc.perform(post("/api/users/me/onboarding")
                         .header("Authorization", "Bearer " + accessToken)
@@ -143,43 +147,88 @@ class FinmateApiApplicationTests {
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM onboarding_responses WHERE user_id = ?", Integer.class, userId));
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM mydata_connections WHERE user_id = ? AND data_mode = 'SYNTHETIC_MYDATA'", Integer.class, userId));
         assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM consent_events WHERE user_id = ?", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
+        assertEquals(3, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
 
         mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
                 .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"))
-                .andExpect(jsonPath("$.sections[1].id").value("mission-empty"))
-                .andExpect(jsonPath("$.sections[2].id").value("budget-empty"))
-                .andExpect(jsonPath("$.sections[4].id").value("asset-empty"));
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("spending"))
+                .andExpect(jsonPath("$.sections[4].id").value("asset"))
+                .andExpect(jsonPath("$.sections[?(@.id == 'birthday-alert')]").doesNotExist());
 
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM friendships WHERE follower_id = ?", Integer.class, userId));
 
         mockMvc.perform(post("/api/ai/coach-results/fallback").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.source").value("USER_STATE"))
-                .andExpect(jsonPath("$.recommendations", hasSize(0)));
+                .andExpect(jsonPath("$.source").value("RULE_BASED_FALLBACK"))
+                .andExpect(jsonPath("$.recommendations", hasSize(3)));
 
         mockMvc.perform(get("/api/app/missions").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("missions"))
-                .andExpect(jsonPath("$.sections[0].id").value("mission-empty"));
+                .andExpect(jsonPath("$.sections[0].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[1].items", hasSize(3)));
 
         mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("records:2026-06"))
-                .andExpect(jsonPath("$.sections[1].id").value("record-empty"));
+                .andExpect(jsonPath("$.sections[1].id").value("budget"));
 
         mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("compare"))
-                .andExpect(jsonPath("$.sections[1].id").value("compare-empty"));
+                .andExpect(jsonPath("$.sections[1].id").value("score"));
 
         mockMvc.perform(get("/api/app/missions/not-a-mission").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MISSION_NOT_FOUND"));
+
+        mockMvc.perform(post("/api/app/missions/mission-food/feedback")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "DONE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rewardPoints").value(120));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ? AND status = 'COMPLETED'", Integer.class, userId));
+
+        mockMvc.perform(post("/api/users/me/onboarding")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ageBand": "20대 후반",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
+                                  "householdType": "1인가구",
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권",
+                                  "goalType": "EMERGENCY_FUND",
+                                  "painPoint": "SAVE_CONSISTENTLY",
+                                  "privacyConsent": {
+                                    "anonymousPortfolioOptIn": true,
+                                    "friendShareDefault": "MISSION_ONLY",
+                                    "exposedFields": ["ageBand", "goalType", "financialSummary", "missionStatus"],
+                                    "privacyConsentVersion": "privacy-v1.4"
+                                  },
+                                  "mydataConsent": {
+                                    "mydataConsentVersion": "synthetic-mydata-v1.4",
+                                    "mydataScopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onboardingCompleted").value(true));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ? AND id = ? AND status = 'COMPLETED'", Integer.class, userId, userId + ":mission-food"));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM point_transactions WHERE user_id = ? AND reference_id = 'mission-food'", Integer.class, userId));
 
         mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isOk())

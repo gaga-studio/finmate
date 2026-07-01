@@ -261,6 +261,7 @@ public class ProductAppService implements FinancialDataProvider {
         insertConsentEvent(userId, "MYDATA_SYNTHETIC", request.mydataConsent().mydataConsentVersion(), "AGREED",
                 "합성/샘플 금융 데이터 기반 연결 범위에 동의");
         jdbc.update("UPDATE users SET onboarding_completed = TRUE, updated_at = now() WHERE id = ?", userId);
+        upsertOnboardingStarterState(userId, request);
         return userMe(userId);
     }
 
@@ -281,6 +282,178 @@ public class ProductAppService implements FinancialDataProvider {
                 rs.getInt("point_balance"),
                 rs.getInt("virtual_money_balance")
         ), userId);
+    }
+
+    private void upsertOnboardingStarterState(String userId, ProductOnboardingRequest request) {
+        if (userId.startsWith("synthetic-")) {
+            return;
+        }
+
+        StarterRoutine routine = starterRoutine(request);
+        jdbc.update("""
+                INSERT INTO financial_snapshots (
+                  id, user_id, month, monthly_income, monthly_spending, monthly_saving,
+                  investment_value, cash_like_assets, emergency_fund_months, categories_json, lifestyle_tags
+                )
+                VALUES (?, ?, '2026-06', ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, month) DO UPDATE SET
+                  monthly_income = EXCLUDED.monthly_income,
+                  monthly_spending = EXCLUDED.monthly_spending,
+                  monthly_saving = EXCLUDED.monthly_saving,
+                  investment_value = EXCLUDED.investment_value,
+                  cash_like_assets = EXCLUDED.cash_like_assets,
+                  emergency_fund_months = EXCLUDED.emergency_fund_months,
+                  categories_json = EXCLUDED.categories_json,
+                  lifestyle_tags = EXCLUDED.lifestyle_tags
+                """, "snapshot-" + userId, userId, routine.monthlyIncome(), routine.monthlySpending(),
+                routine.monthlySaving(), routine.investmentValue(), routine.cashLikeAssets(), routine.emergencyFundMonths(),
+                json(routine.monthlyCategories()), String.join(",", routine.lifestyleTags()));
+
+        jdbc.update("""
+                INSERT INTO daily_records (id, user_id, record_date, budget, spent, category_spending_json, mission_status, point_delta)
+                VALUES (?, ?, DATE '2026-06-12', ?, ?, ?, 'IN_PROGRESS', 0)
+                ON CONFLICT (user_id, record_date) DO UPDATE SET
+                  budget = EXCLUDED.budget,
+                  spent = EXCLUDED.spent,
+                  category_spending_json = EXCLUDED.category_spending_json,
+                  mission_status = CASE
+                    WHEN daily_records.mission_status = 'SUCCESS' THEN daily_records.mission_status
+                    ELSE EXCLUDED.mission_status
+                  END
+                """, "record-" + userId + "-2026-06-12", userId, routine.dailyBudget(), routine.dailySpent(), json(routine.dailyCategories()));
+
+        upsertStarterMission(userId, "mission-food", "내일 식비 10,000원 이하 사용하기", "하루 식비를 낮춰 남는 금액을 비상금으로 옮겨요.", "EASY", 120, routine.foodMissionProgress());
+        upsertStarterMission(userId, "mission-saving", "저축하기 습관 만들기", "이번 주 남는 금액을 비상금으로 따로 모아봐요.", "EASY", 200, routine.savingMissionProgress());
+        upsertStarterMission(userId, "mission-fixed-cost", "고정 지출 5% 줄이기", "구독과 반복 결제를 점검해 다음 달 현금흐름을 가볍게 만들어요.", "NORMAL", 180, routine.fixedCostMissionProgress());
+        if ("START_INVESTING".equals(request.painPoint()) || request.moneyStyle().contains("투자")) {
+            upsertStarterMission(userId, "mission-invest", "투자 비중 점검하기", "이번 달 매수 금액과 현금 비중을 함께 확인해요.", "NORMAL", 150, 15);
+        }
+    }
+
+    private void upsertStarterMission(String userId, String missionId, String title, String description, String difficulty, int rewardPoints, int progress) {
+        jdbc.update("""
+                INSERT INTO missions (id, user_id, title, description, status, difficulty, reward_points, progress, due_date, source)
+                VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?, DATE '2026-06-30', 'ONBOARDING_STARTER')
+                ON CONFLICT (id) DO UPDATE SET
+                  title = EXCLUDED.title,
+                  description = EXCLUDED.description,
+                  difficulty = EXCLUDED.difficulty,
+                  reward_points = EXCLUDED.reward_points,
+                  progress = EXCLUDED.progress,
+                  source = EXCLUDED.source
+                WHERE missions.status <> 'COMPLETED'
+                """, missionDbId(userId, missionId), userId, title, description, difficulty, rewardPoints, progress);
+    }
+
+    private StarterRoutine starterRoutine(ProductOnboardingRequest request) {
+        int monthlyIncome = starterIncome(request.incomeBand());
+        double spendingRate = starterSpendingRate(request);
+        int monthlySpending = roundTo((int) Math.round(monthlyIncome * spendingRate), 10000);
+        int investmentValue = starterInvestmentValue(request);
+        int monthlySaving = Math.max(120000, roundTo(monthlyIncome - monthlySpending - investmentValue / 8, 10000));
+        int cashLikeAssets = Math.max(300000, roundTo((int) Math.round(monthlySaving * 1.35), 10000));
+        double emergencyFundMonths = Math.round((cashLikeAssets * 100.0) / Math.max(monthlySpending, 1)) / 100.0;
+
+        int dailyBudget = Math.max(12000, roundTo(monthlySpending / 60, 1000));
+        int dailySpent = Math.min(dailyBudget, Math.max(6000, roundTo((int) Math.round(dailyBudget * starterDailySpendRate(request)), 100)));
+        Map<String, Integer> dailyCategories = splitCategories(dailySpent, request);
+        Map<String, Integer> monthlyCategories = splitCategories(monthlySpending, request);
+        List<String> tags = starterTags(request);
+
+        return new StarterRoutine(
+                monthlyIncome,
+                monthlySpending,
+                monthlySaving,
+                investmentValue,
+                cashLikeAssets,
+                emergencyFundMonths,
+                dailyBudget,
+                dailySpent,
+                dailyCategories,
+                monthlyCategories,
+                tags,
+                "CONTROL_SPENDING".equals(request.painPoint()) ? 18 : 34,
+                "SAVE_CONSISTENTLY".equals(request.painPoint()) ? 42 : 24,
+                "1인가구".equals(request.householdType()) ? 22 : 35
+        );
+    }
+
+    private int starterIncome(String incomeBand) {
+        if (incomeBand.contains("2,000")) {
+            return 2100000;
+        }
+        if (incomeBand.contains("4,000")) {
+            return 3750000;
+        }
+        return 2900000;
+    }
+
+    private double starterSpendingRate(ProductOnboardingRequest request) {
+        double rate = 0.68;
+        if ("1인가구".equals(request.householdType())) {
+            rate += 0.07;
+        } else if ("가족과 거주".equals(request.householdType())) {
+            rate -= 0.12;
+        } else if (request.householdType().contains("룸메이트")) {
+            rate -= 0.04;
+        }
+        if ("CONTROL_SPENDING".equals(request.painPoint())) {
+            rate += 0.06;
+        } else if ("SAVE_CONSISTENTLY".equals(request.painPoint())) {
+            rate -= 0.03;
+        }
+        if (request.moneyStyle().contains("투자")) {
+            rate -= 0.02;
+        }
+        return Math.max(0.48, Math.min(0.82, rate));
+    }
+
+    private int starterInvestmentValue(ProductOnboardingRequest request) {
+        if ("START_INVESTING".equals(request.painPoint()) || request.moneyStyle().contains("투자")) {
+            return 520000;
+        }
+        if ("TRAVEL".equals(request.goalType())) {
+            return 80000;
+        }
+        return 160000;
+    }
+
+    private double starterDailySpendRate(ProductOnboardingRequest request) {
+        if ("CONTROL_SPENDING".equals(request.painPoint())) {
+            return 0.92;
+        }
+        if ("가족과 거주".equals(request.householdType())) {
+            return 0.68;
+        }
+        return 0.78;
+    }
+
+    private Map<String, Integer> splitCategories(int total, ProductOnboardingRequest request) {
+        double foodRate = "CONTROL_SPENDING".equals(request.painPoint()) ? 0.48 : 0.42;
+        double cafeRate = "CONTROL_SPENDING".equals(request.painPoint()) ? 0.20 : 0.12;
+        double transportRate = request.area().contains("수도권") ? 0.24 : 0.18;
+        int food = roundTo((int) Math.round(total * foodRate), 100);
+        int transport = roundTo((int) Math.round(total * transportRate), 100);
+        int cafe = roundTo((int) Math.round(total * cafeRate), 100);
+        int other = Math.max(0, total - food - transport - cafe);
+        Map<String, Integer> categories = new LinkedHashMap<>();
+        categories.put("식비", food);
+        categories.put("교통비", transport);
+        categories.put("카페/간식", cafe);
+        categories.put("기타", other);
+        return categories;
+    }
+
+    private List<String> starterTags(ProductOnboardingRequest request) {
+        List<String> tags = new ArrayList<>();
+        tags.add(request.goalType());
+        tags.add(request.moneyStyle());
+        tags.add(request.painPoint());
+        return tags;
+    }
+
+    private int roundTo(int value, int unit) {
+        return Math.round(value / (float) unit) * unit;
     }
 
     @Override
@@ -1232,6 +1405,24 @@ public class ProductAppService implements FinancialDataProvider {
 
     private ApiException validation(String field, String message) {
         return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request validation failed.", List.of(new FieldErrorDetail(field, message)));
+    }
+
+    private record StarterRoutine(
+            int monthlyIncome,
+            int monthlySpending,
+            int monthlySaving,
+            int investmentValue,
+            int cashLikeAssets,
+            double emergencyFundMonths,
+            int dailyBudget,
+            int dailySpent,
+            Map<String, Integer> dailyCategories,
+            Map<String, Integer> monthlyCategories,
+            List<String> lifestyleTags,
+            int foodMissionProgress,
+            int savingMissionProgress,
+            int fixedCostMissionProgress
+    ) {
     }
 
     private record SnapshotRow(String id, String month, int monthlyIncome, int monthlySpending, int monthlySaving, int investmentValue, int cashLikeAssets, double emergencyFundMonths, String categoriesJson, String lifestyleTags) {

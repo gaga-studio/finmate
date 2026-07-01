@@ -68,19 +68,20 @@ export function BirthdayContributionPage({ fundId, navigate }: { fundId: string;
   )
 }
 
-export function MissionFeedbackPage({ missionId, navigate }: { missionId: string; navigate: Navigate }) {
+export function MissionFeedbackPage({ missionId, navigate, userId }: { missionId: string; navigate: Navigate; userId: string }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const requestKey = `${userId}:${missionId}`
 
   useEffect(() => {
     let active = true
     async function submit() {
       try {
-        const screen = await missionFeedbackScreen(missionId)
+        const screen = await missionFeedbackScreen(requestKey, missionId)
         if (active) {
           setState({ status: 'success', screen })
         }
       } catch (error) {
-        missionFeedbackRequests.delete(missionId)
+        missionFeedbackRequests.delete(requestKey)
         if (active) {
           setState({ status: 'error', message: describeError(error) })
         }
@@ -90,7 +91,7 @@ export function MissionFeedbackPage({ missionId, navigate }: { missionId: string
     return () => {
       active = false
     }
-  }, [missionId])
+  }, [missionId, requestKey])
 
   if (state.status === 'loading') {
     return <LoadingScreen />
@@ -101,8 +102,8 @@ export function MissionFeedbackPage({ missionId, navigate }: { missionId: string
   return <ScreenRenderer screen={state.screen} navigate={navigate} />
 }
 
-function missionFeedbackScreen(missionId: string): Promise<AppScreenResponse> {
-  const cached = missionFeedbackRequests.get(missionId)
+function missionFeedbackScreen(requestKey: string, missionId: string): Promise<AppScreenResponse> {
+  const cached = missionFeedbackRequests.get(requestKey)
   if (cached) {
     return cached
   }
@@ -139,6 +140,6 @@ function missionFeedbackScreen(missionId: string): Promise<AppScreenResponse> {
     }
     return screen
   })
-  missionFeedbackRequests.set(missionId, request)
+  missionFeedbackRequests.set(requestKey, request)
   return request
 }
