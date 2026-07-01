@@ -7,9 +7,24 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
   expect(reset.ok()).toBeTruthy()
 
   await context.clearCookies()
+  await page.goto('/login')
+  await page.evaluate(() => {
+    window.localStorage.setItem('finmate:session', JSON.stringify({
+      accessToken: 'expired-access-token',
+      expiresAt: '2020-01-01T00:00:00Z',
+      user: {
+        userId: 'stale-user',
+        email: 'stale@finmate.local',
+        displayName: '예전사용자',
+        onboardingCompleted: true,
+        pointBalance: 0,
+        virtualMoneyBalance: 0,
+      },
+      canRefresh: true,
+    }))
+  })
   await page.goto('/signup')
-  await page.evaluate(() => window.localStorage.clear())
-  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'FinMate 시작하기' })).toBeVisible()
 
   const email = `e2e-${Date.now()}@finmate.local`
   await page.getByRole('textbox', { name: '이름' }).fill('민준')

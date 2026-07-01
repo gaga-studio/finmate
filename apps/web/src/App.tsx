@@ -338,7 +338,7 @@ function AuthPage({
     }
   }
 
-  if (session.accessToken && session.user) {
+  if (!isSignup && session.accessToken && session.user) {
     return (
       <div className="screen auth-screen">
         <StatusBar time="9:41" />
@@ -422,6 +422,10 @@ function useAppScreen(pathname: string, route: Extract<Route, { name: 'screen' }
       })
       .catch((error: unknown) => {
         if (active) {
+          if (isUnauthorized(error)) {
+            clearSession()
+            return
+          }
           setState({ status: 'error', message: describeError(error) })
         }
       })
@@ -491,7 +495,7 @@ function describeError(error: unknown): string {
       return '해당 사례 카드는 더 이상 공개되지 않아요.'
     }
     if (error.code === 'VALIDATION_ERROR') {
-      return '입력한 내용을 다시 확인해주세요.'
+      return error.fieldErrors?.[0]?.message ?? '입력한 내용을 다시 확인해주세요.'
     }
     if (error.status >= 500) {
       return '잠시 후 다시 시도해주세요.'
@@ -502,6 +506,10 @@ function describeError(error: unknown): string {
     return '네트워크 상태를 확인하고 다시 시도해주세요.'
   }
   return '화면을 불러오지 못했어요.'
+}
+
+function isUnauthorized(error: unknown) {
+  return error instanceof ApiError && error.code === 'UNAUTHORIZED'
 }
 
 function ScreenRenderer({ screen, navigate }: { screen: AppScreenResponse; navigate: Navigate }) {

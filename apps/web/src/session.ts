@@ -15,7 +15,16 @@ export function getSession(): FinMateSession {
     return {}
   }
   try {
-    return JSON.parse(raw) as FinMateSession
+    const session = JSON.parse(raw) as FinMateSession
+    if (isExpired(session.expiresAt)) {
+      const refreshableSession = {
+        user: session.user,
+        canRefresh: session.canRefresh,
+      }
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify(refreshableSession))
+      return refreshableSession
+    }
+    return session
   } catch {
     return {}
   }
@@ -41,4 +50,12 @@ export function clearSession() {
 
 export function accessToken() {
   return getSession().accessToken
+}
+
+function isExpired(expiresAt?: string) {
+  if (!expiresAt) {
+    return false
+  }
+  const expiresAtMs = Date.parse(expiresAt)
+  return Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()
 }
