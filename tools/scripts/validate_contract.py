@@ -13,11 +13,11 @@ except ImportError:  # pragma: no cover
     yaml = None
 
 
-ROOT = Path(__file__).resolve().parents[1]
-OPENAPI_PATH = ROOT / "openapi" / "finmate-p0-v1.0.yaml"
-SEED_DIR = ROOT / "seed"
-REQUEST_PATH = ROOT / "requests" / "finmate-p0-v1.0.http"
-DATA_DIR = ROOT / "data"
+ROOT = Path(__file__).resolve().parents[2]
+OPENAPI_PATH = ROOT / "contracts" / "openapi" / "legacy" / "finmate-p0-v1.0.yaml"
+SEED_DIR = ROOT / "fixtures" / "app-seed"
+REQUEST_PATH = ROOT / "contracts" / "http" / "legacy" / "finmate-p0-v1.0.http"
+DATA_DIR = ROOT / "fixtures" / "mydata-samples"
 DATA_P0_DIR = DATA_DIR / "p0"
 NORMALIZATION_MAP_PATH = DATA_P0_DIR / "normalization-map.json"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "contract-check.yml"
@@ -407,13 +407,13 @@ def assert_dataset_link_contract() -> None:
         if not path.is_file():
             continue
         if "bundles" in path.parts:
-            fail("Do not copy source dataset bundles into data/")
+            fail("Do not copy source dataset bundles into fixtures/mydata-samples/")
         if "aggregates" in path.parts:
-            fail("Do not copy source dataset aggregates into data/")
+            fail("Do not copy source dataset aggregates into fixtures/mydata-samples/")
         if path.name == "ledger_all.csv":
-            fail("Do not copy full ledger_all.csv into data/")
+            fail("Do not copy full ledger_all.csv into fixtures/mydata-samples/")
         if path.suffix.lower() == ".xlsx":
-            fail("Do not copy Excel source artifacts into data/")
+            fail("Do not copy Excel source artifacts into fixtures/mydata-samples/")
 
     mapping = load_json(DATA_P0_DIR / "dataset-persona-map.json")
     if mapping.get("publicPackageVersion") != "v1.0.0":
@@ -511,7 +511,7 @@ def assert_dataset_link_contract() -> None:
     if portfolios["peer-portfolio-023"].get("personaProfileId") != mappings["peer-portfolio-023"]:
         fail("peer-portfolio-023 personaProfileId must match dataset source persona P003")
     if "P003" not in personas:
-        fail("seed/personas.json must include P003 because peer-portfolio-023 maps to P003")
+        fail("fixtures/app-seed/personas.json must include P003 because peer-portfolio-023 maps to P003")
     if portfolios["own-portfolio-001"].get("personaProfileId") is not None:
         fail("own-portfolio-001 must stay MOCK_MYDATA preview with null personaProfileId")
 
@@ -540,11 +540,11 @@ def assert_dataset_link_contract() -> None:
             fail(f"ledger-sample.demo.csv must use masked descriptions, found: {merchant}")
 
     doc_checks = [
-        (ROOT / "README.md", ["Dataset Source", "financial-sns-mydata-202606", "data/source-dataset.md", "계약/문서/seed/검증 패키지"]),
+        (ROOT / "README.md", ["제품형 MVP", "contracts/openapi/current", "fixtures/app-seed", "tools/scripts"]),
         (SEED_DIR / "README.md", ["financial-sns-mydata-202606", "P001", "P003"]),
-        (ROOT / "docs" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED", "demoContextScore", "normalizedGap"]),
+        (ROOT / "docs" / "archive" / "p0-p1-planning" / "06_mock_data_mapping_v1.0.md", ["원본 합성 데이터셋 연결", "P001", "P003", "DEMO_NORMALIZED", "demoContextScore", "normalizedGap"]),
         (DATA_DIR / "source-dataset.md", ["정규화 실행 데이터", "DEMO_NORMALIZED", "normalization-map.json"]),
-        (ROOT / "docs" / "01_presentation_plan_v1.0.md", ["P001", "P003", "DEMO_NORMALIZED"]),
+        (ROOT / "docs" / "archive" / "p0-p1-planning" / "01_presentation_plan_v1.0.md", ["P001", "P003", "DEMO_NORMALIZED"]),
         (DATA_P0_DIR / "README.md", ["normalization-map.json"]),
     ]
     for path, snippets in doc_checks:
@@ -568,7 +568,7 @@ def assert_workflow_contract() -> None:
         "actions/setup-java@v4",
         "java-version: \"17\"",
         "pip install pyyaml",
-        "python3 scripts/validate_contract.py",
+        "python3 tools/scripts/validate_contract.py",
         "./gradlew :apps:api:test",
     ]
     for snippet in required_snippets:
@@ -579,7 +579,7 @@ def assert_workflow_contract() -> None:
 def assert_onboarding_examples_contract() -> None:
     paths = [
         OPENAPI_PATH,
-        ROOT / "docs" / "03_api_handoff_v1.0.md",
+        ROOT / "docs" / "archive" / "p0-p1-planning" / "03_api_handoff_v1.0.md",
         REQUEST_PATH,
         SEED_DIR / "onboarding-diagnoses.json",
     ]
@@ -643,8 +643,9 @@ def assert_request_contract() -> None:
 
 
 def assert_evidence_placeholders() -> None:
-    evidence_path = ROOT / "docs" / "10_evidence_collection_plan.md"
-    presentation_path = ROOT / "docs" / "01_presentation_plan_v1.0.md"
+    archive_dir = ROOT / "docs" / "archive" / "p0-p1-planning"
+    evidence_path = archive_dir / "10_evidence_collection_plan.md"
+    presentation_path = archive_dir / "01_presentation_plan_v1.0.md"
     for path in [evidence_path, presentation_path]:
         text = path.read_text(encoding="utf-8")
         if "[추가 필요]" not in text:

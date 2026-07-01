@@ -3,6 +3,7 @@ package com.gagastudio.finmate.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gagastudio.finmate.api.auth.AuthService;
+import com.gagastudio.finmate.api.auth.JwtService;
 import com.gagastudio.finmate.api.store.SeedStore;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,6 +26,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -50,6 +53,7 @@ class FinmateApiApplicationTests {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("finmate.dev-tools.enabled", () -> "true");
     }
 
     @Autowired
@@ -60,6 +64,12 @@ class FinmateApiApplicationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private JwtService jwtService;
 
     @BeforeEach
     void resetSeedState() {
@@ -74,7 +84,7 @@ class FinmateApiApplicationTests {
     }
 
     @Test
-    void productMvpAuthOnboardingMissionPointsAndBirthdayFundWork() throws Exception {
+    void productMvpAuthOnboardingStartsWithEmptyUserState() throws Exception {
         String email = "user-" + UUID.randomUUID() + "@finmate.local";
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -93,68 +103,83 @@ class FinmateApiApplicationTests {
                 .andReturn();
 
         JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String userId = signupBody.get("user").get("userId").asText();
         String accessToken = signupBody.get("accessToken").asText();
         Cookie refreshCookie = refreshCookie(signup);
 
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("민준"))
-                .andExpect(jsonPath("$.pointBalance").value(2450));
+                .andExpect(jsonPath("$.pointBalance").value(0));
 
         mockMvc.perform(post("/api/users/me/onboarding")
                         .header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "goalType": "EMERGENCY_FUND",
-                                  "moneyStyle": "안정 추구형",
+                                  "ageBand": "20대 후반",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
                                   "householdType": "1인가구",
-                                  "area": "서울 강남권"
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권",
+                                  "goalType": "EMERGENCY_FUND",
+                                  "painPoint": "SAVE_CONSISTENTLY",
+                                  "privacyConsent": {
+                                    "anonymousPortfolioOptIn": true,
+                                    "friendShareDefault": "MISSION_ONLY",
+                                    "exposedFields": ["ageBand", "goalType", "financialSummary", "missionStatus"],
+                                    "privacyConsentVersion": "privacy-v1.4"
+                                  },
+                                  "mydataConsent": {
+                                    "mydataConsentVersion": "synthetic-mydata-v1.4",
+                                    "mydataScopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+                                  }
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.onboardingCompleted").value(true));
 
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM onboarding_responses WHERE user_id = ?", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM mydata_connections WHERE user_id = ? AND data_mode = 'SYNTHETIC_MYDATA'", Integer.class, userId));
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM consent_events WHERE user_id = ?", Integer.class, userId));
+
         mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
-                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"));
+                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"))
+                .andExpect(jsonPath("$.sections[1].id").value("mission-empty"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget-empty"))
+                .andExpect(jsonPath("$.sections[4].id").value("asset-empty"));
+
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM friendships WHERE follower_id = ?", Integer.class, userId));
 
         mockMvc.perform(post("/api/ai/coach-results/fallback").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.source").value("RULE_BASED_FALLBACK"))
-                .andExpect(jsonPath("$.recommendations", hasSize(3)));
+                .andExpect(jsonPath("$.source").value("USER_STATE"))
+                .andExpect(jsonPath("$.recommendations", hasSize(0)));
 
-        mockMvc.perform(post("/api/app/missions/mission-food/feedback")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "DONE",
-                                  "note": "오늘 식비 목표 완료"
-                                }
-                                """))
+        mockMvc.perform(get("/api/app/missions").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("RECORDED"))
-                .andExpect(jsonPath("$.data.rewardPoints").value(120));
+                .andExpect(jsonPath("$.screenId").value("missions"))
+                .andExpect(jsonPath("$.sections[0].id").value("mission-empty"));
 
-        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
+        mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pointBalance").value(2570));
+                .andExpect(jsonPath("$.screenId").value("records:2026-06"))
+                .andExpect(jsonPath("$.sections[1].id").value("record-empty"));
 
-        mockMvc.perform(post("/api/app/birthday-funds/fund-jiwoo/contributions")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "amount": 5000,
-                                  "message": "생일 축하해!",
-                                  "anonymous": false
-                                }
-                                """))
+        mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.virtualMoneyBalance").value(95000));
+                .andExpect(jsonPath("$.screenId").value("compare"))
+                .andExpect(jsonPath("$.sections[1].id").value("compare-empty"));
+
+        mockMvc.perform(get("/api/app/missions/not-a-mission").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MISSION_NOT_FOUND"));
 
         mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isOk())
@@ -164,6 +189,84 @@ class FinmateApiApplicationTests {
         mockMvc.perform(post("/api/auth/logout").cookie(refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("LOGGED_OUT"));
+    }
+
+    @Test
+    void productOnboardingRequiresSurveyAndConsentPayloads() throws Exception {
+        String email = "invalid-onboarding-" + UUID.randomUUID() + "@finmate.local";
+        MvcResult signup = mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "password": "password123!",
+                                  "displayName": "민준"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String accessToken = signupBody.get("accessToken").asText();
+
+        mockMvc.perform(post("/api/users/me/onboarding")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ageBand": "20대 후반",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
+                                  "householdType": "1인가구",
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권",
+                                  "goalType": "EMERGENCY_FUND",
+                                  "painPoint": "SAVE_CONSISTENTLY"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void developmentResetClearsRuntimeStateAndKeepsBootstrapWorking() throws Exception {
+        mockMvc.perform(post("/api/dev/reset"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESET"));
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("home"))
+                .andExpect(jsonPath("$.sections[0].title").value("jinn님, 좋은 아침이에요!"));
+    }
+
+    @Test
+    void developmentBootstrapTestAccountSeedsReferenceDemoData() throws Exception {
+        MvcResult bootstrap = mockMvc.perform(post("/api/dev/bootstrap-test-account")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "minjun@finmate.local",
+                                  "password": "password123!",
+                                  "displayName": "민준",
+                                  "includeBirthdayEvent": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.email").value("minjun@finmate.local"))
+                .andExpect(jsonPath("$.user.onboardingCompleted").value(true))
+                .andExpect(jsonPath("$.user.pointBalance").value(2450))
+                .andReturn();
+
+        String accessToken = objectMapper.readTree(bootstrap.getResponse().getContentAsString()).get("accessToken").asText();
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("birthday-alert"))
+                .andExpect(jsonPath("$.sections[4].id").value("spending"))
+                .andExpect(jsonPath("$.sections[5].id").value("asset"));
     }
 
     @Test
@@ -330,7 +433,9 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
                 .andExpect(jsonPath("$.sections[0].kind").value("greeting"))
-                .andExpect(jsonPath("$.sections[1].id").value("birthday-alert"));
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("birthday-alert"));
 
         mockMvc.perform(get("/api/app/home/budget").header("Authorization", ACCESS_AUTH))
                 .andExpect(status().isOk())
@@ -474,6 +579,15 @@ class FinmateApiApplicationTests {
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 
         mockMvc.perform(get("/api/home").header("Authorization", "Bearer wrong-access-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void rejectsAccessTokenForUserMissingFromDatabase() throws Exception {
+        String accessToken = jwtService.issue("user-missing-from-db").token();
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }

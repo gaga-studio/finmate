@@ -21,4 +21,4 @@
 
 ## Boundary
 
-이 subset은 원본 데이터셋의 전체 복사본이 아니다. P0 계약 검증 스크립트는 `bundles/`, `aggregates/ledger_all.csv`, `.xlsx` 파일이 `data/` 아래에 들어오면 실패한다.
+이 subset은 원본 데이터셋의 전체 복사본이 아니다. P0 계약 검증 스크립트는 `bundles/`, `aggregates/ledger_all.csv`, `.xlsx` 파일이 `fixtures/mydata-samples/` 아래에 들어오면 실패한다.

@@ -120,10 +120,11 @@ public class SeedStore {
         }
 
         for (Path candidate : List.of(
-                Path.of("seed"),
-                Path.of("../seed"),
-                Path.of("../../seed"),
-                Path.of("../../../seed")
+                Path.of("fixtures/app-seed"),
+                Path.of("../fixtures/app-seed"),
+                Path.of("../../fixtures/app-seed"),
+                Path.of("../../../fixtures/app-seed"),
+                Path.of("app-seed")
         )) {
             if (Files.isDirectory(candidate)) {
                 return candidate.toAbsolutePath().normalize();

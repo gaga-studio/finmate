@@ -2,10 +2,13 @@ package com.gagastudio.finmate.api.controller;
 
 import com.gagastudio.finmate.api.auth.AuthService;
 import com.gagastudio.finmate.api.dto.ApiDtos.*;
+import com.gagastudio.finmate.api.error.ApiException;
 import com.gagastudio.finmate.api.product.ProductAppService;
 import com.gagastudio.finmate.api.service.FinmateService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -27,16 +30,41 @@ public class FinmateController {
     private final FinmateService service;
     private final AuthService authService;
     private final ProductAppService productAppService;
+    private final boolean devToolsEnabled;
 
-    public FinmateController(FinmateService service, AuthService authService, ProductAppService productAppService) {
+    public FinmateController(
+            FinmateService service,
+            AuthService authService,
+            ProductAppService productAppService,
+            @Value("${finmate.dev-tools.enabled:false}") boolean devToolsEnabled
+    ) {
         this.service = service;
         this.authService = authService;
         this.productAppService = productAppService;
+        this.devToolsEnabled = devToolsEnabled;
     }
 
     @GetMapping("/health")
     public Map<String, String> health() {
         return service.health();
+    }
+
+    @PostMapping("/api/dev/reset")
+    public Map<String, String> resetDevelopmentState() {
+        if (!devToolsEnabled) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found.");
+        }
+        productAppService.resetDevelopmentState();
+        return Map.of("status", "RESET");
+    }
+
+    @PostMapping("/api/dev/bootstrap-test-account")
+    public ResponseEntity<AuthResponse> bootstrapTestAccount(@Valid @RequestBody DevBootstrapTestAccountRequest request) {
+        if (!devToolsEnabled) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found.");
+        }
+        AuthService.AuthResult result = authService.bootstrapTestAccount(request);
+        return authResponse(result);
     }
 
     @PostMapping("/api/auth/signup")

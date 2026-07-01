@@ -12,9 +12,9 @@ except ImportError:  # pragma: no cover
     yaml = None
 
 
-ROOT = Path(__file__).resolve().parents[1]
-OPENAPI_PATH = ROOT / "openapi" / "finmate-p1-v1.1.yaml"
-SEED_PATH = ROOT / "seed" / "app-experience.json"
+ROOT = Path(__file__).resolve().parents[2]
+OPENAPI_PATH = ROOT / "contracts" / "openapi" / "legacy" / "finmate-p1-v1.1.yaml"
+SEED_PATH = ROOT / "fixtures" / "app-seed" / "app-experience.json"
 EXPECTED_PATHS = {
     "/api/app/home",
     "/api/app/home/{detail}",

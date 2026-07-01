@@ -1,0 +1,11 @@
+.git
+.gradle
+.superloopy
+**/build
+**/dist
+**/node_modules
+**/.playwright-mcp
+apps/web/test-results
+apps/web/playwright-report
+*.tsbuildinfo
+.DS_Store

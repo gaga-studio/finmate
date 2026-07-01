@@ -1,25 +1,59 @@
 :root {
-  --page: #f6f6f8;
-  --app: #ffffff;
-  --surface: #ffffff;
-  --ink: #15141c;
-  --muted: #767382;
-  --line: #ececf2;
-  --line-strong: #dedee8;
-  --purple: #6c4bef;
-  --purple-strong: #5634d8;
-  --purple-soft: #f0ecff;
-  --green: #10a779;
-  --success: #10a779;
-  --warning: #d97706;
-  --danger: #b42318;
-  --shadow: 0 12px 34px rgba(17, 24, 39, 0.07);
-  --shadow-soft: 0 8px 24px rgba(17, 24, 39, 0.05);
+  --color-page: #F5F6FA;
+  --color-app: #FFFFFF;
+  --color-card: #FFFFFF;
+  --color-ink: #101114;
+  --color-ink-soft: #3F4050;
+  --color-muted: #696C7D;
+  --color-muted-soft: #8F92A3;
+  --color-border: #E7E8EF;
+  --color-border-strong: #D9DBE7;
+  --color-primary: #6546E8;
+  --color-primary-strong: #4E34C4;
+  --color-primary-soft: #F1EEFF;
+  --color-primary-border: #DED7FF;
+  --color-success: #149E61;
+  --color-success-soft: #E8F7F0;
+  --color-success-strong: #026B3F;
+  --color-coach: #6D5DF2;
+  --color-coach-soft: #F0EEFF;
+  --color-coach-border: #DDD8FF;
+  --color-warning: #D97706;
+  --color-warning-soft: #FFF5E7;
+  --color-danger: #B42318;
+  --color-danger-soft: #FFF0F0;
+  --color-track: #EEF0F6;
+  --color-track-strong: #BFC3D4;
+  --color-focus: rgba(101, 70, 232, 0.16);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --shadow-card: 0 1px 2px rgba(16, 17, 20, 0.04), 0 10px 30px rgba(16, 17, 20, 0.06);
+  --shadow-button: 0 8px 18px rgba(101, 70, 232, 0.18);
+  --shadow-shell: 0 28px 90px rgba(18, 18, 31, 0.14);
+  --motion-fast: 150ms cubic-bezier(.2, .8, .2, 1);
+  --motion-base: 220ms cubic-bezier(.2, .8, .2, 1);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Pretendard,
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
     sans-serif;
-  color: var(--ink);
-  background: var(--page);
+  color: var(--color-ink);
+  background: var(--color-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -31,15 +65,36 @@
 }
 
 html {
-  background: var(--page);
+  background: var(--color-page);
 }
 
 body {
   min-width: 320px;
   margin: 0;
-  background: var(--page);
+  background: var(--color-page);
 }
 
 a {
   color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

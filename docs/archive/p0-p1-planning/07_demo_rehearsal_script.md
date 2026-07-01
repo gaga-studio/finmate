@@ -33,7 +33,7 @@
 
 ## API 리허설 순서
 
-`requests/finmate-p0-v1.0.http`를 순서대로 실행합니다.
+`contracts/http/legacy/finmate-p0-v1.0.http`를 순서대로 실행합니다.
 
 1. `POST /api/onboarding/diagnosis`
 2. `POST /api/mydata/mock-consent`
@@ -55,7 +55,7 @@
 | 상황 | 대응 |
 | --- | --- |
 | 미션이 중복 생성됨 | idempotency 기준으로 기존 `mis-001`을 보여주고 넘어갑니다. |
-| own portfolio가 이미 철회됨 | `scripts/demo-reset.md` 기준으로 `own-portfolio-001`만 복구합니다. |
+| own portfolio가 이미 철회됨 | `tools/scripts/demo-reset.md` 기준으로 `own-portfolio-001`만 복구합니다. |
 | peer portfolio가 410으로 나옴 | 철회 대상이 잘못된 것입니다. `peer-portfolio-023`은 항상 공개 상태여야 합니다. |
 | 시간이 부족함 | Social Impact 슬라이드는 20초로 줄이고 P0 데모 흐름을 유지합니다. |
 

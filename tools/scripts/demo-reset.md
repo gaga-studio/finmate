@@ -24,21 +24,21 @@
 1. seed 기준본을 확인한다.
 
 ```bash
-ls seed
+ls fixtures/app-seed
 ```
 
 2. 로컬 mock store 또는 DB를 seed 상태로 되돌린다.
 
 ```text
-seed/users.json
-seed/onboarding-diagnoses.json
-seed/onboarding-sessions.json
-seed/mydata-connections.json
-seed/privacy-settings.json
-seed/personas.json
-seed/feature-vectors.json
-seed/portfolios.json
-seed/mission-templates.json
+fixtures/app-seed/users.json
+fixtures/app-seed/onboarding-diagnoses.json
+fixtures/app-seed/onboarding-sessions.json
+fixtures/app-seed/mydata-connections.json
+fixtures/app-seed/privacy-settings.json
+fixtures/app-seed/personas.json
+fixtures/app-seed/feature-vectors.json
+fixtures/app-seed/portfolios.json
+fixtures/app-seed/mission-templates.json
 ```
 
 3. privacy verification 상태를 확인한다.

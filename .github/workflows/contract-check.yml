@@ -37,7 +37,7 @@ jobs:
           npm ci --prefix apps/web
 
       - name: Validate FinMate P0 contract
-        run: python3 scripts/validate_contract.py
+        run: python3 tools/scripts/validate_contract.py
 
       - name: Test Spring Boot mock API
         run: ./gradlew :apps:api:test

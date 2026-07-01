@@ -2,7 +2,7 @@
 
 ## 계약 검증
 
-- [ ] `python3 scripts/validate_contract.py`가 통과한다.
+- [ ] `python3 tools/scripts/validate_contract.py`가 통과한다.
 - [ ] OpenAPI version이 `1.0.0`이다.
 - [ ] 공개 P0 operation 수가 12개다.
 - [ ] `/api/coach/recommendations`가 OpenAPI에 없다.
