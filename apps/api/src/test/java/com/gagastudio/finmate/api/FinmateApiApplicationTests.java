@@ -50,6 +50,7 @@ class FinmateApiApplicationTests {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("finmate.dev-tools.enabled", () -> "true");
     }
 
     @Autowired
@@ -125,6 +126,15 @@ class FinmateApiApplicationTests {
                 .andExpect(jsonPath("$.source").value("RULE_BASED_FALLBACK"))
                 .andExpect(jsonPath("$.recommendations", hasSize(3)));
 
+        mockMvc.perform(get("/api/app/missions/mission-fixed-cost").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("missions:mission-fixed-cost"))
+                .andExpect(jsonPath("$.sections[0].title").value("고정 지출 5% 줄이기"));
+
+        mockMvc.perform(get("/api/app/missions/not-a-mission").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MISSION_NOT_FOUND"));
+
         mockMvc.perform(post("/api/app/missions/mission-food/feedback")
                         .header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,6 +174,18 @@ class FinmateApiApplicationTests {
         mockMvc.perform(post("/api/auth/logout").cookie(refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("LOGGED_OUT"));
+    }
+
+    @Test
+    void developmentResetClearsRuntimeStateAndKeepsBootstrapWorking() throws Exception {
+        mockMvc.perform(post("/api/dev/reset"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESET"));
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("home"))
+                .andExpect(jsonPath("$.sections[0].title").value("jinn님, 좋은 아침이에요!"));
     }
 
     @Test

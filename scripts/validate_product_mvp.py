@@ -49,6 +49,10 @@ def main() -> None:
     api_client = read("apps/web/src/api.ts")
     app = read("apps/web/src/App.tsx")
     manifest = read("apps/web/public/manifest.webmanifest")
+    compose = read("docker-compose.yml")
+    web_package = read("apps/web/package.json")
+    playwright_config = read("apps/web/playwright.config.ts")
+    e2e = read("apps/web/e2e/product-flow.spec.ts")
 
     missing_paths = sorted(path for path in EXPECTED_PATHS if path not in openapi or path not in controller)
     if missing_paths:
@@ -92,6 +96,44 @@ def main() -> None:
 
     if "const DEMO_ACCESS_TOKEN" in api_client:
         fail("Frontend app API must not default to demo-token")
+
+    for path in [
+        "apps/api/Dockerfile",
+        "apps/web/Dockerfile",
+        "apps/web/nginx.conf",
+        ".dockerignore",
+        "scripts/reset-product-db.sh",
+        "scripts/bootstrap-test-account.sh",
+    ]:
+        if not (ROOT / path).exists():
+            fail(f"Missing product runtime file: {path}")
+
+    for snippet in ["api:", "web:", "condition: service_healthy", "FINMATE_DEV_TOOLS_ENABLED"]:
+        if snippet not in compose:
+            fail(f"docker-compose.yml missing product runtime snippet: {snippet}")
+
+    for snippet in ["PostMapping(\"/api/dev/reset\")", "resetDevelopmentState", "devToolsEnabled"]:
+        if snippet not in controller + read("apps/api/src/main/java/com/gagastudio/finmate/api/product/ProductAppService.java"):
+            fail(f"Missing development reset snippet: {snippet}")
+
+    if '"e2e": "playwright test"' not in web_package or "@playwright/test" not in web_package:
+        fail("apps/web/package.json must expose Playwright E2E")
+
+    for snippet in ["viewport: { width: 390, height: 844 }", "PLAYWRIGHT_BASE_URL"]:
+        if snippet not in playwright_config:
+            fail(f"Playwright config missing: {snippet}")
+
+    for snippet in [
+        "/api/dev/reset",
+        "회원가입",
+        "시작하기",
+        "오늘 실천 기록하기",
+        "축하 펀드 참여하기",
+        "로그아웃",
+        "expectNoTechnicalCopy",
+    ]:
+        if snippet not in e2e:
+            fail(f"Product E2E missing: {snippet}")
 
     print("FinMate product MVP validation passed")
 

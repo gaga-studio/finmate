@@ -1,0 +1,8 @@
+.git
+.gradle
+**/build
+**/dist
+**/node_modules
+**/.playwright-mcp
+*.tsbuildinfo
+.DS_Store

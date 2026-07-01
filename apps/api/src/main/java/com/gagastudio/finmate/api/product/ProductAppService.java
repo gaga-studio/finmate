@@ -101,6 +101,29 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     @Transactional
+    public void resetDevelopmentState() {
+        jdbc.execute("""
+                TRUNCATE TABLE
+                  birthday_fund_contributions,
+                  birthday_funds,
+                  point_transactions,
+                  point_wallets,
+                  feed_items,
+                  friendships,
+                  daily_records,
+                  mission_events,
+                  missions,
+                  coach_results,
+                  financial_snapshots,
+                  privacy_settings,
+                  user_profiles,
+                  refresh_tokens,
+                  users
+                RESTART IDENTITY CASCADE
+                """);
+    }
+
+    @Transactional
     public UserMeResponse completeOnboarding(String userId, ProductOnboardingRequest request) {
         bootstrapUser(userId, displayName(userId));
         jdbc.update("""
@@ -615,8 +638,12 @@ public class ProductAppService implements FinancialDataProvider {
 
     private MissionRow mission(String userId, String missionId) {
         bootstrapUser(userId, displayName(userId));
-        return jdbc.queryForObject("SELECT * FROM missions WHERE id = ?",
-                (rs, rowNum) -> missionRow(rs, missionId), missionDbId(userId, missionId));
+        try {
+            return jdbc.queryForObject("SELECT * FROM missions WHERE id = ?",
+                    (rs, rowNum) -> missionRow(rs, missionId), missionDbId(userId, missionId));
+        } catch (EmptyResultDataAccessException exception) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "MISSION_NOT_FOUND", "Mission not found.");
+        }
     }
 
     private List<MissionRow> missions(String userId) {

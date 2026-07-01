@@ -4,6 +4,8 @@ build/
 **/node_modules/
 apps/web/dist/
 apps/web/node_modules/.tmp/
+apps/web/test-results/
+apps/web/playwright-report/
 *.tsbuildinfo
 
 *.class
