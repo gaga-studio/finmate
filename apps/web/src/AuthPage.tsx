@@ -16,8 +16,8 @@ export function AuthPage({
   navigate: Navigate
   session: FinMateSession
 }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(mode === 'signup' ? '' : 'p001@synthetic.finmate.local')
+  const [password, setPassword] = useState(mode === 'signup' ? '' : 'password123!')
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
