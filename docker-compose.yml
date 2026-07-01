@@ -30,7 +30,7 @@ services:
       FINMATE_DB_PASSWORD: finmate
       FINMATE_DEV_TOOLS_ENABLED: "true"
       FINMATE_JWT_SECRET: local-docker-development-secret-change-before-production-32bytes
-      FINMATE_SEED_DIR: /app/seed
+      FINMATE_SEED_DIR: /app/fixtures/app-seed
     ports:
       - "8080:8080"
     healthcheck:

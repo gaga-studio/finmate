@@ -2,10 +2,12 @@
 build/
 **/build/
 **/node_modules/
+.superloopy/
 apps/web/dist/
 apps/web/node_modules/.tmp/
 apps/web/test-results/
 apps/web/playwright-report/
+apps/web/.playwright-mcp/
 *.tsbuildinfo
 
 *.class

@@ -42,8 +42,8 @@ minjun@finmate.local / password123!
 API가 실행 중일 때 아래 명령으로 DB 상태를 초기화하고 테스트 계정을 다시 만들 수 있습니다.
 
 ```bash
-scripts/reset-product-db.sh
-scripts/bootstrap-test-account.sh
+tools/scripts/reset-product-db.sh
+tools/scripts/bootstrap-test-account.sh
 ```
 
 ## 주요 흐름
@@ -76,7 +76,7 @@ scripts/bootstrap-test-account.sh
 npm run lint --prefix apps/web
 npm run build --prefix apps/web
 npm run e2e --prefix apps/web
-python3 scripts/validate_product_mvp.py
+python3 tools/scripts/validate_product_mvp.py
 ```
 
 E2E는 `http://localhost:5173`와 `http://localhost:8080`이 실행 중이라고 가정합니다. 다른 주소를 사용할 때는 `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_API_URL`을 설정합니다.

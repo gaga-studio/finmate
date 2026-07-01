@@ -17,7 +17,7 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 COPY --from=build /workspace/apps/api/build/libs/*.jar app.jar
-COPY seed /app/seed
+COPY fixtures/app-seed /app/fixtures/app-seed
 
 EXPOSE 8080
 
