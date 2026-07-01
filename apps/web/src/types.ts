@@ -167,3 +167,62 @@ export type PrivacyWithdrawResponse = {
   withdrawnAt: string
   affectedPortfolioIds: string[]
 }
+
+export type AppScreenResponse = {
+  screenId: string
+  title: string
+  tab: 'home' | 'compare' | 'mission' | 'records' | 'profile'
+  statusBarTime: string
+  heroAsset?: string | null
+  sections: AppSection[]
+  meta: Record<string, unknown>
+}
+
+export type AppSection = {
+  id: string
+  kind: string
+  title: string
+  subtitle?: string | null
+  detailPath?: string | null
+  heroAsset?: string | null
+  metrics?: AppMetric[] | null
+  items?: AppItem[] | null
+  actions?: AppAction[] | null
+  data?: Record<string, unknown> | null
+}
+
+export type AppMetric = {
+  label: string
+  value: string
+  caption?: string | null
+  tone?: string | null
+  progress?: number | null
+}
+
+export type AppItem = {
+  id: string
+  title: string
+  subtitle?: string | null
+  value?: string | null
+  caption?: string | null
+  icon?: string | null
+  tone?: string | null
+  detailPath?: string | null
+  data?: Record<string, unknown> | null
+}
+
+export type AppAction = {
+  label: string
+  path: string
+  method: 'GET' | 'POST'
+  tone: string
+  intent?: string | null
+}
+
+export type AppActionResultResponse = {
+  status: string
+  title: string
+  message: string
+  nextPath: string
+  data: Record<string, unknown>
+}

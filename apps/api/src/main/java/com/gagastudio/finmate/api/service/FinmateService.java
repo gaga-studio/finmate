@@ -257,6 +257,141 @@ public class FinmateService {
         return new PrivacyWithdrawResponse("WITHDRAWN", "2026-06-30T15:25:00+09:00", List.of(OWN_PORTFOLIO_ID));
     }
 
+    public AppScreenResponse getAppHome() {
+        return appScreen("home");
+    }
+
+    public AppScreenResponse getAppHomeDetail(String detail) {
+        return appScreen("home:" + detail);
+    }
+
+    public AppScreenResponse getAppCompare() {
+        return appScreen("compare");
+    }
+
+    public AppScreenResponse getAppCompareFilter() {
+        return appScreen("compare:filter");
+    }
+
+    public AppScreenResponse searchAppCompareFilter(AppCompareSearchRequest request) {
+        return appScreen("compare:filter-results");
+    }
+
+    public AppScreenResponse getAppCompareResult(String comparisonId) {
+        validateEquals("comparisonId", comparisonId, COMPARISON_ID);
+        return appScreen("compare:cmp-001");
+    }
+
+    public AppScreenResponse getAppCoachFlow(String comparisonId) {
+        validateEquals("comparisonId", comparisonId, COMPARISON_ID);
+        return appScreen("compare:coach-flow");
+    }
+
+    public AppScreenResponse getAppMissions() {
+        return appScreen("missions");
+    }
+
+    public AppScreenResponse getAppMission(String missionId) {
+        return appScreen("missions:" + missionId);
+    }
+
+    public AppActionResultResponse submitAppMissionFeedback(String missionId, AppMissionFeedbackRequest request) {
+        if (!List.of("mission-food", "mission-fixed-cost", "mission-cafe", "mission-cart", "mission-saving").contains(missionId)) {
+            throw validation("missionId", "Unsupported missionId for the demo.");
+        }
+        validateEquals("status", request.status(), "DONE");
+        return new AppActionResultResponse(
+                "RECORDED",
+                "오늘 실천을 기록했어요",
+                "AI 코치가 다음 행동을 추천할 수 있도록 피드백을 반영했습니다.",
+                "/missions/" + missionId + "/feedback",
+                orderedObjectMap("rewardPoints", 50, "streakDays", 3)
+        );
+    }
+
+    public AppScreenResponse getAppRecords(String month) {
+        if (month != null && !month.isBlank()) {
+            validateEquals("month", month, "2026-06");
+        }
+        return appScreen("records:2026-06");
+    }
+
+    public AppScreenResponse getAppRecordDetail(String date) {
+        if ("history".equals(date) || "stats".equals(date)) {
+            return appScreen("records:" + date);
+        }
+        validateEquals("date", date, "2026-06-12");
+        return appScreen("records:" + date);
+    }
+
+    public AppScreenResponse getAppProfile() {
+        return appScreen("profile");
+    }
+
+    public AppScreenResponse getAppProfileSection(String section) {
+        return appScreen("profile:" + section);
+    }
+
+    public AppScreenResponse getAppBirthdays() {
+        return appScreen("birthdays");
+    }
+
+    public AppScreenResponse getAppBirthdayFlow(String birthdayId) {
+        validateEquals("birthdayId", birthdayId, "bday-jiwoo");
+        return appScreen("birthdays:" + birthdayId);
+    }
+
+    public AppActionResultResponse contributeBirthdayFund(String fundId, AppBirthdayContributionRequest request) {
+        validateEquals("fundId", fundId, "fund-jiwoo");
+        if (request.amount() <= 0 || request.amount() > 20000) {
+            throw validation("amount", "amount must be between 1 and 20000 for the demo.");
+        }
+        return new AppActionResultResponse(
+                "COMPLETED",
+                "참여 완료!",
+                "지우님의 생일 축하 펀드에 참여했어요.",
+                "/birthday-funds/fund-jiwoo/complete",
+                orderedObjectMap("amount", request.amount(), "currentRaised", 82000)
+        );
+    }
+
+    public AppActionResultResponse openMyBirthdayFund() {
+        return new AppActionResultResponse(
+                "OPENED",
+                "내 생일 펀드가 열렸어요",
+                "친구들에게 공유할 준비가 완료됐습니다.",
+                "/birthday-funds/me/status",
+                orderedObjectMap("fundId", "fund-me-001", "targetAmount", 100000)
+        );
+    }
+
+    public AppActionResultResponse shareMyBirthdayFund() {
+        return new AppActionResultResponse(
+                "SHARED",
+                "친구들에게 공유했어요",
+                "알림은 mock 상태로만 기록되며 실제 발송되지는 않습니다.",
+                "/birthday-funds/me/status",
+                orderedObjectMap("shareChannel", "MOCK", "recipientCount", 12)
+        );
+    }
+
+    public AppScreenResponse getMyBirthdayFundStatus() {
+        return appScreen("birthday-funds:me:status");
+    }
+
+    public AppScreenResponse getBirthdayContributionComplete(String fundId) {
+        validateEquals("fundId", fundId, "fund-jiwoo");
+        return appScreen("birthday-funds:fund-jiwoo:status");
+    }
+
+    public AppScreenResponse getMyBirthdayFundOpenScreen() {
+        return appScreen("birthday-funds:me:open");
+    }
+
+    public AppScreenResponse getMyBirthdayFundShareScreen() {
+        return appScreen("birthday-funds:me:share");
+    }
+
     public void requireOnboardingToken(String authorization) {
         requireBearer(authorization, ONBOARDING_TOKEN);
     }
@@ -327,6 +462,10 @@ public class FinmateService {
             throw notFound();
         }
         return item;
+    }
+
+    private AppScreenResponse appScreen(String id) {
+        return store.convert(requireSeed("app-experience.json", id), AppScreenResponse.class);
     }
 
     private Map<String, Object> requirePortfolio(String id) {
@@ -423,6 +562,13 @@ public class FinmateService {
 
     private Map<String, Number> orderedMap(String firstKey, Number firstValue, String secondKey, Number secondValue) {
         Map<String, Number> map = new LinkedHashMap<>();
+        map.put(firstKey, firstValue);
+        map.put(secondKey, secondValue);
+        return map;
+    }
+
+    private Map<String, Object> orderedObjectMap(String firstKey, Object firstValue, String secondKey, Object secondValue) {
+        Map<String, Object> map = new LinkedHashMap<>();
         map.put(firstKey, firstValue);
         map.put(secondKey, secondValue);
         return map;

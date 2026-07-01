@@ -41,7 +41,8 @@ public class SeedStore {
                 "personas.json",
                 "feature-vectors.json",
                 "portfolios.json",
-                "mission-templates.json"
+                "mission-templates.json",
+                "app-experience.json"
         )) {
             collections.put(file, indexById(readList(file)));
         }
@@ -78,6 +79,10 @@ public class SeedStore {
 
     public String missionFor(String idempotencyKey) {
         return missionKeys.get(idempotencyKey);
+    }
+
+    public <T> T convert(Object source, Class<T> targetType) {
+        return objectMapper.convertValue(source, targetType);
     }
 
     private List<Map<String, Object>> readList(String file) {

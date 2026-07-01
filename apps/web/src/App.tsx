@@ -1,35 +1,44 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError, api } from './api'
 import { clearSession, saveSession } from './session'
-import {
-  compareDemo,
-  filterDemo,
-  homeDemo,
-  missionDemo,
-  profileDemo,
-  recordDemo,
-  type CalendarDay,
-  type CompareMetric,
-  type FinanceSignal,
-  type FilterProfile,
-  type MissionItem,
-  type SpendingCategory,
-  type TabKey,
-} from './demoData'
+import type { AppAction, AppItem, AppMetric, AppScreenResponse, AppSection } from './types'
 import './App.css'
 
 type Navigate = (path: string) => void
+type TabKey = 'home' | 'compare' | 'mission' | 'records' | 'profile'
 
 type Route =
   | { name: 'onboarding' }
-  | { name: 'home' }
-  | { name: 'compare' }
-  | { name: 'compare-filter' }
-  | { name: 'mission' }
-  | { name: 'records' }
-  | { name: 'profile' }
-  | { name: 'privacy' }
+  | { name: 'screen'; screen: ScreenKey; param?: string }
+  | { name: 'birthday-contribution'; fundId: string }
+  | { name: 'mission-feedback'; missionId: string }
   | { name: 'not-found' }
+
+type ScreenKey =
+  | 'home'
+  | 'home-detail'
+  | 'compare'
+  | 'compare-filter'
+  | 'compare-results'
+  | 'compare-result'
+  | 'compare-coach'
+  | 'missions'
+  | 'mission-detail'
+  | 'records'
+  | 'record-detail'
+  | 'profile'
+  | 'profile-section'
+  | 'birthdays'
+  | 'birthday-flow'
+  | 'birthday-complete'
+  | 'birthday-open'
+  | 'birthday-share'
+  | 'birthday-status'
+
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'success'; screen: AppScreenResponse }
+  | { status: 'error'; message: string }
 
 type StepStatus = 'pending' | 'loading' | 'done'
 
@@ -39,21 +48,13 @@ type OnboardingStep = {
   detail: string
 }
 
-const onboardingStatuses = [
-  { label: '학생/알바', detail: '이번 P0 반영', available: true },
-  { label: '사회초년생', detail: '다음 버전', available: false },
-  { label: '취준생', detail: '다음 버전', available: false },
-  { label: '프리랜서', detail: '다음 버전', available: false },
+const tabItems: Array<{ key: TabKey; label: string; icon: IconName; path: string }> = [
+  { key: 'home', label: '홈', icon: 'home', path: '/home' },
+  { key: 'compare', label: '비교', icon: 'search', path: '/compare' },
+  { key: 'mission', label: '미션', icon: 'check-square', path: '/missions' },
+  { key: 'records', label: '기록', icon: 'calendar', path: '/records' },
+  { key: 'profile', label: '프로필', icon: 'profile', path: '/profile' },
 ]
-
-const onboardingGoals = [
-  { label: '비상금 만들기', detail: '이번 P0 반영', available: true },
-  { label: '지출 줄이기', detail: '다음 버전', available: false },
-  { label: '투자 시작 준비', detail: '다음 버전', available: false },
-]
-
-const privacyVisible = ['연령대', '소득 구간', '금융 목표', '금융 요약', '루틴 카드']
-const privacyHidden = ['이름', '계좌번호', '거래처', '카드번호', '정확한 거래 시간']
 
 function parseRoute(pathname: string): Route {
   const parts = pathname.split('/').filter(Boolean)
@@ -62,31 +63,81 @@ function parseRoute(pathname: string): Route {
     return { name: 'onboarding' }
   }
   if (parts[0] === 'home') {
-    return { name: 'home' }
-  }
-  if (parts[0] === 'compare' && parts[1] === 'filter') {
-    return { name: 'compare-filter' }
+    return parts[1]
+      ? { name: 'screen', screen: 'home-detail', param: parts[1] }
+      : { name: 'screen', screen: 'home' }
   }
   if (parts[0] === 'compare') {
-    return { name: 'compare' }
+    if (parts[1] === 'filter' && parts[2] === 'results') {
+      return { name: 'screen', screen: 'compare-results' }
+    }
+    if (parts[1] === 'filter') {
+      return { name: 'screen', screen: 'compare-filter' }
+    }
+    if (parts[1] === 'result') {
+      return { name: 'screen', screen: 'compare-result', param: 'cmp-001' }
+    }
+    if (parts[1] === 'coach') {
+      return { name: 'screen', screen: 'compare-coach', param: 'cmp-001' }
+    }
+    return { name: 'screen', screen: 'compare' }
   }
   if (parts[0] === 'missions') {
-    return { name: 'mission' }
+    if (parts[1] === 'new') {
+      return { name: 'screen', screen: 'missions' }
+    }
+    if (parts[1] && parts[2] === 'feedback') {
+      return { name: 'mission-feedback', missionId: parts[1] }
+    }
+    return parts[1]
+      ? { name: 'screen', screen: 'mission-detail', param: parts[1] }
+      : { name: 'screen', screen: 'missions' }
   }
   if (parts[0] === 'records') {
-    return { name: 'records' }
+    return parts[1]
+      ? { name: 'screen', screen: 'record-detail', param: parts[1] }
+      : { name: 'screen', screen: 'records' }
   }
   if (parts[0] === 'profile') {
-    return { name: 'profile' }
+    return parts[1]
+      ? { name: 'screen', screen: 'profile-section', param: parts[1] }
+      : { name: 'screen', screen: 'profile' }
   }
   if (parts[0] === 'settings' && parts[1] === 'privacy') {
-    return { name: 'privacy' }
+    return { name: 'screen', screen: 'profile-section', param: 'privacy' }
   }
-  if (parts[0] === 'explore' && (parts[1] === 'compare' || parts[1] === 'portfolios')) {
-    return { name: 'compare' }
+  if (parts[0] === 'birthdays') {
+    return parts[1]
+      ? { name: 'screen', screen: 'birthday-flow', param: parts[1] }
+      : { name: 'screen', screen: 'birthdays' }
+  }
+  if (parts[0] === 'birthday-funds') {
+    if (parts[1] === 'me') {
+      if (parts[2] === 'open') {
+        return { name: 'screen', screen: 'birthday-open' }
+      }
+      if (parts[2] === 'share') {
+        return { name: 'screen', screen: 'birthday-share' }
+      }
+      if (parts[2] === 'status') {
+        return { name: 'screen', screen: 'birthday-status' }
+      }
+    }
+    if (parts[2] === 'contribute') {
+      return { name: 'birthday-contribution', fundId: parts[1] }
+    }
+    if (parts[2] === 'complete') {
+      return { name: 'screen', screen: 'birthday-complete', param: parts[1] }
+    }
+  }
+  if (parts[0] === 'explore' && parts[1] === 'compare') {
+    return { name: 'screen', screen: 'compare-result', param: 'cmp-001' }
+  }
+  if (parts[0] === 'explore' && parts[1] === 'portfolios') {
+    return { name: 'screen', screen: 'compare-filter' }
   }
   if (parts[0] === 'simulations') {
-    return { name: 'mission' }
+    return { name: 'screen', screen: 'compare-coach', param: 'cmp-001' }
   }
   return { name: 'not-found' }
 }
@@ -110,581 +161,796 @@ function usePathname(): [string, Navigate] {
 
 function App() {
   const [pathname, navigate] = usePathname()
-  const route = parseRoute(pathname)
+  const route = useMemo(() => parseRoute(pathname), [pathname])
   const activeTab = getActiveTab(route)
 
   return (
     <div className="app-canvas">
-      <div className="app-shell">
-        <main className="app-main">{renderRoute(route, navigate)}</main>
-        {route.name !== 'onboarding' ? (
-          <BottomNav active={activeTab} navigate={navigate} />
-        ) : null}
+      <div className="phone-shell">
+        <main className="app-main">{renderRoute(route, pathname, navigate)}</main>
+        {route.name !== 'onboarding' ? <BottomNav active={activeTab} navigate={navigate} /> : null}
       </div>
     </div>
   )
 }
 
-function renderRoute(route: Route, navigate: Navigate): ReactNode {
-  switch (route.name) {
-    case 'onboarding':
-      return <OnboardingPage navigate={navigate} />
-    case 'home':
-      return <HomePage navigate={navigate} />
-    case 'compare':
-      return <ComparePage navigate={navigate} />
-    case 'compare-filter':
-      return <CompareFilterPage navigate={navigate} />
-    case 'mission':
-      return <MissionPage />
-    case 'records':
-      return <RecordsPage />
-    case 'profile':
-      return <ProfilePage navigate={navigate} />
-    case 'privacy':
-      return <PrivacyPage navigate={navigate} />
-    case 'not-found':
-      return <NotFoundPage navigate={navigate} />
+function renderRoute(route: Route, pathname: string, navigate: Navigate): ReactNode {
+  if (route.name === 'onboarding') {
+    return <OnboardingPage navigate={navigate} />
   }
+  if (route.name === 'birthday-contribution') {
+    return <BirthdayContributionPage fundId={route.fundId} navigate={navigate} />
+  }
+  if (route.name === 'mission-feedback') {
+    return <MissionFeedbackPage missionId={route.missionId} navigate={navigate} />
+  }
+  if (route.name === 'screen') {
+    return <AppScreenPage pathname={pathname} route={route} navigate={navigate} />
+  }
+  return <NotFoundPage navigate={navigate} />
 }
 
 function getActiveTab(route: Route): TabKey {
-  if (route.name === 'compare' || route.name === 'compare-filter') {
-    return 'compare'
+  if (route.name === 'birthday-contribution') {
+    return 'home'
   }
-  if (route.name === 'mission') {
+  if (route.name === 'mission-feedback') {
     return 'mission'
   }
-  if (route.name === 'records') {
+  if (route.name !== 'screen') {
+    return 'home'
+  }
+  if (route.screen.startsWith('compare')) {
+    return 'compare'
+  }
+  if (route.screen.startsWith('mission')) {
+    return 'mission'
+  }
+  if (route.screen.startsWith('record')) {
     return 'records'
   }
-  if (route.name === 'profile' || route.name === 'privacy') {
+  if (route.screen.startsWith('profile')) {
     return 'profile'
   }
   return 'home'
 }
 
-function HomePage({ navigate }: { navigate: Navigate }) {
-  return (
-    <Screen title="" right={<IconButton icon="bell" label="알림" />}>
-      <section className="home-screen">
-        <h1>{homeDemo.greeting}</h1>
+function AppScreenPage({
+  pathname,
+  route,
+  navigate,
+}: {
+  pathname: string
+  route: Extract<Route, { name: 'screen' }>
+  navigate: Navigate
+}) {
+  const state = useAppScreen(pathname, route)
 
-        <button className="hero-mission-card" type="button" onClick={() => navigate('/missions')}>
-          <div>
-            <span>오늘의 미션</span>
-            <strong>{homeDemo.missionTitle}</strong>
-            <small>진행률 {homeDemo.missionProgress}%</small>
-            <ProgressLine value={homeDemo.missionProgress} tone="purple" />
-          </div>
-          <Chevron />
-        </button>
-
-        <Card>
-          <SectionHeader title="오늘의 예산" action="자세히 보기" />
-          <div className="budget-row">
-            <Metric label="하루 예산" value={homeDemo.budget.total} />
-            <Metric label="사용 금액" value={homeDemo.budget.used} />
-            <Metric label="남은 금액" value={homeDemo.budget.left} tone="green" />
-          </div>
-          <ProgressLine value={78} tone="green" />
-        </Card>
-
-        <Card>
-          <SectionHeader title="오늘의 지출 요약" action="전체 보기" />
-          <div className="spending-grid">
-            {homeDemo.spending.map((item) => (
-              <SpendingTile item={item} key={item.label} />
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="자산 현황" action="자세히 보기" />
-          <div className="asset-card-body">
-            <div>
-              <span>총 자산</span>
-              <strong>{homeDemo.assets.total}</strong>
-              <small>
-                이번 달 {homeDemo.assets.delta} <b>{homeDemo.assets.growth}</b>
-              </small>
-            </div>
-            <MiniLineChart />
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="팔로잉 금융 근황" action="전체 보기" />
-          <p className="card-subtitle">친구 50명의 금융 활동 요약</p>
-          <div className="signal-grid">
-            {homeDemo.followers.map((item) => (
-              <SignalTile signal={item} key={item.label} />
-            ))}
-          </div>
-        </Card>
-      </section>
-    </Screen>
-  )
-}
-
-function ComparePage({ navigate }: { navigate: Navigate }) {
-  return (
-    <Screen
-      title="그룹 비교"
-      left={<IconButton icon="back" label="뒤로" onClick={() => navigate('/home')} />}
-      right={<IconButton icon="help" label="도움말" />}
-    >
-      <section className="compare-screen">
-        <div className="lead-copy">
-          <h1>비슷한 사람들과 비교해보세요</h1>
-          <p>나와 비슷한 금융 생활을 가진 사람들의 평균과 비교할 수 있어요.</p>
-        </div>
-
-        <div className="score-grid">
-          <ScoreCard title="나의 금융 점수" score={compareDemo.mineScore} rank={compareDemo.mineRank} />
-          <ScoreCard
-            title="비교 그룹 평균"
-            score={compareDemo.groupScore}
-            rank={compareDemo.groupRank}
-            tone="mint"
-          />
-        </div>
-
-        <Card className="compare-list-card">
-          <SectionHeader title="항목별 비교" legend="나 · 그룹 평균" />
-          <div className="compare-list">
-            {compareDemo.metrics.map((metric) => (
-              <CompareMetricRow metric={metric} key={metric.label} />
-            ))}
-          </div>
-        </Card>
-
-        <ActionPanel>
-          <button className="primary-button" type="button" onClick={() => navigate('/compare/filter')}>
-            비교 그룹 변경하기
-          </button>
-        </ActionPanel>
-      </section>
-    </Screen>
-  )
-}
-
-function CompareFilterPage({ navigate }: { navigate: Navigate }) {
-  return (
-    <Screen
-      title="비교 그룹 선택"
-      left={<IconButton icon="back" label="뒤로" onClick={() => navigate('/compare')} />}
-      right={<button className="text-button" type="button">초기화</button>}
-    >
-      <section className="filter-screen">
-        <div className="section-mini-heading">
-          <span>필터 선택</span>
-        </div>
-        <div className="filter-list">
-          {filterDemo.filters.slice(0, 5).map(([label, value]) => (
-            <FilterRow label={label} value={value} key={label} />
-          ))}
-        </div>
-
-        <h2>추가 필터</h2>
-        <div className="filter-list">
-          {filterDemo.filters.slice(5).map(([label, value]) => (
-            <FilterRow label={label} value={value} key={label} />
-          ))}
-        </div>
-
-        <p className="result-count">이 조건에 맞는 사용자 1,246명</p>
-        <div className="profile-rail">
-          {filterDemo.profiles.map((profile) => (
-            <FilterProfileCard profile={profile} key={profile.name} />
-          ))}
-        </div>
-
-        <ActionPanel>
-          <button className="primary-button" type="button" onClick={() => navigate('/compare')}>
-            이 그룹으로 비교하기
-          </button>
-        </ActionPanel>
-      </section>
-    </Screen>
-  )
-}
-
-function MissionPage() {
-  return (
-    <Screen title="미션" right={<IconButton icon="gift" label="리워드" />}>
-      <section className="mission-screen">
-        <div className="section-mini-heading spread">
-          <span>오늘의 미션</span>
-          <small>매일 00:00에 갱신돼요</small>
-        </div>
-
-        <Card className="mission-hero">
-          <div>
-            <strong>{missionDemo.heroTitle}</strong>
-            <span>식비 미션</span>
-            <b>{missionDemo.dailyBudget}</b>
-            <small>하루 식비 예산</small>
-          </div>
-          <RingProgress value={missionDemo.progress} label="진행 중" />
-          <ProgressLine value={missionDemo.progress} tone="purple" />
-          <p>남은 예산 {missionDemo.left}</p>
-        </Card>
-
-        <SectionHeader title="진행 중인 미션" action="전체 보기" />
-        <Card className="mission-list">
-          {missionDemo.active.map((mission) => (
-            <MissionRow mission={mission} key={mission.title} />
-          ))}
-        </Card>
-
-        <SectionHeader title="완료한 미션" action="전체 보기" />
-        <Card className="completed-mission">
-          <IconBadge icon="check" tone="green" />
-          <div>
-            <strong>{missionDemo.completed.title}</strong>
-            <span>{missionDemo.completed.description}</span>
-          </div>
-          <div>
-            <b>{missionDemo.completed.points}</b>
-            <small>{missionDemo.completed.date}</small>
-          </div>
-        </Card>
-
-        <div className="points-strip">
-          <span>나의 포인트</span>
-          <strong>{missionDemo.points.total}</strong>
-          <small>이번 주 획득 포인트 {missionDemo.points.weekly}</small>
-        </div>
-      </section>
-    </Screen>
-  )
-}
-
-function RecordsPage() {
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토']
-
-  return (
-    <Screen title="캘린더" right={<IconButton icon="chart" label="통계" />}>
-      <section className="records-screen">
-        <div className="month-heading">
-          <Chevron direction="left" />
-          <h1>{recordDemo.month}</h1>
-          <Chevron />
-        </div>
-
-        <div className="calendar-grid weekdays">
-          {weekdays.map((day) => (
-            <span key={day}>{day}</span>
-          ))}
-        </div>
-        <div className="calendar-grid">
-          {recordDemo.days.map((day) => (
-            <CalendarCell day={day} key={day.day} />
-          ))}
-        </div>
-
-        <div className="legend-row">
-          <LegendDot tone="success" label="미션 성공" />
-          <LegendDot tone="over" label="예산 초과" />
-          <LegendDot tone="none" label="기록 없음" />
-        </div>
-
-        <Card>
-          <div className="record-budget">
-            <div>
-              <span>오늘의 예산</span>
-              <small>식비 미션 진행 중</small>
-            </div>
-            <div className="budget-row compact">
-              <Metric label="하루 예산" value="₩10,000" />
-              <Metric label="사용 금액" value="₩7,800" />
-              <Metric label="사용률" value="78%" />
-            </div>
-            <ProgressLine value={78} tone="green" />
-            <p>남은 예산 <b>₩2,200</b></p>
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="오늘의 미션 기록" legend="+120P" />
-          <div className="record-item">
-            <IconBadge icon="food" tone="mint" />
-            <div>
-              <strong>식비 10,000원 이하 사용하기</strong>
-              <span>성공! 사용 금액 7,800원</span>
-            </div>
-          </div>
-        </Card>
-      </section>
-    </Screen>
-  )
-}
-
-function ProfilePage({ navigate }: { navigate: Navigate }) {
-  return (
-    <Screen
-      title="내 팔로워 인사이트"
-      left={<IconButton icon="back" label="뒤로" onClick={() => navigate('/home')} />}
-    >
-      <section className="profile-screen">
-        <button className="follower-card" type="button" onClick={() => navigate('/settings/privacy')}>
-          <IconBadge icon="users" tone="purple" />
-          <div>
-            <strong>내 팔로워 {profileDemo.followers}</strong>
-            <span>함께 성장하고 있는 금융 생활을 확인해보세요!</span>
-          </div>
-          <Chevron />
-        </button>
-
-        <SectionHeader title="팔로워 금융 생활 요약" />
-        <div className="profile-summary-grid">
-          {profileDemo.summary.map((signal) => (
-            <SummaryCard signal={signal} key={signal.label} />
-          ))}
-        </div>
-
-        <Card>
-          <SectionHeader title="금융 생활 분포" />
-          <div className="distribution-list">
-            {profileDemo.distribution.map((signal) => (
-              <DistributionRow signal={signal} key={signal.label} />
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionHeader title="팔로잉 TOP 5 금융 활동" />
-          <ol className="activity-list">
-            {['이지연', '김민수', '박상우', '최유진', '정하나'].map((name, index) => (
-              <li key={name}>
-                <span>{index + 1}</span>
-                <b>{name}</b>
-                <small>{index % 2 === 0 ? '적금' : '주식'}</small>
-                <em>+{[240000, 520000, 180000, 120000, 300000][index].toLocaleString('ko-KR')}원</em>
-              </li>
-            ))}
-          </ol>
-        </Card>
-      </section>
-    </Screen>
-  )
-}
-
-function PrivacyPage({ navigate }: { navigate: Navigate }) {
-  const [withdrawn, setWithdrawn] = useState(false)
-
-  return (
-    <Screen
-      title="공개 설정"
-      left={<IconButton icon="back" label="뒤로" onClick={() => navigate('/profile')} />}
-    >
-      <section className="privacy-screen">
-        <Card className="privacy-preview">
-          <span>공개 미리보기</span>
-          <h1>나의 공개 미리보기</h1>
-          <p>내 익명 포트폴리오에는 필요한 요약 정보만 보여요.</p>
-        </Card>
-
-        <Card>
-          <h2>보이는 정보</h2>
-          <div className="chip-row">
-            {privacyVisible.map((field) => (
-              <span className="chip safe" key={field}>{field}</span>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <h2>숨겨지는 정보</h2>
-          <div className="chip-row">
-            {privacyHidden.map((field) => (
-              <span className="chip muted" key={field}>{field}</span>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="danger-card">
-          <h2>공개 철회</h2>
-          <p>철회하면 내 익명 포트폴리오는 더 이상 또래 탐색 화면에 노출되지 않아요.</p>
-          <button className="danger-button" type="button" onClick={() => setWithdrawn(true)}>
-            익명 포트폴리오 공개 철회
-          </button>
-        </Card>
-
-        {withdrawn ? (
-          <p className="toast">공개 동의가 철회됐어요. 내 익명 포트폴리오는 더 이상 탐색되지 않습니다.</p>
-        ) : null}
-      </section>
-    </Screen>
-  )
-}
-
-function OnboardingPage({ navigate }: { navigate: Navigate }) {
-  const [running, setRunning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [steps, setSteps] = useState<OnboardingStep[]>([
-    { label: '지금 상태 선택', status: 'pending', detail: '이번 P0는 학생/알바 기준으로 시연돼요' },
-    { label: '금융 목표 선택', status: 'pending', detail: '비상금 만들기 루틴을 기준으로 비교합니다' },
-    { label: '체험용 데이터 안내', status: 'pending', detail: '실제 금융정보가 아닌 합성 데이터로 시연됩니다' },
-    { label: '공개 미리보기 동의', status: 'pending', detail: '공개 전 미리보고 언제든 철회할 수 있어요' },
-  ])
-
-  const markStep = (index: number, status: StepStatus, detail: string) => {
-    setSteps((current) =>
-      current.map((step, stepIndex) =>
-        stepIndex === index ? { ...step, status, detail } : step,
-      ),
-    )
+  if (state.status === 'loading') {
+    return <LoadingScreen />
   }
+  if (state.status === 'error') {
+    return <ErrorScreen message={state.message} navigate={navigate} />
+  }
+  return <ScreenRenderer screen={state.screen} navigate={navigate} />
+}
 
-  const startOnboarding = async () => {
-    clearSession()
-    setError(null)
-    setRunning(true)
+function useAppScreen(pathname: string, route: Extract<Route, { name: 'screen' }>): LoadState {
+  const [state, setState] = useState<LoadState>({ status: 'loading' })
+
+  useEffect(() => {
+    let active = true
+    setState({ status: 'loading' })
+    loadScreen(route)
+      .then((screen) => {
+        if (active) {
+          setState({ status: 'success', screen })
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setState({ status: 'error', message: describeError(error) })
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [pathname, route])
+
+  return state
+}
+
+function loadScreen(route: Extract<Route, { name: 'screen' }>): Promise<AppScreenResponse> {
+  switch (route.screen) {
+    case 'home':
+      return api.getAppHome()
+    case 'home-detail':
+      return api.getAppHomeDetail(route.param ?? 'mission')
+    case 'compare':
+      return api.getAppCompare()
+    case 'compare-filter':
+      return api.getAppCompareFilter()
+    case 'compare-results':
+      return api.searchAppCompareFilter()
+    case 'compare-result':
+      return api.getAppCompareResult(route.param ?? 'cmp-001')
+    case 'compare-coach':
+      return api.getAppCoachFlow(route.param ?? 'cmp-001')
+    case 'missions':
+      return api.getAppMissions()
+    case 'mission-detail':
+      return api.getAppMission(route.param ?? 'mission-food')
+    case 'records':
+      return api.getAppRecords()
+    case 'record-detail':
+      return api.getAppRecordDetail(route.param ?? '2026-06-12')
+    case 'profile':
+      return api.getAppProfile()
+    case 'profile-section':
+      return api.getAppProfileSection(route.param ?? 'followers')
+    case 'birthdays':
+      return api.getAppBirthdays()
+    case 'birthday-flow':
+      return api.getAppBirthdayFlow(route.param ?? 'bday-jiwoo')
+    case 'birthday-complete':
+      return api.getBirthdayContributionComplete(route.param ?? 'fund-jiwoo')
+    case 'birthday-open':
+      return api.getMyBirthdayFundOpenScreen()
+    case 'birthday-share':
+      return api.getMyBirthdayFundShareScreen()
+    case 'birthday-status':
+      return api.getMyBirthdayFundStatus()
+  }
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.message
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return '화면을 불러오지 못했어요.'
+}
+
+function ScreenRenderer({ screen, navigate }: { screen: AppScreenResponse; navigate: Navigate }) {
+  const canGoBack = !['home', 'compare', 'missions', 'records:2026-06', 'profile'].includes(screen.screenId)
+
+  return (
+    <div className="screen">
+      <StatusBar time={screen.statusBarTime} />
+      <header className="app-header">
+        <div className="header-side">
+          {canGoBack ? (
+            <IconButton icon="back" label="뒤로" onClick={() => window.history.back()} />
+          ) : null}
+        </div>
+        <strong>{screen.title}</strong>
+        <div className="header-side right">
+          <IconButton icon={headerIcon(screen)} label="메뉴" onClick={() => navigate(headerPath(screen))} />
+        </div>
+      </header>
+
+      <section className="screen-stack">
+        {screen.sections.map((section) => (
+          <SectionRenderer section={section} navigate={navigate} key={section.id} />
+        ))}
+      </section>
+    </div>
+  )
+}
+
+function headerIcon(screen: AppScreenResponse): IconName {
+  if (screen.tab === 'records') {
+    return 'chart'
+  }
+  if (screen.tab === 'mission') {
+    return 'gift'
+  }
+  if (screen.tab === 'profile') {
+    return 'settings'
+  }
+  if (screen.tab === 'compare') {
+    return 'sliders'
+  }
+  return 'bell'
+}
+
+function headerPath(screen: AppScreenResponse): string {
+  if (screen.tab === 'records') {
+    return '/records/stats'
+  }
+  if (screen.tab === 'mission') {
+    return '/missions/next-goals'
+  }
+  if (screen.tab === 'profile') {
+    return '/settings/privacy'
+  }
+  if (screen.tab === 'compare') {
+    return '/compare/filter'
+  }
+  return '/birthdays'
+}
+
+function SectionRenderer({ section, navigate }: { section: AppSection; navigate: Navigate }) {
+  if (section.kind === 'greeting' || section.kind === 'lead') {
+    return <LeadSection section={section} />
+  }
+  if (section.kind === 'missionHero') {
+    return <MissionHero section={section} navigate={navigate} />
+  }
+  if (section.kind === 'budget') {
+    return <BudgetSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'spendingGrid' || section.kind === 'signalGrid' || section.kind === 'scoreGrid') {
+    return <GridSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'asset') {
+    return <AssetSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'compareBars' || section.kind === 'distribution') {
+    return <CompareBarsSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'calendar') {
+    return <CalendarSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'coach' || section.kind === 'birthday') {
+    return <IllustratedSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'points' || section.kind === 'profileHero' || section.kind === 'actionCard') {
+    return <MetricCardSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'chipGroup') {
+    return <ChipSection section={section} />
+  }
+  return <ListSection section={section} navigate={navigate} />
+}
+
+function LeadSection({ section }: { section: AppSection }) {
+  return (
+    <div className={section.kind === 'greeting' ? 'greeting-block' : 'lead-block'}>
+      <h1>{section.title}</h1>
+      {section.subtitle ? <p>{section.subtitle}</p> : null}
+    </div>
+  )
+}
+
+function MissionHero({ section, navigate }: SectionProps) {
+  const metric = section.metrics?.[0]
+  return (
+    <>
+      <button className="card hero-card mission-hero-card" type="button" onClick={() => goDetail(section, navigate)}>
+        <div className="hero-copy">
+          <span>{section.subtitle}</span>
+          <strong>{section.title}</strong>
+          {metric ? <small>{metric.label} {metric.value}</small> : null}
+          <ProgressLine value={metric?.progress ?? 0} tone="purple" />
+        </div>
+        {metric ? <RingProgress value={metric.progress ?? 0} label={metric.caption ?? '진행 중'} /> : <Chevron />}
+      </button>
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </>
+  )
+}
+
+function BudgetSection({ section, navigate }: SectionProps) {
+  const progress = numberFromData(section.data, 'progress') ?? section.metrics?.[1]?.progress ?? 0
+  return (
+    <Card section={section} navigate={navigate}>
+      <div className="metric-row">
+        {section.metrics?.map((metric) => (
+          <MetricView metric={metric} key={metric.label} />
+        ))}
+      </div>
+      <ProgressLine value={progress} tone="green" />
+    </Card>
+  )
+}
+
+function GridSection({ section, navigate }: SectionProps) {
+  const isScore = section.kind === 'scoreGrid'
+  return (
+    <Card section={section} navigate={navigate}>
+      {isScore ? (
+        <div className="score-grid">
+          {section.metrics?.map((metric) => <ScoreTile metric={metric} key={metric.label} />)}
+        </div>
+      ) : (
+        <div className="tile-grid">
+          {section.items?.map((item) => <Tile item={item} navigate={navigate} key={item.id} />)}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function AssetSection({ section, navigate }: SectionProps) {
+  return (
+    <Card section={section} navigate={navigate}>
+      <div className="asset-layout">
+        <div>
+          {section.metrics?.map((metric) => (
+            <MetricView metric={metric} key={metric.label} />
+          ))}
+        </div>
+        <MiniLineChart values={arrayFromData(section.data, 'sparkline')} />
+      </div>
+    </Card>
+  )
+}
+
+function CompareBarsSection({ section, navigate }: SectionProps) {
+  return (
+    <Card section={section} navigate={navigate}>
+      <div className="bar-list">
+        {section.items?.map((item) => (
+          <BarRow item={item} navigate={navigate} key={item.id} />
+        ))}
+      </div>
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </Card>
+  )
+}
+
+function CalendarSection({ section, navigate }: SectionProps) {
+  const itemByDay = new Map((section.items ?? []).map((item) => [Number(item.title), item]))
+  const days = Array.from({ length: 30 }, (_, index) => itemByDay.get(index + 1) ?? {
+    id: `2026-06-${String(index + 1).padStart(2, '0')}`,
+    title: String(index + 1),
+    tone: 'empty',
+  })
+
+  return (
+    <div className="calendar-block">
+      <div className="month-heading">
+        <Chevron direction="left" />
+        <h1>{section.title}</h1>
+        <Chevron />
+      </div>
+      <div className="weekdays">
+        {['일', '월', '화', '수', '목', '금', '토'].map((day) => <span key={day}>{day}</span>)}
+      </div>
+      <div className="calendar-grid">
+        {days.map((item) => (
+          <button
+            className={`calendar-cell ${item.tone ?? 'empty'}`}
+            type="button"
+            onClick={() => item.detailPath && navigate(item.detailPath)}
+            key={item.id}
+          >
+            <strong>{item.title}</strong>
+            {item.value ? <small>{item.value}</small> : null}
+            <i />
+          </button>
+        ))}
+      </div>
+      <div className="legend-row">
+        <Legend tone="success" label="미션 성공" />
+        <Legend tone="over" label="예산 초과" />
+        <Legend tone="none" label="기록 없음" />
+      </div>
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </div>
+  )
+}
+
+function IllustratedSection({ section, navigate }: SectionProps) {
+  const asset = section.heroAsset
+  return (
+    <Card section={section} navigate={navigate} className={`illustrated-card ${section.kind}`}>
+      <div className="illustrated-layout">
+        <div>
+          {section.subtitle ? <p>{section.subtitle}</p> : null}
+          <div className="metric-row compact">
+            {section.metrics?.map((metric) => (
+              <MetricView metric={metric} key={metric.label} />
+            ))}
+          </div>
+        </div>
+        {asset ? <img className="character-art" src={asset} alt="" /> : null}
+      </div>
+      {section.metrics?.[0]?.progress ? (
+        <ProgressLine value={section.metrics[0].progress ?? 0} tone="green" />
+      ) : null}
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </Card>
+  )
+}
+
+function MetricCardSection({ section, navigate }: SectionProps) {
+  return (
+    <Card section={section} navigate={navigate} className={section.kind === 'points' ? 'points-card' : undefined}>
+      <div className="metric-row">
+        {section.metrics?.map((metric) => (
+          <MetricView metric={metric} key={metric.label} />
+        ))}
+      </div>
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </Card>
+  )
+}
+
+function ChipSection({ section }: { section: AppSection }) {
+  return (
+    <article className="card">
+      <h2>{section.title}</h2>
+      <div className="chip-row">
+        {section.items?.map((item) => (
+          <span className={`chip ${item.tone ?? 'muted'}`} key={item.id}>{item.title}</span>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function ListSection({ section, navigate }: SectionProps) {
+  return (
+    <Card section={section} navigate={navigate}>
+      <div className={section.kind === 'profileRail' ? 'profile-rail' : 'list-stack'}>
+        {section.items?.map((item, index) => (
+          <ListItem item={item} index={index} navigate={navigate} rank={section.kind === 'rankList'} key={item.id} />
+        ))}
+      </div>
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </Card>
+  )
+}
+
+function Card({
+  section,
+  navigate,
+  children,
+  className,
+}: {
+  section: AppSection
+  navigate: Navigate
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <article className={`card ${className ?? ''}`}>
+      <SectionHeader section={section} navigate={navigate} />
+      {section.subtitle && !['coach', 'birthday'].includes(section.kind) ? <p className="card-subtitle">{section.subtitle}</p> : null}
+      {children}
+    </article>
+  )
+}
+
+function SectionHeader({ section, navigate }: { section: AppSection; navigate: Navigate }) {
+  return (
+    <div className="section-header">
+      <h2>{section.title}</h2>
+      {section.detailPath ? (
+        <button type="button" onClick={() => navigate(section.detailPath ?? '/home')}>
+          자세히 보기 <Chevron />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function MetricView({ metric }: { metric: AppMetric }) {
+  return (
+    <div className={`metric ${metric.tone ?? 'default'}`}>
+      <span>{metric.label}</span>
+      <strong>{metric.value}</strong>
+      {metric.caption ? <small>{metric.caption}</small> : null}
+    </div>
+  )
+}
+
+function ScoreTile({ metric }: { metric: AppMetric }) {
+  return (
+    <div className={`score-tile ${metric.tone ?? 'purple'}`}>
+      <span>{metric.label}</span>
+      <strong>{metric.value}</strong>
+      {metric.caption ? <small>{metric.caption}</small> : null}
+    </div>
+  )
+}
+
+function Tile({ item, navigate }: { item: AppItem; navigate: Navigate }) {
+  return (
+    <button className="mini-tile" type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
+      <IconBadge icon={item.icon ?? 'more'} tone={item.tone ?? 'purple'} />
+      <strong>{item.title}</strong>
+      {item.value ? <b>{item.value}</b> : null}
+      {item.caption ? <small>{item.caption}</small> : null}
+    </button>
+  )
+}
+
+function BarRow({ item, navigate }: { item: AppItem; navigate: Navigate }) {
+  const mine = numberFromData(item.data, 'mine') ?? numberFromData(item.data, 'progress') ?? 50
+  const group = numberFromData(item.data, 'group') ?? 0
+
+  return (
+    <button className="bar-row" type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
+      <IconBadge icon={item.icon ?? 'saving'} tone={item.tone ?? 'purple'} />
+      <div className="bar-copy">
+        <strong>{item.title}</strong>
+        {item.subtitle ? <span>{item.subtitle}</span> : null}
+        <div className="dual-bars">
+          <ProgressLine value={mine} tone="purple" />
+          {group ? <ProgressLine value={group} tone="gray" /> : null}
+        </div>
+      </div>
+      <div className="bar-value">
+        {item.value ? <b>{item.value}</b> : null}
+        {item.caption ? <small>{item.caption}</small> : null}
+      </div>
+    </button>
+  )
+}
+
+function ListItem({
+  item,
+  index,
+  rank,
+  navigate,
+}: {
+  item: AppItem
+  index: number
+  rank: boolean
+  navigate: Navigate
+}) {
+  return (
+    <button className="list-item" type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
+      {rank ? <span className="rank-dot">{index + 1}</span> : <IconBadge icon={item.icon ?? 'check'} tone={item.tone ?? 'purple'} />}
+      <div>
+        <strong>{item.title}</strong>
+        {item.subtitle ? <small>{item.subtitle}</small> : null}
+      </div>
+      {item.value ? <b>{item.value}</b> : null}
+      {item.caption ? <em>{item.caption}</em> : null}
+      {item.detailPath ? <Chevron /> : null}
+    </button>
+  )
+}
+
+function ActionButtons({ actions, navigate }: { actions?: AppAction[] | null; navigate: Navigate }) {
+  if (!actions?.length) {
+    return null
+  }
+  return (
+    <div className="action-row">
+      {actions.map((action) => (
+        <ActionButton action={action} navigate={navigate} key={`${action.label}-${action.path}`} />
+      ))}
+    </div>
+  )
+}
+
+function ActionButton({ action, navigate }: { action: AppAction; navigate: Navigate }) {
+  const [busy, setBusy] = useState(false)
+
+  const handleClick = async () => {
+    if (action.method === 'GET') {
+      navigate(action.path)
+      return
+    }
+    setBusy(true)
     try {
-      markStep(0, 'loading', '선택한 상태를 확인하고 있어요')
-      const diagnosis = await api.createDiagnosis()
-      saveSession({
-        diagnosisId: diagnosis.diagnosisId,
-        onboardingToken: diagnosis.onboardingToken,
-        goalType: diagnosis.goalType,
-      })
-      markStep(0, 'done', '학생/알바 기준으로 준비했어요')
-
-      markStep(1, 'loading', '선택한 목표를 연결하고 있어요')
-      const mockConsent = await api.createMockConsent(
-        diagnosis.onboardingToken,
-        diagnosis.diagnosisId,
-      )
-      saveSession({ mydataConnectionId: mockConsent.mydataConnectionId })
-      markStep(1, 'done', '비상금 만들기 목표로 체험합니다')
-
-      markStep(2, 'loading', '합성 마이데이터를 연결하고 있어요')
-      const privacy = await api.createPrivacyConsents(diagnosis.onboardingToken)
-      saveSession({ privacySettingsId: privacy.privacySettingsId })
-      markStep(2, 'done', '실제 금융정보 없이 연결 완료')
-
-      markStep(3, 'loading', '공개 전 미리보기를 만들고 있어요')
-      const demoSession = await api.createDemoSession(
-        diagnosis.onboardingToken,
-        diagnosis.diagnosisId,
-        mockConsent.mydataConnectionId,
-      )
-      saveSession({
-        userId: demoSession.userId,
-        accessToken: demoSession.accessToken,
-        selectedPersonaId: demoSession.selectedPersonaId,
-        goalType: demoSession.goalType,
-      })
-      markStep(3, 'done', '보이는 정보와 숨김 정보 확인 완료')
-      navigate('/home')
-    } catch (caught) {
-      setError(describeError(caught))
+      if (action.intent === 'birthday-open') {
+        await api.openMyBirthdayFund()
+        navigate('/birthday-funds/me/status')
+      } else if (action.intent === 'birthday-share') {
+        await api.shareMyBirthdayFund()
+        navigate('/birthday-funds/me/status')
+      } else if (action.intent === 'mission-feedback') {
+        navigate(action.path)
+      } else {
+        navigate(action.path)
+      }
     } finally {
-      setRunning(false)
+      setBusy(false)
     }
   }
 
   return (
-    <Screen title="FinMate">
-      <section className="onboarding-screen">
-        <div className="lead-copy">
-          <h1>나에게 맞는 금융 습관을 시작해볼까요?</h1>
-          <p>합성 마이데이터로 비교, 미션, 기록, 프로필 화면을 안전하게 체험합니다.</p>
-        </div>
+    <button className={`app-button ${action.tone}`} type="button" disabled={busy} onClick={handleClick}>
+      {busy ? '처리 중' : action.label}
+    </button>
+  )
+}
 
-        <Card className="demo-note">
-          <span>이번 P0 데모</span>
-          <strong>비상금 루틴 기준 고정 시연</strong>
-          <p>다른 상태와 목표는 다음 버전에서 연결될 예정이에요.</p>
-        </Card>
+function BirthdayContributionPage({ fundId, navigate }: { fundId: string; navigate: Navigate }) {
+  const [amount, setAmount] = useState(10000)
+  const [message, setMessage] = useState('지우야 생일 축하해!')
+  const [anonymous, setAnonymous] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-        <Card className="choice-card">
-          <StepTitle index={1} step={steps[0]} />
-          <ChoiceGrid items={onboardingStatuses} />
-        </Card>
+  const submit = async () => {
+    setBusy(true)
+    try {
+      await api.contributeBirthdayFund(fundId, { amount, message, anonymous })
+      navigate(`/birthday-funds/${fundId}/complete`)
+    } finally {
+      setBusy(false)
+    }
+  }
 
-        <Card className="choice-card">
-          <StepTitle index={2} step={steps[1]} />
-          <ChoiceGrid items={onboardingGoals} />
-        </Card>
-
-        {steps.slice(2).map((step, index) => (
-          <Card className="choice-card" key={step.label}>
-            <StepTitle index={index + 3} step={step} />
-          </Card>
-        ))}
-
-        {error ? <p className="inline-error">{error}</p> : null}
-
-        <ActionPanel>
-          <button className="primary-button" type="button" onClick={startOnboarding} disabled={running}>
-            {running ? '준비 중이에요' : '동의하고 시작하기'}
+  return (
+    <div className="screen">
+      <StatusBar time="9:41" />
+      <header className="app-header">
+        <div className="header-side"><IconButton icon="back" label="뒤로" onClick={() => navigate('/birthdays/bday-jiwoo')} /></div>
+        <strong>참여하기</strong>
+        <div className="header-side right"><IconButton icon="bell" label="알림" /></div>
+      </header>
+      <section className="screen-stack">
+        <article className="card form-card">
+          <h2>참여할 금액을 입력해주세요</h2>
+          <div className="amount-display">₩{amount.toLocaleString('ko-KR')}</div>
+          <div className="amount-options">
+            {[5000, 10000, 20000].map((value) => (
+              <button className={value === amount ? 'selected' : ''} type="button" onClick={() => setAmount(value)} key={value}>
+                +{value.toLocaleString('ko-KR')}
+              </button>
+            ))}
+          </div>
+          <label className="field-label" htmlFor="birthday-message">축하 메시지</label>
+          <textarea id="birthday-message" value={message} onChange={(event) => setMessage(event.target.value)} />
+          <label className="toggle-row">
+            <span>익명으로 참여하기</span>
+            <input type="checkbox" checked={anonymous} onChange={(event) => setAnonymous(event.target.checked)} />
+          </label>
+          <button className="app-button primary" type="button" disabled={busy} onClick={submit}>
+            {busy ? '참여 중' : '다음'}
           </button>
-          <button type="button" onClick={() => navigate('/home')}>
-            바로 보기
-          </button>
-        </ActionPanel>
+        </article>
       </section>
-    </Screen>
+    </div>
+  )
+}
+
+function MissionFeedbackPage({ missionId, navigate }: { missionId: string; navigate: Navigate }) {
+  const [state, setState] = useState<LoadState>({ status: 'loading' })
+
+  useEffect(() => {
+    let active = true
+    async function submit() {
+      try {
+        await api.submitAppMissionFeedback(missionId)
+        const screen = await api.getAppMission('feedback')
+        if (active) {
+          setState({ status: 'success', screen })
+        }
+      } catch (error) {
+        if (active) {
+          setState({ status: 'error', message: describeError(error) })
+        }
+      }
+    }
+    void submit()
+    return () => {
+      active = false
+    }
+  }, [missionId])
+
+  if (state.status === 'loading') {
+    return <LoadingScreen />
+  }
+  if (state.status === 'error') {
+    return <ErrorScreen message={state.message} navigate={navigate} />
+  }
+  return <ScreenRenderer screen={state.screen} navigate={navigate} />
+}
+
+function LoadingScreen() {
+  return (
+    <div className="screen center-screen">
+      <StatusBar time="9:41" />
+      <div className="loader" />
+      <p>화면을 불러오고 있어요</p>
+    </div>
+  )
+}
+
+function ErrorScreen({ message, navigate }: { message: string; navigate: Navigate }) {
+  return (
+    <div className="screen center-screen">
+      <StatusBar time="9:41" />
+      <h1>화면을 불러오지 못했어요</h1>
+      <p>{message}</p>
+      <button className="app-button primary" type="button" onClick={() => navigate('/home')}>홈으로</button>
+    </div>
   )
 }
 
 function NotFoundPage({ navigate }: { navigate: Navigate }) {
   return (
-    <Screen title="안내">
-      <Card className="empty-state">
-        <h1>화면을 찾을 수 없어요</h1>
-        <p>홈으로 이동해 5탭 데모를 다시 확인해주세요.</p>
-        <button className="primary-button" type="button" onClick={() => navigate('/home')}>
-          홈으로 이동
-        </button>
-      </Card>
-    </Screen>
+    <div className="screen center-screen">
+      <StatusBar time="9:41" />
+      <h1>없는 화면이에요</h1>
+      <button className="app-button primary" type="button" onClick={() => navigate('/home')}>홈으로</button>
+    </div>
   )
 }
 
-function Screen({
-  title,
-  left,
-  right,
-  children,
-}: {
-  title: string
-  left?: ReactNode
-  right?: ReactNode
-  children: ReactNode
-}) {
+function OnboardingPage({ navigate }: { navigate: Navigate }) {
+  const [steps, setSteps] = useState<OnboardingStep[]>([
+    { label: '상태 선택', status: 'pending', detail: '학생/알바 기준 데모' },
+    { label: '합성 MyData 연결', status: 'pending', detail: 'mock 금융 데이터' },
+    { label: '공개 범위 확인', status: 'pending', detail: '익명 포트폴리오' },
+    { label: '앱 시작', status: 'pending', detail: '5탭 경험으로 이동' },
+  ])
+  const [error, setError] = useState<string | null>(null)
+
+  const updateStep = (index: number, status: StepStatus) => {
+    setSteps((current) => current.map((step, itemIndex) => itemIndex === index ? { ...step, status } : step))
+  }
+
+  const start = async () => {
+    setError(null)
+    clearSession()
+    try {
+      updateStep(0, 'loading')
+      const diagnosis = await api.createDiagnosis()
+      updateStep(0, 'done')
+      updateStep(1, 'loading')
+      const consent = await api.createMockConsent(diagnosis.onboardingToken, diagnosis.diagnosisId)
+      updateStep(1, 'done')
+      updateStep(2, 'loading')
+      await api.createPrivacyConsents(diagnosis.onboardingToken)
+      updateStep(2, 'done')
+      updateStep(3, 'loading')
+      const session = await api.createDemoSession(diagnosis.onboardingToken, diagnosis.diagnosisId, consent.mydataConnectionId)
+      saveSession(session)
+      updateStep(3, 'done')
+      navigate('/home')
+    } catch (caught) {
+      setError(describeError(caught))
+    }
+  }
+
   return (
-    <div className="screen">
-      <header className="app-header">
-        <div className="header-side">{left}</div>
-        <strong>{title}</strong>
-        <div className="header-side right">{right}</div>
-      </header>
-      {children}
+    <div className="screen onboarding-screen">
+      <StatusBar time="9:41" />
+      <section className="onboarding-hero">
+        <img src="/assets/characters/finmate-main.png" alt="" />
+        <h1>나에게 맞는 금융 루틴 찾기</h1>
+        <p>합성 데이터 기반 데모로 홈, 비교, 미션, 기록, 프로필 흐름을 확인해요.</p>
+      </section>
+      <div className="onboarding-steps">
+        {steps.map((step) => (
+          <div className={`step-row ${step.status}`} key={step.label}>
+            <IconBadge icon={step.status === 'done' ? 'check' : 'spark'} tone={step.status === 'done' ? 'green' : 'purple'} />
+            <div>
+              <strong>{step.label}</strong>
+              <span>{step.detail}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {error ? <p className="error-copy">{error}</p> : null}
+      <button className="app-button primary" type="button" onClick={start}>시작하기</button>
+    </div>
+  )
+}
+
+function StatusBar({ time }: { time: string }) {
+  return (
+    <div className="status-bar">
+      <strong>{time}</strong>
+      <span>
+        <i />
+        <i />
+        <i />
+      </span>
     </div>
   )
 }
 
 function BottomNav({ active, navigate }: { active: TabKey; navigate: Navigate }) {
-  const items: Array<{ key: TabKey; label: string; path: string; icon: string }> = [
-    { key: 'home', label: '홈', path: '/home', icon: 'home' },
-    { key: 'compare', label: '비교', path: '/compare', icon: 'search' },
-    { key: 'mission', label: '미션', path: '/missions', icon: 'mission' },
-    { key: 'records', label: '기록', path: '/records', icon: 'records' },
-    { key: 'profile', label: '프로필', path: '/profile', icon: 'profile' },
-  ]
-
   return (
-    <nav className="bottom-nav" aria-label="하단 탭">
-      {items.map((item) => (
+    <nav className="bottom-nav">
+      {tabItems.map((item) => (
         <button
-          className={active === item.key ? 'active' : undefined}
+          className={item.key === active ? 'active' : ''}
           type="button"
-          key={item.key}
           onClick={() => navigate(item.path)}
+          key={item.key}
         >
           <AppIcon name={item.icon} />
           <span>{item.label}</span>
@@ -694,274 +960,7 @@ function BottomNav({ active, navigate }: { active: TabKey; navigate: Navigate })
   )
 }
 
-function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <article className={`card ${className}`}>{children}</article>
-}
-
-function SectionHeader({
-  title,
-  action,
-  legend,
-}: {
-  title: string
-  action?: string
-  legend?: string
-}) {
-  return (
-    <div className="section-header">
-      <h2>{title}</h2>
-      {action ? <button className="text-button" type="button">{action}</button> : null}
-      {legend ? <span>{legend}</span> : null}
-    </div>
-  )
-}
-
-function Metric({ label, value, tone }: { label: string; value: string; tone?: 'green' }) {
-  return (
-    <div className={`metric ${tone ?? ''}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
-}
-
-function SpendingTile({ item }: { item: SpendingCategory }) {
-  return (
-    <div className="spending-tile">
-      <IconBadge icon={item.icon} tone={item.icon === 'transport' ? 'blue' : 'warm'} />
-      <strong>{item.label}</strong>
-      <span>{item.amount}</span>
-      <small>{item.ratio}</small>
-    </div>
-  )
-}
-
-function SignalTile({ signal }: { signal: FinanceSignal }) {
-  return (
-    <div className="signal-tile">
-      <IconBadge icon={signal.icon} tone="mint" />
-      <span>{signal.label}</span>
-      <strong>{signal.count}</strong>
-    </div>
-  )
-}
-
-function SummaryCard({ signal }: { signal: FinanceSignal }) {
-  return (
-    <Card className="summary-card">
-      <span>{signal.label}</span>
-      <strong>{signal.count}</strong>
-      <small>{signal.ratio}</small>
-    </Card>
-  )
-}
-
-function ScoreCard({
-  title,
-  score,
-  rank,
-  tone = 'purple',
-}: {
-  title: string
-  score: string
-  rank: string
-  tone?: 'purple' | 'mint'
-}) {
-  return (
-    <div className={`score-card ${tone}`}>
-      <span>{title}</span>
-      <strong>{score}</strong>
-      <small>{rank}</small>
-    </div>
-  )
-}
-
-function CompareMetricRow({ metric }: { metric: CompareMetric }) {
-  return (
-    <div className="compare-metric-row">
-      <IconBadge icon={metric.icon} tone="mint" />
-      <div className="metric-copy">
-        <strong>{metric.label}</strong>
-        <span>{metric.caption}</span>
-      </div>
-      <div className="dual-bars">
-        <ProgressLine value={metric.mineRatio} tone="purple" />
-        <ProgressLine value={metric.groupRatio} tone="gray" />
-      </div>
-      <div className="metric-values">
-        <strong>{metric.mine}</strong>
-        <span>{metric.group}</span>
-      </div>
-    </div>
-  )
-}
-
-function FilterRow({ label, value }: { label: string; value: string }) {
-  return (
-    <button className="filter-row" type="button">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <Chevron />
-    </button>
-  )
-}
-
-function FilterProfileCard({ profile }: { profile: FilterProfile }) {
-  return (
-    <Card className="filter-profile-card">
-      <div className="avatar">{profile.initials}</div>
-      <strong>{profile.name}</strong>
-      <span>{profile.age} · {profile.job}</span>
-      <small>{profile.income}</small>
-      <p>금융 점수 <b>{profile.score}</b></p>
-      <button type="button">+ 팔로우</button>
-    </Card>
-  )
-}
-
-function MissionRow({ mission }: { mission: MissionItem }) {
-  const progressValue = useMemo(() => {
-    const [done, total] = mission.progress.split('/').map((part) => Number(part.trim()))
-    return total ? Math.round((done / total) * 100) : 0
-  }, [mission.progress])
-
-  return (
-    <div className="mission-row">
-      <IconBadge icon={mission.icon} tone="warm" />
-      <div>
-        <strong>{mission.title}</strong>
-        <span>{mission.description}</span>
-        <ProgressLine value={progressValue} tone="purple" />
-      </div>
-      <div>
-        <small>{mission.progress}</small>
-        <b>{mission.points}</b>
-      </div>
-    </div>
-  )
-}
-
-function CalendarCell({ day }: { day: CalendarDay }) {
-  return (
-    <button className={`calendar-cell ${day.state ?? ''}`} type="button">
-      <strong>{day.day}</strong>
-      {day.amount ? <span>{day.amount}</span> : null}
-      {day.state && day.state !== 'selected' ? <i /> : null}
-    </button>
-  )
-}
-
-function DistributionRow({ signal }: { signal: FinanceSignal }) {
-  const numeric = Number(signal.count.replace('%', ''))
-
-  return (
-    <div className="distribution-row">
-      <IconBadge icon={signal.icon} tone="soft" />
-      <span>{signal.label}</span>
-      <ProgressLine value={numeric} tone="purple" />
-      <small>{signal.count} ({signal.ratio})</small>
-    </div>
-  )
-}
-
-function LegendDot({ tone, label }: { tone: 'success' | 'over' | 'none'; label: string }) {
-  return (
-    <span className={`legend-dot ${tone}`}>
-      <i />
-      {label}
-    </span>
-  )
-}
-
-function ActionPanel({ children }: { children: ReactNode }) {
-  return <div className="action-panel">{children}</div>
-}
-
-function StepTitle({ index, step }: { index: number; step: OnboardingStep }) {
-  return (
-    <div className="step-title">
-      <span className={`status-dot ${step.status}`} />
-      <div>
-        <strong>
-          {index}. {step.label}
-        </strong>
-        <small>{step.detail}</small>
-      </div>
-    </div>
-  )
-}
-
-function ChoiceGrid({
-  items,
-}: {
-  items: Array<{ label: string; detail: string; available: boolean }>
-}) {
-  return (
-    <div className="choice-grid">
-      {items.map((item) => (
-        <button
-          className={`choice-chip ${item.available ? 'selected' : 'unavailable'}`}
-          type="button"
-          key={item.label}
-          disabled={!item.available}
-        >
-          <span>{item.label}</span>
-          <small>{item.detail}</small>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function RingProgress({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="ring-progress" style={{ '--value': `${value}%` } as React.CSSProperties}>
-      <strong>{value}%</strong>
-      <span>{label}</span>
-    </div>
-  )
-}
-
-function ProgressLine({ value, tone }: { value: number; tone: 'purple' | 'green' | 'gray' }) {
-  return (
-    <div className={`progress-line ${tone}`} aria-hidden="true">
-      <span style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-    </div>
-  )
-}
-
-function MiniLineChart() {
-  return (
-    <svg className="mini-line-chart" viewBox="0 0 148 68" aria-hidden="true">
-      <path d="M4 56 C18 44 26 48 38 38 S62 30 74 36 94 12 108 24 130 36 144 16" />
-      <circle cx="108" cy="24" r="4" />
-    </svg>
-  )
-}
-
-function IconBadge({
-  icon,
-  tone,
-}: {
-  icon: string
-  tone: 'purple' | 'mint' | 'warm' | 'blue' | 'green' | 'soft'
-}) {
-  return (
-    <span className={`icon-badge ${tone}`}>
-      <AppIcon name={icon} />
-    </span>
-  )
-}
-
-function IconButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: string
-  label: string
-  onClick?: () => void
-}) {
+function IconButton({ icon, label, onClick }: { icon: IconName; label: string; onClick?: () => void }) {
   return (
     <button className="icon-button" type="button" aria-label={label} onClick={onClick}>
       <AppIcon name={icon} />
@@ -969,80 +968,206 @@ function IconButton({
   )
 }
 
-function Chevron({ direction = 'right' }: { direction?: 'left' | 'right' }) {
+function IconBadge({ icon, tone }: { icon: string; tone: string }) {
   return (
-    <svg className={`chevron ${direction}`} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="m9 5 7 7-7 7" />
+    <span className={`icon-badge ${tone}`}>
+      <AppIcon name={toIconName(icon)} />
+    </span>
+  )
+}
+
+function RingProgress({ value, label }: { value: number; label: string }) {
+  const deg = Math.max(0, Math.min(100, value)) * 3.6
+  return (
+    <div className="ring" style={{ background: `conic-gradient(var(--purple) ${deg}deg, #eceaf3 0deg)` }}>
+      <div>
+        <strong>{value}%</strong>
+        <span>{label}</span>
+      </div>
+    </div>
+  )
+}
+
+function ProgressLine({ value, tone }: { value: number; tone: 'purple' | 'green' | 'gray' }) {
+  return (
+    <span className={`progress-line ${tone}`}>
+      <i style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </span>
+  )
+}
+
+function MiniLineChart({ values }: { values: number[] }) {
+  const points = useMemo(() => {
+    const safeValues = values.length ? values : [18, 24, 32, 28, 40, 36, 48]
+    const max = Math.max(...safeValues)
+    const min = Math.min(...safeValues)
+    return safeValues
+      .map((value, index) => {
+        const x = (index / Math.max(1, safeValues.length - 1)) * 120
+        const y = 58 - ((value - min) / Math.max(1, max - min)) * 46
+        return `${x},${y}`
+      })
+      .join(' ')
+  }, [values])
+
+  return (
+    <svg className="mini-chart" viewBox="0 0 120 64" role="img" aria-label="자산 변화 그래프">
+      <polyline points={points} fill="none" stroke="var(--purple)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
     </svg>
   )
 }
 
-function AppIcon({ name }: { name: string }) {
-  switch (name) {
-    case 'home':
-      return <svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z" /></svg>
-    case 'search':
-      return <svg viewBox="0 0 24 24"><path d="M10.5 18a7.5 7.5 0 1 1 5.2-2.1l4.2 4.2-1.8 1.8-4.2-4.2a7.4 7.4 0 0 1-3.4.8Zm0-2.4a5.1 5.1 0 1 0 0-10.2 5.1 5.1 0 0 0 0 10.2Z" /></svg>
-    case 'mission':
-      return <svg viewBox="0 0 24 24"><path d="M7 4h10a2 2 0 0 1 2 2v14H5V6a2 2 0 0 1 2-2Zm2 4v2h6V8H9Zm0 4v2h6v-2H9Zm0 4v2h4v-2H9Z" /></svg>
-    case 'records':
-      return <svg viewBox="0 0 24 24"><path d="M7 3h2v2h6V3h2v2h2a2 2 0 0 1 2 2v13H3V7a2 2 0 0 1 2-2h2V3Zm12 8H5v7h14v-7Z" /></svg>
-    case 'profile':
-      return <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 9c.7-4.2 3.4-6.4 8-6.4s7.3 2.2 8 6.4H4Z" /></svg>
-    case 'bell':
-      return <svg viewBox="0 0 24 24"><path d="M12 22a2.6 2.6 0 0 0 2.5-2h-5a2.6 2.6 0 0 0 2.5 2Zm7-5H5l1.8-2.5V10a5.2 5.2 0 0 1 10.4 0v4.5L19 17Z" /></svg>
-    case 'back':
-      return <svg viewBox="0 0 24 24"><path d="M15.5 4.5 8 12l7.5 7.5-1.8 1.8L4.4 12l9.3-9.3 1.8 1.8Z" /></svg>
-    case 'help':
-      return <svg viewBox="0 0 24 24"><path d="M11 17h2v2h-2v-2Zm1-14a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 2.3a6.7 6.7 0 1 1 0 13.4 6.7 6.7 0 0 1 0-13.4Zm0 2.2c-1.7 0-3 1-3.2 2.6h2c.1-.6.5-1 1.2-1 .8 0 1.3.5 1.3 1.2 0 .6-.3 1-1.1 1.5-1 .7-1.4 1.4-1.3 2.6h1.9c0-.7.3-1.1 1-1.6.9-.6 1.5-1.4 1.5-2.7 0-1.7-1.3-2.8-3.3-2.8Z" /></svg>
-    case 'gift':
-      return <svg viewBox="0 0 24 24"><path d="M20 7h-2.1A3.2 3.2 0 0 0 12 5.4 3.2 3.2 0 0 0 6.1 7H4v5h1v8h14v-8h1V7Zm-9 11H7v-6h4v6Zm0-8H6V9h5v1Zm-2.2-3A1.2 1.2 0 1 1 11 6.4V7H8.8Zm4.2-.6A1.2 1.2 0 1 1 15.2 7H13v-.6ZM17 18h-4v-6h4v6Zm1-8h-5V9h5v1Z" /></svg>
-    case 'chart':
-      return <svg viewBox="0 0 24 24"><path d="M5 20h14v2H3V4h2v16Zm2-2V9h3v9H7Zm5 0V4h3v14h-3Zm5 0v-6h3v6h-3Z" /></svg>
-    case 'food':
-      return <svg viewBox="0 0 24 24"><path d="M7 3h2v8a2 2 0 0 1-1 1.7V21H6v-8.3A2 2 0 0 1 5 11V3h2v6h1V3Zm8 0h2v18h-2v-7h-2V7a4 4 0 0 1 2-3.5V3Z" /></svg>
-    case 'transport':
-      return <svg viewBox="0 0 24 24"><path d="M6 4h12a3 3 0 0 1 3 3v9a2 2 0 0 1-2 2l1 2h-2.3l-1-2H7.3l-1 2H4l1-2a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3Zm0 3v4h12V7H6Zm1 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" /></svg>
-    case 'cafe':
-      return <svg viewBox="0 0 24 24"><path d="M4 6h12v7a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V6Zm12 2h2a3 3 0 0 1 0 6h-2v-2h2a1 1 0 0 0 0-2h-2V8ZM5 20h13v2H5v-2Z" /></svg>
-    case 'more':
-      return <svg viewBox="0 0 24 24"><path d="M6 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></svg>
-    case 'stocks':
-      return <svg viewBox="0 0 24 24"><path d="m4 16 5-5 3 3 6-8 2 1.5-7.7 10.2-3.1-3.1L5.5 18 4 16Zm1 4h15v2H5v-2Z" /></svg>
-    case 'saving':
-      return <svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 1 7 7v1h2v4h-2.5A7 7 0 0 1 5 12V9a6 6 0 0 1 6-6h1Zm-1 5h4V6h-4v2Zm-3 4a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" /></svg>
-    case 'fund':
-      return <svg viewBox="0 0 24 24"><path d="M12 3 4 7l8 4 8-4-8-4Zm-6 8 6 3 6-3v6l-6 4-6-4v-6Z" /></svg>
-    case 'pension':
-      return <svg viewBox="0 0 24 24"><path d="M5 8h14v12H5V8Zm2-5h10v3H7V3Zm2 9h6v2H9v-2Zm0 4h4v2H9v-2Z" /></svg>
-    case 'study':
-      return <svg viewBox="0 0 24 24"><path d="M4 5h7a3 3 0 0 1 3 3v11a3 3 0 0 0-3-2H4V5Zm16 0v12h-7a3 3 0 0 0-3 2V8a3 3 0 0 1 3-3h7Z" /></svg>
-    case 'spend':
-      return <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4V6Zm2 3v6h12V9H6Zm2 2h5v2H8v-2Z" /></svg>
-    case 'debt':
-      return <svg viewBox="0 0 24 24"><path d="M5 10V7a7 7 0 0 1 14 0v3h1v11H4V10h1Zm3 0h8V7a4 4 0 0 0-8 0v3Zm4 3a2 2 0 0 0-1 3.7V18h2v-1.3a2 2 0 0 0-1-3.7Z" /></svg>
-    case 'cart':
-      return <svg viewBox="0 0 24 24"><path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM3 4h2l2.2 10.5H17l3-7.5H7.1L6.7 5H3V4Z" /></svg>
-    case 'piggy':
-      return <svg viewBox="0 0 24 24"><path d="M6 10a6 6 0 0 1 6-5h3a5 5 0 0 1 4.7 3.2H22v5h-2.2a6 6 0 0 1-2.8 3.3V20h-3v-2h-4v2H7v-3.2A6 6 0 0 1 6 10Zm9-2h-5v2h5V8Z" /></svg>
-    case 'check':
-      return <svg viewBox="0 0 24 24"><path d="m9.4 16.6-4-4L4 14l5.4 5.4L21 7.8 19.6 6.4 9.4 16.6Z" /></svg>
-    case 'users':
-      return <svg viewBox="0 0 24 24"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2 21c.5-4.5 2.8-6.8 6-6.8s5.5 2.3 6 6.8H2Zm12.2 0a9 9 0 0 0-2-4.7 5 5 0 0 1 3.8-1.5c2.9 0 5 2.1 5.5 6.2h-7.3Z" /></svg>
-    default:
-      return null
+function Chevron({ direction = 'right' }: { direction?: 'right' | 'left' }) {
+  return <AppIcon name={direction === 'left' ? 'chevron-left' : 'chevron-right'} />
+}
+
+function Legend({ tone, label }: { tone: string; label: string }) {
+  return (
+    <span className="legend">
+      <i className={tone} />
+      {label}
+    </span>
+  )
+}
+
+function goDetail(section: AppSection, navigate: Navigate) {
+  if (section.detailPath) {
+    navigate(section.detailPath)
   }
 }
 
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) {
-    const fields = error.fieldErrors?.map((item) => item.message).join(' ')
-    return fields || error.message
+function numberFromData(data: Record<string, unknown> | null | undefined, key: string): number | null {
+  const value = data?.[key]
+  return typeof value === 'number' ? value : null
+}
+
+function arrayFromData(data: Record<string, unknown> | null | undefined, key: string): number[] {
+  const value = data?.[key]
+  return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : []
+}
+
+type SectionProps = {
+  section: AppSection
+  navigate: Navigate
+}
+
+type IconName =
+  | 'home'
+  | 'search'
+  | 'check-square'
+  | 'calendar'
+  | 'profile'
+  | 'bell'
+  | 'back'
+  | 'help'
+  | 'gift'
+  | 'chart'
+  | 'settings'
+  | 'sliders'
+  | 'chevron-right'
+  | 'chevron-left'
+  | 'food'
+  | 'transport'
+  | 'cafe'
+  | 'more'
+  | 'stocks'
+  | 'saving'
+  | 'fund'
+  | 'pension'
+  | 'study'
+  | 'spend'
+  | 'debt'
+  | 'cart'
+  | 'check'
+  | 'spark'
+
+function toIconName(icon: string): IconName {
+  const iconMap: Record<string, IconName> = {
+    'check-square': 'check-square',
+    'avatar-j': 'profile',
+    'avatar-m': 'profile',
+    'avatar-t': 'profile',
+    piggy: 'saving',
   }
-  if (error instanceof Error) {
-    return error.message
+  const mapped = iconMap[icon] ?? icon
+  const allowed: IconName[] = [
+    'home', 'search', 'check-square', 'calendar', 'profile', 'bell', 'back', 'help', 'gift', 'chart',
+    'settings', 'sliders', 'chevron-right', 'chevron-left', 'food', 'transport', 'cafe', 'more',
+    'stocks', 'saving', 'fund', 'pension', 'study', 'spend', 'debt', 'cart', 'check', 'spark',
+  ]
+  return allowed.includes(mapped as IconName) ? (mapped as IconName) : 'more'
+}
+
+function AppIcon({ name }: { name: IconName }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
   }
-  return '알 수 없는 오류가 발생했어요.'
+
+  switch (name) {
+    case 'home':
+      return <svg {...common}><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></svg>
+    case 'search':
+      return <svg {...common}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+    case 'check-square':
+      return <svg {...common}><rect x="5" y="4" width="14" height="16" rx="3" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg>
+    case 'calendar':
+      return <svg {...common}><rect x="4" y="5" width="16" height="15" rx="3" /><path d="M8 3v4M16 3v4M4 10h16" /></svg>
+    case 'profile':
+      return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></svg>
+    case 'bell':
+      return <svg {...common}><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+    case 'back':
+      return <svg {...common}><path d="m15 18-6-6 6-6" /></svg>
+    case 'help':
+      return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-.8.5-1.5 1.1-1.5 2" /><path d="M12 17h.01" /></svg>
+    case 'gift':
+      return <svg {...common}><rect x="4" y="9" width="16" height="11" rx="2" /><path d="M12 9v11M4 13h16" /><path d="M9 9c-2 0-3-1-3-2.2S7 5 8.2 6.3L12 9" /><path d="M15 9c2 0 3-1 3-2.2S17 5 15.8 6.3L12 9" /></svg>
+    case 'chart':
+      return <svg {...common}><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 16V9M12 16V5M16 16v-4" /></svg>
+    case 'settings':
+      return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 3.1a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 3.1h5l.3-3.1a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z" /></svg>
+    case 'sliders':
+      return <svg {...common}><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg>
+    case 'chevron-left':
+      return <svg {...common}><path d="m15 18-6-6 6-6" /></svg>
+    case 'chevron-right':
+      return <svg {...common}><path d="m9 18 6-6-6-6" /></svg>
+    case 'food':
+      return <svg {...common}><path d="M6 3v8M9 3v8M6 7h3" /><path d="M7.5 11v10" /><path d="M17 3v18" /><path d="M14 3c3 2 3 6 0 8" /></svg>
+    case 'transport':
+      return <svg {...common}><rect x="5" y="4" width="14" height="13" rx="3" /><path d="M8 17v2M16 17v2M8 8h8M8 13h.01M16 13h.01" /></svg>
+    case 'cafe':
+      return <svg {...common}><path d="M4 8h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Z" /><path d="M16 10h2a2 2 0 0 1 0 4h-2" /><path d="M6 4v1M10 4v1M14 4v1" /></svg>
+    case 'stocks':
+      return <svg {...common}><path d="M4 17 9 12l4 4 7-9" /><path d="M15 7h5v5" /></svg>
+    case 'saving':
+      return <svg {...common}><rect x="5" y="7" width="14" height="10" rx="2" /><path d="M9 11h6M12 7V5" /></svg>
+    case 'fund':
+      return <svg {...common}><path d="m12 3 8 4-8 4-8-4 8-4Z" /><path d="M4 11l8 4 8-4" /><path d="M4 15l8 4 8-4" /></svg>
+    case 'pension':
+      return <svg {...common}><path d="M6 20V8l6-4 6 4v12" /><path d="M9 20v-7h6v7" /></svg>
+    case 'study':
+      return <svg {...common}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" /></svg>
+    case 'spend':
+      return <svg {...common}><path d="M4 10h16M7 15h.01M11 15h2" /><rect x="3" y="6" width="18" height="12" rx="3" /></svg>
+    case 'debt':
+      return <svg {...common}><rect x="5" y="4" width="14" height="16" rx="3" /><path d="M9 9h6M9 13h6M9 17h3" /></svg>
+    case 'cart':
+      return <svg {...common}><circle cx="9" cy="20" r="1" /><circle cx="17" cy="20" r="1" /><path d="M3 4h2l2 12h11l2-8H7" /></svg>
+    case 'check':
+      return <svg {...common}><path d="m5 13 4 4L19 7" /></svg>
+    case 'spark':
+      return <svg {...common}><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" /></svg>
+    case 'more':
+      return <svg {...common}><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>
+  }
 }
 
 export default App

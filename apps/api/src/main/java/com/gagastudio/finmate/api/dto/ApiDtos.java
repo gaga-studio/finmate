@@ -232,4 +232,91 @@ public final class ApiDtos {
             List<String> affectedPortfolioIds
     ) {
     }
+
+    public record AppScreenResponse(
+            String screenId,
+            String title,
+            String tab,
+            String statusBarTime,
+            String heroAsset,
+            List<AppSection> sections,
+            Map<String, Object> meta
+    ) {
+    }
+
+    public record AppSection(
+            String id,
+            String kind,
+            String title,
+            String subtitle,
+            String detailPath,
+            String heroAsset,
+            List<AppMetric> metrics,
+            List<AppItem> items,
+            List<AppAction> actions,
+            Map<String, Object> data
+    ) {
+    }
+
+    public record AppMetric(
+            String label,
+            String value,
+            String caption,
+            String tone,
+            Integer progress
+    ) {
+    }
+
+    public record AppItem(
+            String id,
+            String title,
+            String subtitle,
+            String value,
+            String caption,
+            String icon,
+            String tone,
+            String detailPath,
+            Map<String, Object> data
+    ) {
+    }
+
+    public record AppAction(
+            String label,
+            String path,
+            String method,
+            String tone,
+            String intent
+    ) {
+    }
+
+    public record AppCompareSearchRequest(
+            String ageBand,
+            String incomeBand,
+            String jobCategory,
+            String moneyStyle,
+            String area
+    ) {
+    }
+
+    public record AppMissionFeedbackRequest(
+            @NotBlank String status,
+            String note
+    ) {
+    }
+
+    public record AppBirthdayContributionRequest(
+            @NotNull Integer amount,
+            String message,
+            Boolean anonymous
+    ) {
+    }
+
+    public record AppActionResultResponse(
+            String status,
+            String title,
+            String message,
+            String nextPath,
+            Map<String, Object> data
+    ) {
+    }
 }
