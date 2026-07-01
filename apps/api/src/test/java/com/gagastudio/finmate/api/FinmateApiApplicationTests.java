@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -289,16 +291,22 @@ class FinmateApiApplicationTests {
 
     @Test
     void corsAllowsLocalFrontendOrigins() throws Exception {
-        mockMvc.perform(options("/api/home")
-                        .header("Origin", "http://localhost:3000")
-                        .header("Access-Control-Request-Method", "GET"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+        for (String origin : List.of(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173")) {
+            mockMvc.perform(options("/api/home")
+                            .header("Origin", origin)
+                            .header("Access-Control-Request-Method", "GET"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
 
-        mockMvc.perform(options("/health")
-                        .header("Origin", "http://localhost:5173")
-                        .header("Access-Control-Request-Method", "GET"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+            mockMvc.perform(options("/health")
+                            .header("Origin", origin)
+                            .header("Access-Control-Request-Method", "GET"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
+        }
     }
 }
