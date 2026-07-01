@@ -78,6 +78,8 @@ function loadScreen(route: Extract<Route, { name: 'screen' }>): Promise<AppScree
       return api.getAppCoachFlow(route.param ?? 'cmp-001')
     case 'missions':
       return api.getAppMissions()
+    case 'mission-add':
+      return api.getAppMissionAdd()
     case 'mission-detail':
       return api.getAppMission(route.param ?? 'mission-food')
     case 'records':

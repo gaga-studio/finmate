@@ -305,6 +305,19 @@ public class FinmateController {
         return productAppService.getMission(authService.requireUserId(authorization), missionId);
     }
 
+    @GetMapping("/api/app/missions/add")
+    public AppScreenResponse getAppMissionAdd(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return productAppService.getMissionAdd(authService.requireUserId(authorization));
+    }
+
+    @PostMapping("/api/app/missions/add/{templateId}")
+    public AppActionResultResponse addAppMissionFromTemplate(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String templateId
+    ) {
+        return productAppService.addMissionFromTemplate(authService.requireUserId(authorization), templateId);
+    }
+
     @PostMapping("/api/app/missions/{missionId}/feedback")
     public AppActionResultResponse submitAppMissionFeedback(
             @RequestHeader(value = "Authorization", required = false) String authorization,

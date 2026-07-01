@@ -680,6 +680,14 @@ function ActionButton({ action, navigate }: { action: AppAction; navigate: Navig
       navigate(action.path)
       return
     }
+    if (action.intent === 'mission-add') {
+      const templateId = action.path.split('/').filter(Boolean).at(-1)
+      if (templateId) {
+        const result = await api.addAppMissionFromTemplate(templateId)
+        navigate(result.nextPath)
+      }
+      return
+    }
     if (action.intent === 'logout') {
       await api.logout()
       clearSession()

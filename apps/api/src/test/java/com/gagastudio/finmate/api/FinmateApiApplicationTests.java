@@ -172,7 +172,22 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("missions"))
                 .andExpect(jsonPath("$.sections[0].id").value("mission-hero"))
-                .andExpect(jsonPath("$.sections[1].items", hasSize(3)));
+                .andExpect(jsonPath("$.sections[1].title").value("진행 중인 미션"))
+                .andExpect(jsonPath("$.sections[2].title").value("완료된 미션"))
+                .andExpect(jsonPath("$.sections[3].title").value("미션 추가"));
+
+        mockMvc.perform(get("/api/app/missions/add").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("missions:add"))
+                .andExpect(jsonPath("$.sections[0].items[0].id").value("MISSION_AUTO_TRANSFER_SMALL"));
+
+        mockMvc.perform(post("/api/app/missions/add/MISSION_AUTO_TRANSFER_SMALL")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ADDED"))
+                .andExpect(jsonPath("$.data.missionId").value("mission-auto-transfer-small"));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ? AND id = ? AND source = 'USER_ADDED_TEMPLATE'", Integer.class, userId, userId + ":mission-auto-transfer-small"));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM mission_events WHERE user_id = ? AND event_type = 'ADDED' AND event_date = DATE '2026-06-12'", Integer.class, userId));
 
         mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -199,6 +214,12 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.rewardPoints").value(120));
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ? AND status = 'COMPLETED'", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM mission_events WHERE user_id = ? AND event_type = 'DONE' AND reward_points = 120 AND event_date = DATE '2026-06-12'", Integer.class, userId));
+
+        mockMvc.perform(get("/api/app/records/2026-06-12").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[2].title").value("미션 실천 기록"))
+                .andExpect(jsonPath("$.sections[2].items[0].value").value("+120P"));
 
         mockMvc.perform(post("/api/users/me/onboarding")
                         .header("Authorization", "Bearer " + accessToken)

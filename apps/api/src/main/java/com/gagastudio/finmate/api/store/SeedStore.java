@@ -61,6 +61,12 @@ public class SeedStore {
         return item == null ? null : deepCopy(item);
     }
 
+    public List<Map<String, Object>> all(String collection) {
+        return collections.getOrDefault(collection, Map.of()).values().stream()
+                .map(this::deepCopy)
+                .toList();
+    }
+
     public Map<String, Object> mutable(String collection, String id) {
         return collections.getOrDefault(collection, Map.of()).get(id);
     }

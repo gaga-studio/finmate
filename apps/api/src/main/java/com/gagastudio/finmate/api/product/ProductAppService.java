@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gagastudio.finmate.api.dto.ApiDtos.*;
 import com.gagastudio.finmate.api.error.ApiException;
 import com.gagastudio.finmate.api.error.FieldErrorDetail;
+import com.gagastudio.finmate.api.store.SeedStore;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,14 +16,20 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class ProductAppService implements FinancialDataProvider {
+    private static final LocalDate APP_TODAY = LocalDate.of(2026, 6, 12);
+    private static final YearMonth DEFAULT_RECORD_MONTH = YearMonth.of(2026, 6);
     private static final TypeReference<Map<String, Integer>> CATEGORY_MAP = new TypeReference<>() {
     };
     private static final TypeReference<List<CoachInsightV1>> INSIGHT_LIST = new TypeReference<>() {
@@ -33,11 +40,13 @@ public class ProductAppService implements FinancialDataProvider {
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final CoachProvider coachProvider;
+    private final SeedStore seedStore;
 
-    public ProductAppService(JdbcTemplate jdbc, ObjectMapper objectMapper, CoachProvider coachProvider) {
+    public ProductAppService(JdbcTemplate jdbc, ObjectMapper objectMapper, CoachProvider coachProvider, SeedStore seedStore) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.coachProvider = coachProvider;
+        this.seedStore = seedStore;
     }
 
     @Transactional
@@ -635,13 +644,23 @@ public class ProductAppService implements FinancialDataProvider {
     public AppScreenResponse getMissions(String userId) {
         List<MissionRow> missions = missions(userId);
         List<AppSection> sections = new ArrayList<>();
-        MissionRow todayMission = findMission(userId, "mission-food");
+        MissionRow todayMission = todayMission(missions);
         sections.add(todayMission == null
                 ? emptyActionSection("mission-empty", "오늘의 미션이 아직 없어요", "비교와 기록이 쌓이면 맞춤 미션을 만들 수 있어요.", "지금은 홈에서 데이터 연결 상태를 확인해주세요.", "/home")
                 : missionHero(todayMission));
         sections.add(section("active", "list", "진행 중인 미션", null, null, null, null,
-                missions.stream().filter(m -> !"COMPLETED".equals(m.status())).map(this::missionItem).toList(),
+                missions.stream()
+                        .filter(mission -> !"COMPLETED".equals(mission.status()))
+                        .filter(mission -> todayMission == null || !mission.dbId().equals(todayMission.dbId()))
+                        .map(this::missionItem)
+                        .toList(),
                 null, null));
+        sections.add(section("completed", "list", "완료된 미션", null, null, null, null,
+                missions.stream().filter(mission -> "COMPLETED".equals(mission.status())).map(this::completedMissionItem).toList(),
+                null, null));
+        sections.add(section("add", "list", "미션 추가", "내 기록과 비슷한 또래 루틴에서 추천한 미션을 더해보세요.", null, null, null,
+                items(item("mission-add", "추천 미션 보기", "아직 추가하지 않은 행동 목표를 확인해요.", null, "맞춤 추천", "target", "purple", "/missions/add")),
+                actions(action("미션 추가하기", "/missions/add", "GET", "primary", null)), null));
         sections.add(section("points", "points", "나의 포인트", null, null, null,
                 metrics(metric("보유 포인트", wallet(userId).pointBalance() + "P", "실천 완료 시 자동 적립", "purple", 62)), null, null, null));
         return screen("missions", "미션", "mission", sections, Map.of());
@@ -679,6 +698,52 @@ public class ProductAppService implements FinancialDataProvider {
         ), Map.of("missionId", missionId));
     }
 
+    public AppScreenResponse getMissionAdd(String userId) {
+        List<MissionTemplate> templates = recommendedMissionTemplates(userId);
+        List<AppItem> recommendations = templates.stream()
+                .map(template -> item(
+                        template.id(),
+                        template.title(),
+                        template.description(),
+                        template.difficultyLabel(),
+                        "+" + template.rewardPoints() + "P",
+                        template.icon(),
+                        template.tone(),
+                        null,
+                        Map.of("templateId", template.id())
+                ))
+                .toList();
+        if (recommendations.isEmpty()) {
+            return screen("missions:add", "미션 추가", "mission", List.of(
+                    emptyActionSection("mission-add-empty", "추천할 미션을 모두 추가했어요", "진행 중인 목표를 먼저 실천해보세요.", "완료 기록이 쌓이면 다음 추천을 다시 만들 수 있어요.", "/missions")
+            ), Map.of());
+        }
+        return screen("missions:add", "미션 추가", "mission", List.of(
+                section("recommendations", "list", "추천 미션", "내 금융 기록에서 바로 시작하기 좋은 목표예요.", null, null, null,
+                        recommendations,
+                        actions(action("첫 추천 미션 추가하기", "/missions/add/" + templates.get(0).id(), "POST", "primary", "mission-add")), null)
+        ), Map.of("recommendationCount", recommendations.size()));
+    }
+
+    @Transactional
+    public AppActionResultResponse addMissionFromTemplate(String userId, String templateId) {
+        MissionTemplate template = missionTemplate(templateId);
+        String missionDbId = missionDbId(userId, template.missionId());
+        Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM missions WHERE id = ?", Integer.class, missionDbId);
+        if (exists != null && exists > 0) {
+            return new AppActionResultResponse("ALREADY_ADDED", "이미 추가된 미션이에요", "진행 중인 미션 목록에서 확인할 수 있어요.", "/missions/" + template.missionId(), Map.of("missionId", template.missionId()));
+        }
+        jdbc.update("""
+                INSERT INTO missions (id, user_id, title, description, status, difficulty, reward_points, progress, due_date, source)
+                VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, 0, ?, 'USER_ADDED_TEMPLATE')
+                """, missionDbId, userId, template.title(), template.description(), template.difficulty(), template.rewardPoints(), APP_TODAY.plusDays(7));
+        jdbc.update("""
+                INSERT INTO mission_events (id, mission_id, user_id, event_type, note, reward_points, event_date)
+                VALUES (?, ?, ?, 'ADDED', ?, 0, ?)
+                """, "event-" + UUID.randomUUID(), missionDbId, userId, "추천 미션 추가", APP_TODAY);
+        return new AppActionResultResponse("ADDED", "미션을 추가했어요", template.title() + " 미션이 진행 중 목록에 들어갔습니다.", "/missions/" + template.missionId(), Map.of("missionId", template.missionId()));
+    }
+
     @Transactional
     public AppActionResultResponse submitMissionFeedback(String userId, String missionId, AppMissionFeedbackRequest request) {
         MissionRow mission = mission(userId, missionId);
@@ -698,36 +763,40 @@ public class ProductAppService implements FinancialDataProvider {
             jdbc.update("""
                     UPDATE daily_records
                     SET mission_status = 'SUCCESS', point_delta = point_delta + ?
-                    WHERE user_id = ? AND record_date = DATE '2026-06-12'
-                    """, reward, userId);
+                    WHERE user_id = ? AND record_date = ?
+                    """, reward, userId, APP_TODAY);
             upsertFeed(userId, "feed-" + userId + "-mission-" + missionId, userId, "MISSION", mission.title() + " 완료", "오늘의 금융 루틴을 실천했어요.", null);
         }
         jdbc.update("""
-                INSERT INTO mission_events (id, mission_id, user_id, event_type, note, reward_points)
-                VALUES (?, ?, ?, 'DONE', ?, ?)
-                """, "event-" + UUID.randomUUID(), mission.dbId(), userId, request.note(), reward);
+                INSERT INTO mission_events (id, mission_id, user_id, event_type, note, reward_points, event_date)
+                VALUES (?, ?, ?, 'DONE', ?, ?, ?)
+                """, "event-" + UUID.randomUUID(), mission.dbId(), userId, request.note(), reward, APP_TODAY);
         return new AppActionResultResponse("RECORDED", "오늘 실천을 기록했어요", reward + "P가 포인트 지갑에 반영됐습니다.", "/missions/" + missionId + "/feedback", Map.of("rewardPoints", reward, "pointBalance", wallet(userId).pointBalance()));
     }
 
     public AppScreenResponse getRecords(String userId, String month) {
-        DailyRecordRow record = findDailyRecord(userId);
-        if (record == null) {
+        YearMonth targetMonth = parseMonth(month);
+        List<DailyRecordRow> records = dailyRecords(userId, targetMonth);
+        List<MissionEventRow> events = missionEvents(userId, targetMonth);
+        DailyRecordRow todayRecord = findDailyRecord(userId, APP_TODAY);
+        if (records.isEmpty() && events.isEmpty()) {
             return screen("records:2026-06", "기록", "records", List.of(
-                    section("calendar", "calendar", "2026년 6월", "아직 기록된 지출과 미션이 없어요.", "/records/history", null, null,
+                    section("calendar", "calendar", monthTitle(targetMonth), "아직 기록된 지출과 미션이 없어요.", "/records/history", null, null,
                             items(item("history", "월간 히스토리", "실천 기록 보기", null, null, "records", "purple", "/records/history"),
                                     item("stats", "포인트 통계", wallet(userId).pointBalance() + "P", null, null, "wallet", "green", "/records/stats")),
                             null, null),
                     emptyActionSection("record-empty", "오늘 기록이 비어 있어요", "예산과 지출이 기록되면 달력에서 바로 확인할 수 있어요.", "미션을 완료하면 포인트 기록도 함께 쌓입니다.", "/missions")
-            ), Map.of("month", month == null ? "2026-06" : month));
+            ), Map.of("month", targetMonth.toString()));
         }
-        return screen("records:2026-06", "기록", "records", List.of(
-                section("calendar", "calendar", "2026년 6월", "날짜별 지출과 미션 성공 기록", "/records/2026-06-12", null, null,
-                        items(item("2026-06-12", "12", won(record.spent()), null, record.missionStatus(), "calendar", "green", "/records/2026-06-12"),
-                                item("history", "월간 히스토리", "실천 기록 보기", null, null, "records", "purple", "/records/history"),
-                                item("stats", "포인트 통계", wallet(userId).pointBalance() + "P", null, null, "wallet", "green", "/records/stats")),
-                        null, null),
-                budgetSection(record)
-        ), Map.of("month", month == null ? "2026-06" : month));
+        List<AppSection> sections = new ArrayList<>();
+        sections.add(section("calendar", "calendar", monthTitle(targetMonth), "날짜별 지출과 미션 성공 기록", "/records/" + APP_TODAY, null, null,
+                calendarItems(userId, targetMonth, records, events),
+                null, null));
+        if (todayRecord != null) {
+            sections.add(budgetSection(todayRecord));
+        }
+        sections.add(missionEventsSection("today-mission-events", "오늘의 미션 기록", missionEvents(userId, APP_TODAY)));
+        return screen("records:" + targetMonth, "기록", "records", sections, Map.of("month", targetMonth.toString()));
     }
 
     public AppScreenResponse getRecordDetail(String userId, String date) {
@@ -743,13 +812,22 @@ public class ProductAppService implements FinancialDataProvider {
                             null, null, null)
             ), Map.of());
         }
-        DailyRecordRow record = findDailyRecord(userId);
-        if (record == null) {
+        LocalDate targetDate = parseDate(date);
+        DailyRecordRow record = findDailyRecord(userId, targetDate);
+        List<MissionEventRow> events = missionEvents(userId, targetDate);
+        if (record == null && events.isEmpty()) {
             return screen("records:" + date, "날짜별 기록", "records", List.of(
                     emptyActionSection("record-detail-empty", "이 날짜의 기록이 없어요", "아직 예산, 지출, 미션 실천 내역이 기록되지 않았어요.", "기록이 쌓이면 날짜별 흐름을 보여드릴게요.", "/records")
             ), Map.of("date", date));
         }
-        return screen("records:" + date, "날짜별 기록", "records", List.of(budgetSection(record), spendingSection(record), feedSection(userId)), Map.of("date", date));
+        List<AppSection> sections = new ArrayList<>();
+        if (record != null) {
+            sections.add(budgetSection(record));
+            sections.add(spendingSection(record));
+        }
+        sections.add(missionEventsSection("mission-events", "미션 실천 기록", events));
+        sections.add(pointTransactionsSection(userId, targetDate));
+        return screen("records:" + date, "날짜별 기록", "records", sections, Map.of("date", date));
     }
 
     public AppScreenResponse getProfile(String userId) {
@@ -1072,7 +1150,11 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private DailyRecordRow findDailyRecord(String userId) {
-        List<DailyRecordRow> rows = jdbc.query("SELECT * FROM daily_records WHERE user_id = ? AND record_date = DATE '2026-06-12'",
+        return findDailyRecord(userId, APP_TODAY);
+    }
+
+    private DailyRecordRow findDailyRecord(String userId, LocalDate date) {
+        List<DailyRecordRow> rows = jdbc.query("SELECT * FROM daily_records WHERE user_id = ? AND record_date = ?",
                 (rs, rowNum) -> new DailyRecordRow(
                         rs.getDate("record_date").toLocalDate(),
                         rs.getInt("budget"),
@@ -1080,8 +1162,26 @@ public class ProductAppService implements FinancialDataProvider {
                         rs.getString("category_spending_json"),
                         rs.getString("mission_status"),
                         rs.getInt("point_delta")
-                ), userId);
+                ), userId, date);
         return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private List<DailyRecordRow> dailyRecords(String userId, YearMonth month) {
+        LocalDate from = month.atDay(1);
+        LocalDate to = month.plusMonths(1).atDay(1);
+        return jdbc.query("""
+                        SELECT * FROM daily_records
+                        WHERE user_id = ? AND record_date >= ? AND record_date < ?
+                        ORDER BY record_date
+                        """,
+                (rs, rowNum) -> new DailyRecordRow(
+                        rs.getDate("record_date").toLocalDate(),
+                        rs.getInt("budget"),
+                        rs.getInt("spent"),
+                        rs.getString("category_spending_json"),
+                        rs.getString("mission_status"),
+                        rs.getInt("point_delta")
+                ), userId, from, to);
     }
 
     private MissionRow mission(String userId, String missionId) {
@@ -1102,6 +1202,51 @@ public class ProductAppService implements FinancialDataProvider {
         bootstrapUser(userId, displayName(userId));
         return jdbc.query("SELECT * FROM missions WHERE user_id = ? ORDER BY created_at",
                 (rs, rowNum) -> missionRow(rs, rs.getString("id").substring((userId + ":").length())), userId);
+    }
+
+    private MissionRow todayMission(List<MissionRow> missions) {
+        return missions.stream()
+                .filter(mission -> !"COMPLETED".equals(mission.status()))
+                .max(Comparator.comparingInt(MissionRow::progress))
+                .orElse(missions.stream().findFirst().orElse(null));
+    }
+
+    private List<MissionEventRow> missionEvents(String userId, YearMonth month) {
+        LocalDate from = month.atDay(1);
+        LocalDate to = month.plusMonths(1).atDay(1);
+        return jdbc.query("""
+                        SELECT e.id, e.event_type, e.note, e.reward_points, e.event_date, m.title
+                        FROM mission_events e
+                        JOIN missions m ON m.id = e.mission_id
+                        WHERE e.user_id = ? AND e.event_date >= ? AND e.event_date < ?
+                        ORDER BY e.event_date DESC, e.created_at DESC
+                        """,
+                (rs, rowNum) -> new MissionEventRow(
+                        rs.getString("id"),
+                        rs.getString("event_type"),
+                        rs.getString("title"),
+                        rs.getString("note"),
+                        rs.getInt("reward_points"),
+                        rs.getDate("event_date").toLocalDate()
+                ), userId, from, to);
+    }
+
+    private List<MissionEventRow> missionEvents(String userId, LocalDate date) {
+        return jdbc.query("""
+                        SELECT e.id, e.event_type, e.note, e.reward_points, e.event_date, m.title
+                        FROM mission_events e
+                        JOIN missions m ON m.id = e.mission_id
+                        WHERE e.user_id = ? AND e.event_date = ?
+                        ORDER BY e.created_at DESC
+                        """,
+                (rs, rowNum) -> new MissionEventRow(
+                        rs.getString("id"),
+                        rs.getString("event_type"),
+                        rs.getString("title"),
+                        rs.getString("note"),
+                        rs.getInt("reward_points"),
+                        rs.getDate("event_date").toLocalDate()
+                ), userId, date);
     }
 
     private List<AppItem> pointTransactionItems(String userId) {
@@ -1137,6 +1282,115 @@ public class ProductAppService implements FinancialDataProvider {
             return List.of(item("points-empty", "아직 포인트 기록이 없어요", "미션을 완료하면 이곳에 기록돼요.", null, null, "wallet", "purple", null));
         }
         return transactions;
+    }
+
+    private AppSection pointTransactionsSection(String userId, LocalDate date) {
+        List<AppItem> items = jdbc.query("""
+                        SELECT id, type, amount, balance_after, description, created_at
+                        FROM point_transactions
+                        WHERE user_id = ? AND CAST(created_at AS DATE) = ?
+                        ORDER BY created_at DESC
+                        LIMIT 10
+                        """,
+                (rs, rowNum) -> {
+                    int amount = rs.getInt("amount");
+                    return item(
+                            rs.getString("id"),
+                            rs.getString("description"),
+                            rs.getObject("created_at", OffsetDateTime.class).toLocalTime().withNano(0).toString(),
+                            "+" + amount + "P",
+                            "잔액 " + rs.getInt("balance_after") + "P",
+                            "wallet",
+                            "purple",
+                            null
+                    );
+                }, userId, date);
+        if (items.isEmpty()) {
+            items = List.of(item("points-empty", "포인트 기록이 없어요", "이 날짜에는 포인트 적립 내역이 없습니다.", null, null, "wallet", "purple", null));
+        }
+        return section("point-transactions", "list", "포인트 기록", null, null, null, null, items, null, null);
+    }
+
+    private List<AppItem> calendarItems(String userId, YearMonth month, List<DailyRecordRow> records, List<MissionEventRow> events) {
+        Map<LocalDate, DailyRecordRow> recordByDate = new LinkedHashMap<>();
+        for (DailyRecordRow record : records) {
+            recordByDate.put(record.date(), record);
+        }
+        Set<LocalDate> successDates = new HashSet<>();
+        for (MissionEventRow event : events) {
+            if ("DONE".equals(event.eventType())) {
+                successDates.add(event.eventDate());
+            }
+        }
+        List<AppItem> items = new ArrayList<>();
+        for (int day = 1; day <= month.lengthOfMonth(); day += 1) {
+            LocalDate date = month.atDay(day);
+            DailyRecordRow record = recordByDate.get(date);
+            boolean missionSuccess = successDates.contains(date) || (record != null && "SUCCESS".equals(record.missionStatus()));
+            String tone = missionSuccess ? "success" : record != null && record.spent() > record.budget() ? "over" : record == null ? "empty" : "none";
+            String value = record == null ? null : won(record.spent());
+            items.add(item(date.toString(), String.valueOf(day), value, null, missionSuccess ? "SUCCESS" : null, "calendar", tone, "/records/" + date));
+        }
+        items.add(item("history", "월간 히스토리", "실천 기록 보기", null, null, "records", "purple", "/records/history"));
+        items.add(item("stats", "포인트 통계", wallet(userId).pointBalance() + "P", null, null, "wallet", "green", "/records/stats"));
+        return items;
+    }
+
+    private AppSection missionEventsSection(String id, String title, List<MissionEventRow> events) {
+        if (events.isEmpty()) {
+            return section(id, "list", title, null, null, null, null,
+                    items(item("mission-events-empty", "아직 미션 기록이 없어요", "미션을 추가하거나 완료하면 여기에 쌓입니다.", null, null, "target", "purple", "/missions")),
+                    null, null);
+        }
+        List<AppItem> items = events.stream()
+                .map(event -> item(
+                        event.id(),
+                        event.title(),
+                        "DONE".equals(event.eventType()) ? "성공" : "추가됨",
+                        event.rewardPoints() > 0 ? "+" + event.rewardPoints() + "P" : null,
+                        event.eventDate().toString(),
+                        "check",
+                        "DONE".equals(event.eventType()) ? "green" : "purple",
+                        null
+                ))
+                .toList();
+        return section(id, "list", title, null, null, null, null, items, null, null);
+    }
+
+    private List<MissionTemplate> recommendedMissionTemplates(String userId) {
+        Set<String> existingMissionIds = new HashSet<>(missions(userId).stream().map(MissionRow::routeId).toList());
+        return seedStore.all("mission-templates.json").stream()
+                .map(this::missionTemplate)
+                .filter(MissionTemplate::active)
+                .filter(template -> !existingMissionIds.contains(template.missionId()))
+                .sorted(Comparator.comparing(MissionTemplate::id))
+                .toList();
+    }
+
+    private MissionTemplate missionTemplate(String templateId) {
+        Map<String, Object> seed = seedStore.get("mission-templates.json", templateId);
+        if (seed == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "MISSION_TEMPLATE_NOT_FOUND", "Mission template not found.");
+        }
+        return missionTemplate(seed);
+    }
+
+    private MissionTemplate missionTemplate(Map<String, Object> seed) {
+        String id = stringValue(seed.get("id"));
+        String missionId = stringValue(seed.getOrDefault("missionId", id.toLowerCase().replace("_", "-")));
+        String difficulty = stringValue(seed.getOrDefault("defaultDifficulty", "EASY"));
+        return new MissionTemplate(
+                id,
+                missionId,
+                stringValue(seed.getOrDefault("titleTemplate", "추천 미션")),
+                stringValue(seed.getOrDefault("descriptionTemplate", "오늘 바로 실천할 수 있는 금융 루틴입니다.")),
+                difficulty,
+                "EASY".equals(difficulty) ? "쉬움" : "보통",
+                intValue(seed.getOrDefault("defaultRewardPoints", 100)),
+                stringValue(seed.getOrDefault("icon", "target")),
+                stringValue(seed.getOrDefault("tone", "purple")),
+                Boolean.TRUE.equals(seed.get("active"))
+        );
     }
 
     private MissionRow missionRow(ResultSet rs, String routeId) throws java.sql.SQLException {
@@ -1308,6 +1562,44 @@ public class ProductAppService implements FinancialDataProvider {
         return item(mission.routeId(), mission.title(), mission.description(), mission.progress() + "%", "+" + mission.rewardPoints() + "P", "target", "purple", "/missions/" + mission.routeId());
     }
 
+    private AppItem completedMissionItem(MissionRow mission) {
+        return item(mission.routeId(), mission.title(), "완료됨", "100%", "+" + mission.rewardPoints() + "P", "check", "green", "/missions/" + mission.routeId());
+    }
+
+    private YearMonth parseMonth(String month) {
+        if (month == null || month.isBlank()) {
+            return DEFAULT_RECORD_MONTH;
+        }
+        try {
+            return YearMonth.parse(month);
+        } catch (Exception exception) {
+            return DEFAULT_RECORD_MONTH;
+        }
+    }
+
+    private LocalDate parseDate(String date) {
+        try {
+            return LocalDate.parse(date);
+        } catch (Exception exception) {
+            return APP_TODAY;
+        }
+    }
+
+    private String monthTitle(YearMonth month) {
+        return month.getYear() + "년 " + month.getMonthValue() + "월";
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : value.toString();
+    }
+
+    private int intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.parseInt(value.toString());
+    }
+
     private AppScreenResponse screen(String id, String title, String tab, List<AppSection> sections, Map<String, Object> meta) {
         return new AppScreenResponse(id, title, tab, "9:41", null, sections, meta);
     }
@@ -1432,6 +1724,12 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private record MissionRow(String dbId, String routeId, String title, String description, String status, String difficulty, int rewardPoints, int progress) {
+    }
+
+    private record MissionEventRow(String id, String eventType, String title, String note, int rewardPoints, LocalDate eventDate) {
+    }
+
+    private record MissionTemplate(String id, String missionId, String title, String description, String difficulty, String difficultyLabel, int rewardPoints, String icon, String tone, boolean active) {
     }
 
     private record WalletRow(int pointBalance, int virtualMoneyBalance) {

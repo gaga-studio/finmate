@@ -7,7 +7,48 @@
     "defaultDifficulty": "EASY",
     "defaultVerificationType": "SELF_CHECK",
     "defaultRewardPoints": 100,
+    "missionId": "mission-auto-transfer-small",
+    "icon": "saving",
+    "tone": "green",
+    "active": true
+  },
+  {
+    "id": "MISSION_CAFE_LIMIT_WEEKLY",
+    "goalType": "CONTROL_SPENDING",
+    "titleTemplate": "이번 주 카페 2회 이하 이용하기",
+    "descriptionTemplate": "카페 결제를 줄이고 남은 금액을 비상금으로 옮기는 소비 루틴입니다.",
+    "defaultDifficulty": "EASY",
+    "defaultVerificationType": "SELF_CHECK",
+    "defaultRewardPoints": 100,
+    "missionId": "mission-cafe-limit-weekly",
+    "icon": "cafe",
+    "tone": "orange",
+    "active": true
+  },
+  {
+    "id": "MISSION_TRANSPORT_BUDGET",
+    "goalType": "CONTROL_SPENDING",
+    "titleTemplate": "교통비 하루 예산 지키기",
+    "descriptionTemplate": "이동 경로를 미리 정해 택시와 즉흥 이동 지출을 줄입니다.",
+    "defaultDifficulty": "NORMAL",
+    "defaultVerificationType": "SELF_CHECK",
+    "defaultRewardPoints": 120,
+    "missionId": "mission-transport-budget",
+    "icon": "transport",
+    "tone": "blue",
+    "active": true
+  },
+  {
+    "id": "MISSION_SUBSCRIPTION_REVIEW",
+    "goalType": "SAVING",
+    "titleTemplate": "이번 달 구독 결제 점검하기",
+    "descriptionTemplate": "반복 결제 중 사용하지 않는 서비스를 찾아 다음 달 고정비를 낮춥니다.",
+    "defaultDifficulty": "NORMAL",
+    "defaultVerificationType": "SELF_CHECK",
+    "defaultRewardPoints": 150,
+    "missionId": "mission-subscription-review",
+    "icon": "spend",
+    "tone": "purple",
     "active": true
   }
 ]
-

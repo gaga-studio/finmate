@@ -57,6 +57,21 @@ paths:
       operationId: getAppMissions
       security: [{ bearerAuth: [] }]
       responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/missions/add:
+    get:
+      operationId: getAppMissionAdd
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/missions/add/{templateId}:
+    post:
+      operationId: addAppMissionFromTemplate
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema: { type: string }
+      responses: { "200": { $ref: "#/components/responses/AppActionResult" } }
   /api/app/missions/{missionId}:
     get:
       operationId: getAppMission

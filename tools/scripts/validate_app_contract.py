@@ -24,6 +24,8 @@ EXPECTED_PATHS = {
     "/api/app/compare/results/{comparisonId}",
     "/api/app/compare/{comparisonId}/coach-flow",
     "/api/app/missions",
+    "/api/app/missions/add",
+    "/api/app/missions/add/{templateId}",
     "/api/app/missions/{missionId}",
     "/api/app/missions/{missionId}/feedback",
     "/api/app/records",
@@ -38,7 +40,7 @@ EXPECTED_PATHS = {
     "/api/app/birthday-funds/me/share",
     "/api/app/birthday-funds/me/status",
 }
-EXPECTED_OPERATION_COUNT = 23
+EXPECTED_OPERATION_COUNT = 25
 EXPECTED_SCREEN_IDS = {
     "home",
     "home:mission",

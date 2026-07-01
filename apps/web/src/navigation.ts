@@ -11,6 +11,7 @@ export type ScreenKey =
   | 'compare-result'
   | 'compare-coach'
   | 'missions'
+  | 'mission-add'
   | 'mission-detail'
   | 'records'
   | 'record-detail'
@@ -68,8 +69,8 @@ export function parseRoute(pathname: string): Route {
     return { name: 'screen', screen: 'compare' }
   }
   if (parts[0] === 'missions') {
-    if (parts[1] === 'new') {
-      return { name: 'screen', screen: 'missions' }
+    if (parts[1] === 'new' || parts[1] === 'add') {
+      return { name: 'screen', screen: 'mission-add', param: parts[2] }
     }
     if (parts[1] && parts[2] === 'feedback') {
       return { name: 'mission-feedback', missionId: parts[1] }

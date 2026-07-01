@@ -267,8 +267,15 @@ export const api = {
     }),
   getAppMissions: (token?: string) =>
     request<AppScreenResponse>('/api/app/missions', { token }),
+  getAppMissionAdd: (token?: string) =>
+    request<AppScreenResponse>('/api/app/missions/add', { token }),
   getAppMission: (missionId: string, token?: string) =>
     request<AppScreenResponse>(`/api/app/missions/${missionId}`, { token }),
+  addAppMissionFromTemplate: (templateId: string, token?: string) =>
+    request<AppActionResultResponse>(`/api/app/missions/add/${templateId}`, {
+      method: 'POST',
+      token,
+    }),
   submitAppMissionFeedback: (missionId: string, token?: string) =>
     request<AppActionResultResponse>(`/api/app/missions/${missionId}/feedback`, {
       method: 'POST',
