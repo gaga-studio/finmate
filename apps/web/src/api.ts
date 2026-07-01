@@ -1,4 +1,6 @@
 import type {
+  AppActionResultResponse,
+  AppScreenResponse,
   ComparisonResponse,
   DemoSessionResponse,
   ErrorResponse,
@@ -12,6 +14,12 @@ import type {
   PrivacyWithdrawResponse,
   SimulationResponse,
 } from './types'
+
+type BirthdayContributionPayload = {
+  amount: number
+  message: string
+  anonymous: boolean
+}
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -120,6 +128,10 @@ export const p0Payloads = {
   }),
 }
 
+const DEMO_ACCESS_TOKEN = 'demo-token'
+
+const appToken = (token?: string) => token ?? DEMO_ACCESS_TOKEN
+
 export const api = {
   health: () => request<{ status: string }>('/health'),
   createDiagnosis: () =>
@@ -199,4 +211,88 @@ export const api = {
         reason: 'WEB_DEMO_PRIVACY_CHECK',
       },
     }),
+  getAppHome: (token?: string) =>
+    request<AppScreenResponse>('/api/app/home', { token: appToken(token) }),
+  getAppHomeDetail: (detail: string, token?: string) =>
+    request<AppScreenResponse>(`/api/app/home/${detail}`, { token: appToken(token) }),
+  getAppCompare: (token?: string) =>
+    request<AppScreenResponse>('/api/app/compare', { token: appToken(token) }),
+  getAppCompareFilter: (token?: string) =>
+    request<AppScreenResponse>('/api/app/compare/filter', { token: appToken(token) }),
+  searchAppCompareFilter: (token?: string) =>
+    request<AppScreenResponse>('/api/app/compare/filter/search', {
+      method: 'POST',
+      token: appToken(token),
+      body: {
+        ageBand: '20대',
+        incomeBand: '3,000만원 ~ 4,000만원',
+        jobCategory: 'IT/개발',
+        moneyStyle: '안정 추구형',
+        area: '서울 강남권',
+      },
+    }),
+  getAppCompareResult: (comparisonId = 'cmp-001', token?: string) =>
+    request<AppScreenResponse>(`/api/app/compare/results/${comparisonId}`, {
+      token: appToken(token),
+    }),
+  getAppCoachFlow: (comparisonId = 'cmp-001', token?: string) =>
+    request<AppScreenResponse>(`/api/app/compare/${comparisonId}/coach-flow`, {
+      token: appToken(token),
+    }),
+  getAppMissions: (token?: string) =>
+    request<AppScreenResponse>('/api/app/missions', { token: appToken(token) }),
+  getAppMission: (missionId: string, token?: string) =>
+    request<AppScreenResponse>(`/api/app/missions/${missionId}`, { token: appToken(token) }),
+  submitAppMissionFeedback: (missionId: string, token?: string) =>
+    request<AppActionResultResponse>(`/api/app/missions/${missionId}/feedback`, {
+      method: 'POST',
+      token: appToken(token),
+      body: { status: 'DONE', note: '오늘 목표를 완료했어요.' },
+    }),
+  getAppRecords: (month = '2026-06', token?: string) =>
+    request<AppScreenResponse>(`/api/app/records?month=${month}`, { token: appToken(token) }),
+  getAppRecordDetail: (date: string, token?: string) =>
+    request<AppScreenResponse>(`/api/app/records/${date}`, { token: appToken(token) }),
+  getAppProfile: (token?: string) =>
+    request<AppScreenResponse>('/api/app/profile', { token: appToken(token) }),
+  getAppProfileSection: (section: string, token?: string) =>
+    request<AppScreenResponse>(`/api/app/profile/sections/${section}`, { token: appToken(token) }),
+  getAppBirthdays: (token?: string) =>
+    request<AppScreenResponse>('/api/app/birthdays', { token: appToken(token) }),
+  getAppBirthdayFlow: (birthdayId: string, token?: string) =>
+    request<AppScreenResponse>(`/api/app/birthdays/${birthdayId}/flow`, { token: appToken(token) }),
+  contributeBirthdayFund: (
+    fundId: string,
+    payload: BirthdayContributionPayload = {
+      amount: 10000,
+      message: '지우야 생일 축하해!',
+      anonymous: false,
+    },
+    token?: string,
+  ) =>
+    request<AppActionResultResponse>(`/api/app/birthday-funds/${fundId}/contributions`, {
+      method: 'POST',
+      token: appToken(token),
+      body: payload,
+    }),
+  getBirthdayContributionComplete: (fundId: string, token?: string) =>
+    request<AppScreenResponse>(`/api/app/birthday-funds/${fundId}/complete`, {
+      token: appToken(token),
+    }),
+  getMyBirthdayFundOpenScreen: (token?: string) =>
+    request<AppScreenResponse>('/api/app/birthday-funds/me/open', { token: appToken(token) }),
+  openMyBirthdayFund: (token?: string) =>
+    request<AppActionResultResponse>('/api/app/birthday-funds/me/open', {
+      method: 'POST',
+      token: appToken(token),
+    }),
+  getMyBirthdayFundShareScreen: (token?: string) =>
+    request<AppScreenResponse>('/api/app/birthday-funds/me/share', { token: appToken(token) }),
+  shareMyBirthdayFund: (token?: string) =>
+    request<AppActionResultResponse>('/api/app/birthday-funds/me/share', {
+      method: 'POST',
+      token: appToken(token),
+    }),
+  getMyBirthdayFundStatus: (token?: string) =>
+    request<AppScreenResponse>('/api/app/birthday-funds/me/status', { token: appToken(token) }),
 }

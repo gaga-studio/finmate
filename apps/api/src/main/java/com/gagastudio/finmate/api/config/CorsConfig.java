@@ -8,7 +8,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class CorsConfig implements WebMvcConfigurer {
     private static final String[] LOCAL_FRONTEND_ORIGINS = {
             "http://localhost:3000",
-            "http://localhost:5173"
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173"
     };
 
     @Override

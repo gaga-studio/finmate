@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: FinMate P1 App Experience API
+  version: 1.1.0
+  description: P0 공개 API 12개를 유지한 상태에서 5탭 앱 상세 화면, AI 코치, 생일펀드 mock flow를 제공하는 P1 API입니다.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/app/home:
+    get:
+      operationId: getAppHome
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/home/{detail}:
+    get:
+      operationId: getAppHomeDetail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/DetailPath"
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/compare:
+    get:
+      operationId: getAppCompare
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/compare/filter:
+    get:
+      operationId: getAppCompareFilter
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/compare/filter/search:
+    post:
+      operationId: searchAppCompareFilter
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppCompareSearchRequest" }
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/compare/results/{comparisonId}:
+    get:
+      operationId: getAppCompareResult
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ComparisonId"
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/compare/{comparisonId}/coach-flow:
+    get:
+      operationId: getAppCoachFlow
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ComparisonId"
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/missions:
+    get:
+      operationId: getAppMissions
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/missions/{missionId}:
+    get:
+      operationId: getAppMission
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/MissionId"
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/missions/{missionId}/feedback:
+    post:
+      operationId: submitAppMissionFeedback
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/MissionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppMissionFeedbackRequest" }
+      responses: { "200": { $ref: "#/components/responses/AppActionResult" } }
+  /api/app/records:
+    get:
+      operationId: getAppRecords
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema: { type: string, example: "2026-06" }
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/records/{date}:
+    get:
+      operationId: getAppRecordDetail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema: { type: string, example: "2026-06-12" }
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/profile:
+    get:
+      operationId: getAppProfile
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/profile/sections/{section}:
+    get:
+      operationId: getAppProfileSection
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: section
+          in: path
+          required: true
+          schema: { type: string, enum: [followers, following, activities, privacy] }
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/birthdays:
+    get:
+      operationId: getAppBirthdays
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/birthdays/{birthdayId}/flow:
+    get:
+      operationId: getAppBirthdayFlow
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: birthdayId
+          in: path
+          required: true
+          schema: { type: string, example: bday-jiwoo }
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/birthday-funds/{fundId}/contributions:
+    post:
+      operationId: contributeBirthdayFund
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: fundId
+          in: path
+          required: true
+          schema: { type: string, example: fund-jiwoo }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppBirthdayContributionRequest" }
+      responses: { "200": { $ref: "#/components/responses/AppActionResult" } }
+  /api/app/birthday-funds/{fundId}/complete:
+    get:
+      operationId: getBirthdayContributionComplete
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: fundId
+          in: path
+          required: true
+          schema: { type: string, example: fund-jiwoo }
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+  /api/app/birthday-funds/me/open:
+    get:
+      operationId: getMyBirthdayFundOpenScreen
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+    post:
+      operationId: openMyBirthdayFund
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppActionResult" } }
+  /api/app/birthday-funds/me/share:
+    get:
+      operationId: getMyBirthdayFundShareScreen
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+    post:
+      operationId: shareMyBirthdayFund
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppActionResult" } }
+  /api/app/birthday-funds/me/status:
+    get:
+      operationId: getMyBirthdayFundStatus
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/AppScreen" } }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    DetailPath:
+      name: detail
+      in: path
+      required: true
+      schema: { type: string, enum: [mission, budget, spending, assets, following] }
+    ComparisonId:
+      name: comparisonId
+      in: path
+      required: true
+      schema: { type: string, example: cmp-001 }
+    MissionId:
+      name: missionId
+      in: path
+      required: true
+      schema: { type: string, example: mission-food }
+  responses:
+    AppScreen:
+      description: App screen data
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AppScreenResponse" }
+    AppActionResult:
+      description: Mock action result
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AppActionResultResponse" }
+  schemas:
+    AppScreenResponse:
+      type: object
+      required: [screenId, title, tab, statusBarTime, sections, meta]
+      properties:
+        screenId: { type: string }
+        title: { type: string }
+        tab: { type: string }
+        statusBarTime: { type: string }
+        heroAsset: { type: [string, "null"] }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/AppSection" }
+        meta:
+          type: object
+          additionalProperties: true
+    AppSection:
+      type: object
+      required: [id, kind, title]
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        title: { type: string }
+        subtitle: { type: [string, "null"] }
+        detailPath: { type: [string, "null"] }
+        heroAsset: { type: [string, "null"] }
+        metrics:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/AppMetric" }
+        items:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/AppItem" }
+        actions:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/AppAction" }
+        data:
+          type: [object, "null"]
+          additionalProperties: true
+    AppMetric:
+      type: object
+      required: [label, value]
+      properties:
+        label: { type: string }
+        value: { type: string }
+        caption: { type: [string, "null"] }
+        tone: { type: [string, "null"] }
+        progress: { type: [integer, "null"] }
+    AppItem:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        subtitle: { type: [string, "null"] }
+        value: { type: [string, "null"] }
+        caption: { type: [string, "null"] }
+        icon: { type: [string, "null"] }
+        tone: { type: [string, "null"] }
+        detailPath: { type: [string, "null"] }
+        data:
+          type: [object, "null"]
+          additionalProperties: true
+    AppAction:
+      type: object
+      required: [label, path, method, tone]
+      properties:
+        label: { type: string }
+        path: { type: string }
+        method: { type: string, enum: [GET, POST] }
+        tone: { type: string }
+        intent: { type: [string, "null"] }
+    AppCompareSearchRequest:
+      type: object
+      properties:
+        ageBand: { type: [string, "null"] }
+        incomeBand: { type: [string, "null"] }
+        jobCategory: { type: [string, "null"] }
+        moneyStyle: { type: [string, "null"] }
+        area: { type: [string, "null"] }
+    AppMissionFeedbackRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [DONE] }
+        note: { type: [string, "null"] }
+    AppBirthdayContributionRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: integer, minimum: 1, maximum: 20000 }
+        message: { type: [string, "null"] }
+        anonymous: { type: [boolean, "null"] }
+    AppActionResultResponse:
+      type: object
+      required: [status, title, message, nextPath, data]
+      properties:
+        status: { type: string }
+        title: { type: string }
+        message: { type: string }
+        nextPath: { type: string }
+        data:
+          type: object
+          additionalProperties: true

@@ -1,0 +1,1092 @@
+[
+  {
+    "id": "home",
+    "screenId": "home",
+    "title": "",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-main.png",
+    "sections": [
+      {
+        "id": "greeting",
+        "kind": "greeting",
+        "title": "jinn님, 좋은 아침이에요!",
+        "subtitle": "오늘도 똑똑한 금융 습관을 만들어가요.",
+        "data": { "rightIcon": "bell" }
+      },
+      {
+        "id": "birthday-alert",
+        "kind": "birthday",
+        "title": "지우님의 생일이 다가오고 있어요",
+        "subtitle": "친구들이 함께 모으는 생일 펀드가 열렸어요.",
+        "heroAsset": "/assets/characters/finmate-birthday.png",
+        "metrics": [
+          { "label": "현재 모금", "value": "₩72,000", "caption": "목표 ₩100,000", "tone": "purple", "progress": 72 },
+          { "label": "참여자", "value": "12명", "caption": "D-7", "tone": "muted", "progress": 12 }
+        ],
+        "actions": [
+          { "label": "축하 펀드 참여하기", "path": "/birthdays/bday-jiwoo", "method": "GET", "tone": "primary" }
+        ]
+      },
+      {
+        "id": "today-mission",
+        "kind": "missionHero",
+        "title": "내일 식비 10,000원 이하 사용하기",
+        "subtitle": "오늘의 미션",
+        "detailPath": "/home/mission",
+        "metrics": [
+          { "label": "진행률", "value": "78%", "caption": "하루 식비 예산", "tone": "purple", "progress": 78 }
+        ]
+      },
+      {
+        "id": "budget",
+        "kind": "budget",
+        "title": "오늘의 예산",
+        "detailPath": "/home/budget",
+        "metrics": [
+          { "label": "하루 예산", "value": "₩10,000", "caption": "식비 기준", "tone": "default", "progress": 100 },
+          { "label": "사용 금액", "value": "₩7,800", "caption": "현재까지", "tone": "default", "progress": 78 },
+          { "label": "남은 금액", "value": "₩2,200", "caption": "예산 안", "tone": "green", "progress": 22 }
+        ],
+        "data": { "progress": 78 }
+      },
+      {
+        "id": "spending",
+        "kind": "spendingGrid",
+        "title": "오늘의 지출 요약",
+        "detailPath": "/home/spending",
+        "items": [
+          { "id": "food", "title": "식비", "value": "-₩6,200", "caption": "62%", "icon": "food", "tone": "orange" },
+          { "id": "transport", "title": "교통비", "value": "-₩1,200", "caption": "12%", "icon": "transport", "tone": "blue" },
+          { "id": "cafe", "title": "카페/간식", "value": "-₩600", "caption": "6%", "icon": "cafe", "tone": "tan" },
+          { "id": "etc", "title": "기타", "value": "-₩1,800", "caption": "18%", "icon": "more", "tone": "gray" }
+        ]
+      },
+      {
+        "id": "assets",
+        "kind": "asset",
+        "title": "자산 현황",
+        "detailPath": "/home/assets",
+        "metrics": [
+          { "label": "총 자산", "value": "₩12,450,000", "caption": "이번 달 +₩320,000 (+2.6%)", "tone": "green", "progress": 62 }
+        ],
+        "data": { "sparkline": [18, 22, 30, 28, 36, 42, 39, 52, 44, 48, 60] }
+      },
+      {
+        "id": "following",
+        "kind": "signalGrid",
+        "title": "팔로잉 금융 근황",
+        "subtitle": "친구 50명의 금융 활동 요약",
+        "detailPath": "/home/following",
+        "items": [
+          { "id": "stocks", "title": "주식 투자", "value": "18명", "icon": "stocks", "tone": "red" },
+          { "id": "saving", "title": "적금 가입", "value": "32명", "icon": "saving", "tone": "blue" },
+          { "id": "fund", "title": "펀드 투자", "value": "9명", "icon": "fund", "tone": "green" },
+          { "id": "pension", "title": "연금 준비", "value": "21명", "icon": "pension", "tone": "purple" }
+        ]
+      }
+    ],
+    "meta": { "version": "p1-v1.1" }
+  },
+  {
+    "id": "home:mission",
+    "screenId": "home:mission",
+    "title": "오늘의 미션",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-main.png",
+    "sections": [
+      {
+        "id": "mission-detail",
+        "kind": "missionHero",
+        "title": "내일 식비 10,000원 이하 사용하기",
+        "subtitle": "비상금 루틴을 위한 하루 식비 미션",
+        "metrics": [
+          { "label": "진행률", "value": "78%", "caption": "남은 예산 ₩2,200", "tone": "purple", "progress": 78 }
+        ]
+      },
+      {
+        "id": "guide",
+        "kind": "list",
+        "title": "실천 가이드",
+        "items": [
+          { "id": "g1", "title": "점심 메뉴를 먼저 정하기", "subtitle": "즉흥 결제를 줄이면 식비 초과 가능성이 낮아져요.", "icon": "check", "tone": "green" },
+          { "id": "g2", "title": "카페는 쿠폰 있는 날만", "subtitle": "오늘은 카페 지출을 0원으로 유지해보세요.", "icon": "cafe", "tone": "orange" },
+          { "id": "g3", "title": "남은 금액은 비상금으로", "subtitle": "하루 목표를 지키면 ₩2,200을 따로 모을 수 있어요.", "icon": "saving", "tone": "purple" }
+        ],
+        "actions": [
+          { "label": "미션 상세 보기", "path": "/missions/mission-food", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "home:budget",
+    "screenId": "home:budget",
+    "title": "오늘의 예산",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "budget-detail",
+        "kind": "budget",
+        "title": "하루 예산 한눈에",
+        "subtitle": "달력과 미션 기록에 연결되는 오늘의 소비 상태예요.",
+        "metrics": [
+          { "label": "하루 예산", "value": "₩10,000", "caption": "식비 미션", "tone": "default", "progress": 100 },
+          { "label": "사용 금액", "value": "₩7,800", "caption": "78%", "tone": "default", "progress": 78 },
+          { "label": "남은 금액", "value": "₩2,200", "caption": "예산 안", "tone": "green", "progress": 22 }
+        ],
+        "data": { "progress": 78 }
+      },
+      {
+        "id": "budget-breakdown",
+        "kind": "list",
+        "title": "예산 사용 내역",
+        "items": [
+          { "id": "lunch", "title": "점심 식사", "subtitle": "12:20 · 식비", "value": "-₩6,200", "icon": "food", "tone": "orange" },
+          { "id": "bus", "title": "버스", "subtitle": "08:40 · 교통", "value": "-₩1,200", "icon": "transport", "tone": "blue" },
+          { "id": "snack", "title": "편의점 간식", "subtitle": "17:10 · 간식", "value": "-₩400", "icon": "cafe", "tone": "tan" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "home:spending",
+    "screenId": "home:spending",
+    "title": "지출 요약",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "spending-categories",
+        "kind": "spendingGrid",
+        "title": "카테고리별 소비",
+        "subtitle": "오늘은 식비 비중이 가장 커요.",
+        "items": [
+          { "id": "food", "title": "식비", "value": "-₩6,200", "caption": "62%", "icon": "food", "tone": "orange" },
+          { "id": "transport", "title": "교통비", "value": "-₩1,200", "caption": "12%", "icon": "transport", "tone": "blue" },
+          { "id": "cafe", "title": "카페/간식", "value": "-₩600", "caption": "6%", "icon": "cafe", "tone": "tan" },
+          { "id": "etc", "title": "기타", "value": "-₩1,800", "caption": "18%", "icon": "more", "tone": "gray" }
+        ]
+      },
+      {
+        "id": "pattern",
+        "kind": "coach",
+        "title": "AI 코치 메모",
+        "subtitle": "식비는 안정적이지만 기타 지출이 어제보다 늘었어요. 내일은 결제 전 한 번 더 확인하는 루틴을 추천해요.",
+        "heroAsset": "/assets/characters/finmate-coach.png"
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "home:assets",
+    "screenId": "home:assets",
+    "title": "자산 현황",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "asset-hero",
+        "kind": "asset",
+        "title": "총 자산",
+        "metrics": [
+          { "label": "총 자산", "value": "₩12,450,000", "caption": "이번 달 +₩320,000 (+2.6%)", "tone": "green", "progress": 62 },
+          { "label": "비상금 준비율", "value": "0.4개월", "caption": "목표 1개월까지 40%", "tone": "purple", "progress": 40 }
+        ],
+        "data": { "sparkline": [18, 22, 30, 28, 36, 42, 39, 52, 44, 48, 60] }
+      },
+      {
+        "id": "asset-list",
+        "kind": "list",
+        "title": "자산 구성",
+        "items": [
+          { "id": "cash", "title": "현금성 자산", "value": "₩400,000", "caption": "비상금 기준", "icon": "saving", "tone": "green" },
+          { "id": "deposit", "title": "예적금", "value": "₩7,200,000", "caption": "월 납입 유지", "icon": "saving", "tone": "blue" },
+          { "id": "invest", "title": "투자", "value": "₩4,850,000", "caption": "평가금 기준", "icon": "stocks", "tone": "purple" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "home:following",
+    "screenId": "home:following",
+    "title": "팔로잉 금융 근황",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "following-summary",
+        "kind": "signalGrid",
+        "title": "친구 50명의 금융 활동",
+        "items": [
+          { "id": "stocks", "title": "주식 투자", "value": "18명", "caption": "36%", "icon": "stocks", "tone": "red" },
+          { "id": "saving", "title": "적금 가입", "value": "32명", "caption": "64%", "icon": "saving", "tone": "blue" },
+          { "id": "fund", "title": "펀드 투자", "value": "9명", "caption": "18%", "icon": "fund", "tone": "green" },
+          { "id": "pension", "title": "연금 준비", "value": "21명", "caption": "42%", "icon": "pension", "tone": "purple" }
+        ]
+      },
+      {
+        "id": "top-activity",
+        "kind": "rankList",
+        "title": "팔로잉 TOP 5 금융 활동",
+        "items": [
+          { "id": "u1", "title": "이지연", "subtitle": "적금 · 연금", "value": "+₩240,000", "icon": "profile", "tone": "purple" },
+          { "id": "u2", "title": "김민수", "subtitle": "주식", "value": "+₩520,000", "icon": "profile", "tone": "blue" },
+          { "id": "u3", "title": "박상우", "subtitle": "적금 · 펀드", "value": "+₩180,000", "icon": "profile", "tone": "green" },
+          { "id": "u4", "title": "최유진", "subtitle": "적금", "value": "+₩120,000", "icon": "profile", "tone": "purple" },
+          { "id": "u5", "title": "정하나", "subtitle": "연금", "value": "+₩300,000", "icon": "profile", "tone": "tan" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "compare",
+    "screenId": "compare",
+    "title": "그룹 비교",
+    "tab": "compare",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "lead",
+        "kind": "lead",
+        "title": "비슷한 사람들과 비교해보세요",
+        "subtitle": "나와 비슷한 금융 생활을 가진 사람들의 평균과 비교할 수 있어요."
+      },
+      {
+        "id": "scores",
+        "kind": "scoreGrid",
+        "title": "금융 점수",
+        "metrics": [
+          { "label": "나의 금융 점수", "value": "72점", "caption": "상위 62%", "tone": "purple", "progress": 72 },
+          { "label": "비교 그룹 평균", "value": "68점", "caption": "상위 48%", "tone": "mint", "progress": 68 }
+        ]
+      },
+      {
+        "id": "compare-bars",
+        "kind": "compareBars",
+        "title": "항목별 비교",
+        "items": [
+          { "id": "saving", "title": "저축", "subtitle": "월 평균 저축액", "value": "42만원", "caption": "그룹 35만원", "icon": "saving", "tone": "purple", "data": { "mine": 86, "group": 72 } },
+          { "id": "spend", "title": "소비", "subtitle": "월 평균 소비액", "value": "78만원", "caption": "그룹 76만원", "icon": "spend", "tone": "orange", "data": { "mine": 88, "group": 84 } },
+          { "id": "invest", "title": "투자", "subtitle": "투자자 비율", "value": "32%", "caption": "그룹 27%", "icon": "stocks", "tone": "green", "data": { "mine": 72, "group": 62 } },
+          { "id": "debt", "title": "부채", "subtitle": "대출 보유 비율", "value": "18%", "caption": "그룹 21%", "icon": "debt", "tone": "red", "data": { "mine": 52, "group": 60 } }
+        ],
+        "actions": [
+          { "label": "비교 그룹 변경하기", "path": "/compare/filter", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "compare:filter",
+    "screenId": "compare:filter",
+    "title": "비교 그룹 선택",
+    "tab": "compare",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "filters",
+        "kind": "filterList",
+        "title": "필터 선택",
+        "items": [
+          { "id": "age", "title": "나이", "value": "20대", "icon": "chevron" },
+          { "id": "income", "title": "연 소득", "value": "3,000만원 ~ 4,000만원", "icon": "chevron" },
+          { "id": "job", "title": "업종", "value": "IT/개발", "icon": "chevron" },
+          { "id": "risk", "title": "금융 성향", "value": "안정 추구형", "icon": "chevron" },
+          { "id": "area", "title": "생활권", "value": "서울 강남권", "icon": "chevron" },
+          { "id": "work", "title": "직장 형태", "value": "전체", "icon": "chevron" },
+          { "id": "asset", "title": "자산 규모", "value": "전체", "icon": "chevron" }
+        ],
+        "actions": [
+          { "label": "이 조건으로 조회하기", "path": "/compare/filter/results", "method": "POST", "tone": "primary", "intent": "compare-search" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "compare:filter-results",
+    "screenId": "compare:filter-results",
+    "title": "필터링 조회",
+    "tab": "compare",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "result-count",
+        "kind": "lead",
+        "title": "이 조건에 맞는 사용자 1,246명",
+        "subtitle": "프로필을 둘러보고 비교 그룹을 선택해보세요."
+      },
+      {
+        "id": "profiles",
+        "kind": "profileRail",
+        "title": "추천 프로필",
+        "items": [
+          { "id": "peer-jay", "title": "코딩하는 제이", "subtitle": "27세 · IT 개발자", "value": "74점", "caption": "연소득 3,600만원", "icon": "avatar-j", "tone": "tan", "detailPath": "/compare/result" },
+          { "id": "peer-mini", "title": "미니멀 라이프", "subtitle": "29세 · 디자이너", "value": "70점", "caption": "연소득 3,200만원", "icon": "avatar-m", "tone": "blue", "detailPath": "/compare/result" },
+          { "id": "peer-invest", "title": "퇴근 후 투자", "subtitle": "26세 · 마케터", "value": "76점", "caption": "연소득 3,800만원", "icon": "avatar-t", "tone": "purple", "detailPath": "/compare/result" }
+        ],
+        "actions": [
+          { "label": "이 그룹으로 비교하기", "path": "/compare/result", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "compare:cmp-001",
+    "screenId": "compare:cmp-001",
+    "title": "비교 결과",
+    "tab": "compare",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-main.png",
+    "sections": [
+      {
+        "id": "comparison-hero",
+        "kind": "scoreHero",
+        "title": "jinn님, 또래와 비교해봤어요!",
+        "subtitle": "또래보다 저축액은 높고, 투자 비중은 낮아요.",
+        "metrics": [
+          { "label": "나의 종합 점수", "value": "72점", "caption": "상위 40%", "tone": "purple", "progress": 72 }
+        ]
+      },
+      {
+        "id": "comparison-bars",
+        "kind": "compareBars",
+        "title": "항목별 비교",
+        "items": [
+          { "id": "saving-ratio", "title": "저축 비율", "value": "65%", "caption": "상위 30%", "tone": "purple", "data": { "mine": 65, "group": 30 } },
+          { "id": "invest-ratio", "title": "투자 비율", "value": "15%", "caption": "하위 20%", "tone": "red", "data": { "mine": 15, "group": 20 } },
+          { "id": "spending-control", "title": "소비 절제력", "value": "72%", "caption": "상위 50%", "tone": "green", "data": { "mine": 72, "group": 50 } },
+          { "id": "emergency", "title": "비상금 보유", "value": "1.5개월", "caption": "하위 30%", "tone": "gray", "data": { "mine": 40, "group": 80 } }
+        ],
+        "actions": [
+          { "label": "AI 코치의 분석 보기", "path": "/compare/coach", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": { "comparisonId": "cmp-001" }
+  },
+  {
+    "id": "compare:coach-flow",
+    "screenId": "compare:coach-flow",
+    "title": "AI 코치 분석",
+    "tab": "compare",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-coach.png",
+    "sections": [
+      {
+        "id": "coach-summary",
+        "kind": "coach",
+        "title": "jinn님, 잘하고 있어요!",
+        "subtitle": "또래보다 자동 저축을 잘하고 있고 소비도 안정적이에요. 다만 투자가 너무 적어서 자산 성장 속도가 느릴 수 있어요.",
+        "heroAsset": "/assets/characters/finmate-coach.png"
+      },
+      {
+        "id": "coach-keypoints",
+        "kind": "checkList",
+        "title": "핵심 요약",
+        "items": [
+          { "id": "c1", "title": "저축 습관이 매우 좋은 편이에요.", "icon": "check", "tone": "green" },
+          { "id": "c2", "title": "불필요한 소비를 잘 줄이고 있어요.", "icon": "check", "tone": "green" },
+          { "id": "c3", "title": "투자 경험이 적어 자산 성장 속도가 느려요.", "icon": "check", "tone": "purple" }
+        ]
+      },
+      {
+        "id": "coach-actions",
+        "kind": "actionList",
+        "title": "추천 행동 TOP 3",
+        "items": [
+          { "id": "a1", "title": "소액 투자 시작하기", "subtitle": "월 1만원부터", "icon": "stocks", "tone": "purple", "detailPath": "/missions/mission-invest" },
+          { "id": "a2", "title": "비상금 3개월치 모으기", "subtitle": "자동 저축 유지", "icon": "saving", "tone": "green", "detailPath": "/missions/mission-saving" },
+          { "id": "a3", "title": "고정 지출 5% 줄이기", "subtitle": "구독 점검", "icon": "spend", "tone": "orange", "detailPath": "/missions/mission-fixed-cost" }
+        ],
+        "actions": [
+          { "label": "계획 세우기", "path": "/missions/mission-invest", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": { "comparisonId": "cmp-001" }
+  },
+  {
+    "id": "missions",
+    "screenId": "missions",
+    "title": "미션",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "mission-hero",
+        "kind": "missionHero",
+        "title": "내일 식비 10,000원 이하 사용하기",
+        "subtitle": "오늘의 미션",
+        "detailPath": "/missions/mission-food",
+        "metrics": [
+          { "label": "진행률", "value": "78%", "caption": "남은 예산 2,200원 / 10,000원", "tone": "purple", "progress": 78 }
+        ]
+      },
+      {
+        "id": "active-missions",
+        "kind": "list",
+        "title": "진행 중인 미션",
+        "items": [
+          { "id": "mission-cafe", "title": "카페 지출 줄이기", "subtitle": "이번 주 카페 2회 이하 이용", "value": "1 / 2", "caption": "+100P", "icon": "cafe", "tone": "orange", "detailPath": "/missions/mission-cafe" },
+          { "id": "mission-cart", "title": "충동구매 줄이기", "subtitle": "이번 주 비필수 지출 0원 도전", "value": "0 / 1", "caption": "+150P", "icon": "cart", "tone": "orange", "detailPath": "/missions/mission-cart" },
+          { "id": "mission-saving", "title": "저축하기 습관 만들기", "subtitle": "3일 연속 저축 성공", "value": "2 / 3", "caption": "+200P", "icon": "saving", "tone": "purple", "detailPath": "/missions/mission-saving" }
+        ]
+      },
+      {
+        "id": "points",
+        "kind": "points",
+        "title": "나의 포인트",
+        "metrics": [
+          { "label": "보유 포인트", "value": "2,450P", "caption": "이번 주 +450P", "tone": "purple", "progress": 62 }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "missions:mission-food",
+    "screenId": "missions:mission-food",
+    "title": "미션 상세",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-growth.png",
+    "sections": [
+      {
+        "id": "mission-detail",
+        "kind": "missionHero",
+        "title": "내일 식비 10,000원 이하 사용하기",
+        "subtitle": "비교와 시뮬레이션 결과에서 만든 미션입니다.",
+        "metrics": [
+          { "label": "진행률", "value": "78%", "caption": "하루 식비 예산", "tone": "purple", "progress": 78 },
+          { "label": "리워드", "value": "+120P", "caption": "완료 시", "tone": "purple", "progress": 60 }
+        ]
+      },
+      {
+        "id": "guide",
+        "kind": "checkList",
+        "title": "오늘의 행동 가이드",
+        "items": [
+          { "id": "step1", "title": "점심 메뉴를 미리 정해요.", "subtitle": "예상 지출 ₩6,000", "icon": "check", "tone": "green" },
+          { "id": "step2", "title": "카페 대신 물이나 사무실 커피를 선택해요.", "subtitle": "예상 절약 ₩4,500", "icon": "check", "tone": "green" },
+          { "id": "step3", "title": "남은 금액을 비상금으로 기록해요.", "subtitle": "작은 성공을 남겨요.", "icon": "check", "tone": "purple" }
+        ],
+        "actions": [
+          { "label": "오늘 실천 기록하기", "path": "/missions/mission-food/feedback", "method": "POST", "tone": "primary", "intent": "mission-feedback" }
+        ]
+      }
+    ],
+    "meta": { "missionId": "mission-food" }
+  },
+  {
+    "id": "missions:mission-invest",
+    "screenId": "missions:mission-invest",
+    "title": "나의 계획 세우기",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-coach.png",
+    "sections": [
+      {
+        "id": "plan",
+        "kind": "choiceList",
+        "title": "AI 코치의 제안을 내 계획으로 만들어볼까요?",
+        "subtitle": "이번 달 나의 핵심 목표는?",
+        "items": [
+          { "id": "invest-start", "title": "소액 투자 시작하기", "value": "선택됨", "icon": "check", "tone": "purple" },
+          { "id": "emergency", "title": "비상금 3개월치 모으기", "icon": "saving", "tone": "green" },
+          { "id": "fixed", "title": "고정 지출 5% 줄이기", "icon": "spend", "tone": "orange" }
+        ],
+        "actions": [
+          { "label": "계획 저장하기", "path": "/missions/mission-food", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": { "missionId": "mission-invest" }
+  },
+  {
+    "id": "missions:mission-cafe",
+    "screenId": "missions:mission-cafe",
+    "title": "카페 지출 줄이기",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "detail",
+        "kind": "missionHero",
+        "title": "이번 주 카페 2회 이하 이용",
+        "subtitle": "남은 카페 이용 가능 횟수 1회",
+        "metrics": [
+          { "label": "진행", "value": "1 / 2", "caption": "+100P", "tone": "purple", "progress": 50 }
+        ]
+      }
+    ],
+    "meta": { "missionId": "mission-cafe" }
+  },
+  {
+    "id": "missions:mission-cart",
+    "screenId": "missions:mission-cart",
+    "title": "충동구매 줄이기",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "detail",
+        "kind": "missionHero",
+        "title": "이번 주 비필수 지출 0원 도전",
+        "subtitle": "구매 전 하루 보류하기",
+        "metrics": [
+          { "label": "진행", "value": "0 / 1", "caption": "+150P", "tone": "purple", "progress": 0 }
+        ]
+      }
+    ],
+    "meta": { "missionId": "mission-cart" }
+  },
+  {
+    "id": "missions:mission-saving",
+    "screenId": "missions:mission-saving",
+    "title": "저축 습관 만들기",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "detail",
+        "kind": "missionHero",
+        "title": "3일 연속 저축 성공",
+        "subtitle": "오늘 성공하면 연속 기록이 완성돼요.",
+        "metrics": [
+          { "label": "진행", "value": "2 / 3", "caption": "+200P", "tone": "purple", "progress": 66 }
+        ]
+      }
+    ],
+    "meta": { "missionId": "mission-saving" }
+  },
+  {
+    "id": "missions:mission-fixed-cost",
+    "screenId": "missions:mission-fixed-cost",
+    "title": "고정 지출 줄이기",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "detail",
+        "kind": "missionHero",
+        "title": "고정 지출 5% 줄이기",
+        "subtitle": "구독과 자동결제를 점검해 이번 달 고정비를 낮춰요.",
+        "metrics": [
+          { "label": "예상 절약", "value": "₩18,000", "caption": "+180P", "tone": "purple", "progress": 45 }
+        ],
+        "actions": [
+          { "label": "오늘 실천 기록하기", "path": "/missions/mission-fixed-cost/feedback", "method": "POST", "tone": "primary", "intent": "mission-feedback" }
+        ]
+      },
+      {
+        "id": "guide",
+        "kind": "checkList",
+        "title": "오늘의 행동 가이드",
+        "items": [
+          { "id": "step1", "title": "최근 3개월 자동결제 항목을 확인해요.", "subtitle": "사용 빈도가 낮은 구독을 먼저 봐요.", "icon": "check", "tone": "green" },
+          { "id": "step2", "title": "이번 달 유지할 구독만 남겨요.", "subtitle": "해지 전 대체 혜택도 확인해요.", "icon": "check", "tone": "purple" },
+          { "id": "step3", "title": "절약 금액은 비상금 계좌로 옮겨요.", "subtitle": "줄인 지출을 자산으로 연결해요.", "icon": "saving", "tone": "green" }
+        ]
+      }
+    ],
+    "meta": { "missionId": "mission-fixed-cost" }
+  },
+  {
+    "id": "missions:feedback",
+    "screenId": "missions:feedback",
+    "title": "오늘 실천 피드백",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-growth.png",
+    "sections": [
+      {
+        "id": "feedback",
+        "kind": "coach",
+        "title": "완료했어요!",
+        "subtitle": "첫 미션을 시작했다니 대단해요. 이 습관이 미래의 나를 바꿀 거예요.",
+        "heroAsset": "/assets/characters/finmate-growth.png"
+      },
+      {
+        "id": "reward",
+        "kind": "points",
+        "title": "+50P 획득!",
+        "metrics": [
+          { "label": "연속 실천", "value": "3일째", "caption": "오늘의 포인트 +50P", "tone": "purple", "progress": 80 }
+        ],
+        "actions": [
+          { "label": "다음 목표 보기", "path": "/missions/next-goals", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "missions:next-goals",
+    "screenId": "missions:next-goals",
+    "title": "AI 코치의 다음 제안",
+    "tab": "mission",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "next",
+        "kind": "list",
+        "title": "다음 추천 목표",
+        "items": [
+          { "id": "n1", "title": "월 투자금 3만원으로 늘리기", "subtitle": "작은 금액으로 투자 습관 만들기", "icon": "stocks", "tone": "purple" },
+          { "id": "n2", "title": "다양한 투자 상품 알아보기", "subtitle": "상품 가입이 아닌 학습 미션이에요.", "icon": "study", "tone": "blue" },
+          { "id": "n3", "title": "비상금 6개월치 모으기", "subtitle": "장기 목표로 저장하기", "icon": "saving", "tone": "green" }
+        ],
+        "actions": [
+          { "label": "다음 목표로 설정하기", "path": "/missions", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "records:2026-06",
+    "screenId": "records:2026-06",
+    "title": "캘린더",
+    "tab": "records",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "calendar",
+        "kind": "calendar",
+        "title": "2026년 6월",
+        "items": [
+          { "id": "2026-06-01", "title": "1", "value": "8,200", "tone": "success", "detailPath": "/records/2026-06-01" },
+          { "id": "2026-06-02", "title": "2", "value": "9,500", "tone": "success", "detailPath": "/records/2026-06-02" },
+          { "id": "2026-06-03", "title": "3", "value": "7,300", "tone": "none", "detailPath": "/records/2026-06-03" },
+          { "id": "2026-06-04", "title": "4", "value": "11,200", "tone": "over", "detailPath": "/records/2026-06-04" },
+          { "id": "2026-06-05", "title": "5", "value": "9,800", "tone": "success", "detailPath": "/records/2026-06-05" },
+          { "id": "2026-06-06", "title": "6", "value": "10,000", "tone": "over", "detailPath": "/records/2026-06-06" },
+          { "id": "2026-06-07", "title": "7", "value": "6,500", "tone": "success", "detailPath": "/records/2026-06-07" },
+          { "id": "2026-06-08", "title": "8", "value": "8,100", "tone": "none", "detailPath": "/records/2026-06-08" },
+          { "id": "2026-06-09", "title": "9", "value": "7,800", "tone": "none", "detailPath": "/records/2026-06-09" },
+          { "id": "2026-06-10", "title": "10", "value": "9,200", "tone": "none", "detailPath": "/records/2026-06-10" },
+          { "id": "2026-06-11", "title": "11", "value": "10,500", "tone": "none", "detailPath": "/records/2026-06-11" },
+          { "id": "2026-06-12", "title": "12", "value": "7,800", "tone": "selected", "detailPath": "/records/2026-06-12" },
+          { "id": "2026-06-13", "title": "13", "value": "9,600", "tone": "none", "detailPath": "/records/2026-06-13" },
+          { "id": "2026-06-14", "title": "14", "value": "7,200", "tone": "over", "detailPath": "/records/2026-06-14" }
+        ],
+        "actions": [
+          { "label": "월간 히스토리 보기", "path": "/records/history", "method": "GET", "tone": "secondary" }
+        ]
+      },
+      {
+        "id": "today-budget",
+        "kind": "budget",
+        "title": "6월 12일 예산",
+        "metrics": [
+          { "label": "하루 예산", "value": "₩10,000", "caption": "식비", "tone": "default", "progress": 100 },
+          { "label": "사용 금액", "value": "₩7,800", "caption": "78%", "tone": "default", "progress": 78 },
+          { "label": "사용률", "value": "78%", "caption": "성공", "tone": "green", "progress": 78 }
+        ],
+        "data": { "progress": 78 }
+      }
+    ],
+    "meta": { "month": "2026-06" }
+  },
+  {
+    "id": "records:2026-06-12",
+    "screenId": "records:2026-06-12",
+    "title": "6월 12일 기록",
+    "tab": "records",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "day-summary",
+        "kind": "budget",
+        "title": "식비 미션 성공",
+        "subtitle": "하루 식비 예산을 지켰어요.",
+        "metrics": [
+          { "label": "예산", "value": "₩10,000", "caption": "하루", "tone": "default", "progress": 100 },
+          { "label": "사용", "value": "₩7,800", "caption": "78%", "tone": "green", "progress": 78 },
+          { "label": "포인트", "value": "+120P", "caption": "지급 예정", "tone": "purple", "progress": 100 }
+        ],
+        "data": { "progress": 78 }
+      },
+      {
+        "id": "transactions",
+        "kind": "list",
+        "title": "오늘의 소비 기록",
+        "items": [
+          { "id": "t1", "title": "점심 식사", "subtitle": "식비", "value": "-₩6,200", "icon": "food", "tone": "orange" },
+          { "id": "t2", "title": "버스", "subtitle": "교통비", "value": "-₩1,200", "icon": "transport", "tone": "blue" },
+          { "id": "t3", "title": "간식", "subtitle": "카페/간식", "value": "-₩400", "icon": "cafe", "tone": "tan" }
+        ]
+      }
+    ],
+    "meta": { "date": "2026-06-12" }
+  },
+  {
+    "id": "records:history",
+    "screenId": "records:history",
+    "title": "히스토리 누적",
+    "tab": "records",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "history",
+        "kind": "points",
+        "title": "이번 달 성장 기록",
+        "metrics": [
+          { "label": "미션 포인트", "value": "1,320P", "caption": "이번 달", "tone": "purple", "progress": 72 },
+          { "label": "총 절약 금액", "value": "₩86,200", "caption": "예산 대비", "tone": "green", "progress": 68 }
+        ],
+        "actions": [
+          { "label": "통계 보기", "path": "/records/stats", "method": "GET", "tone": "secondary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "records:stats",
+    "screenId": "records:stats",
+    "title": "월간 통계",
+    "tab": "records",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "stats",
+        "kind": "compareBars",
+        "title": "월간 지출/포인트 통계",
+        "items": [
+          { "id": "food", "title": "식비", "value": "₩186,000", "caption": "전월 대비 -8%", "tone": "green", "data": { "mine": 62, "group": 70 } },
+          { "id": "cafe", "title": "카페", "value": "₩42,000", "caption": "전월 대비 -15%", "tone": "green", "data": { "mine": 38, "group": 55 } },
+          { "id": "points", "title": "포인트", "value": "1,320P", "caption": "목표 2,000P", "tone": "purple", "data": { "mine": 66, "group": 50 } }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "profile",
+    "screenId": "profile",
+    "title": "내 팔로워 인사이트",
+    "tab": "profile",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "follower-card",
+        "kind": "profileHero",
+        "title": "내 팔로워 128명",
+        "subtitle": "함께 성장하고 있는 금융 생활을 확인해보세요!",
+        "detailPath": "/profile/followers",
+        "metrics": [
+          { "label": "팔로워", "value": "128명", "caption": "최근 30일", "tone": "purple", "progress": 80 }
+        ]
+      },
+      {
+        "id": "summary",
+        "kind": "signalGrid",
+        "title": "팔로워 금융 생활 요약",
+        "items": [
+          { "id": "stocks", "title": "주식 투자", "value": "43%", "caption": "55명", "icon": "stocks", "tone": "red" },
+          { "id": "saving", "title": "적금 가입", "value": "78%", "caption": "100명", "icon": "saving", "tone": "blue" },
+          { "id": "fund", "title": "펀드 투자", "value": "28%", "caption": "36명", "icon": "fund", "tone": "green" },
+          { "id": "pension", "title": "연금 준비", "value": "35%", "caption": "45명", "icon": "pension", "tone": "purple" }
+        ]
+      },
+      {
+        "id": "distribution",
+        "kind": "distribution",
+        "title": "금융 생활 분포",
+        "detailPath": "/profile/activities",
+        "items": [
+          { "id": "stocks", "title": "주식 투자", "value": "43%", "caption": "55명", "icon": "stocks", "tone": "purple", "data": { "progress": 43 } },
+          { "id": "saving", "title": "적금 가입", "value": "78%", "caption": "100명", "icon": "saving", "tone": "purple", "data": { "progress": 78 } },
+          { "id": "fund", "title": "펀드 투자", "value": "28%", "caption": "36명", "icon": "fund", "tone": "purple", "data": { "progress": 28 } },
+          { "id": "pension", "title": "연금 준비", "value": "35%", "caption": "45명", "icon": "pension", "tone": "purple", "data": { "progress": 35 } },
+          { "id": "study", "title": "재테크 공부", "value": "62%", "caption": "79명", "icon": "study", "tone": "purple", "data": { "progress": 62 } }
+        ]
+      },
+      {
+        "id": "privacy-link",
+        "kind": "actionCard",
+        "title": "공개 범위 확인",
+        "subtitle": "내 익명 포트폴리오에 보이는 정보와 숨겨지는 정보를 확인해요.",
+        "actions": [
+          { "label": "공개 설정 보기", "path": "/settings/privacy", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "profile:followers",
+    "screenId": "profile:followers",
+    "title": "팔로워 금융 현황",
+    "tab": "profile",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "follower-list",
+        "kind": "rankList",
+        "title": "함께 성장 중인 팔로워",
+        "items": [
+          { "id": "f1", "title": "이지연", "subtitle": "적금 · 연금", "value": "+₩240,000", "icon": "profile", "tone": "purple" },
+          { "id": "f2", "title": "김민수", "subtitle": "주식", "value": "+₩520,000", "icon": "profile", "tone": "blue" },
+          { "id": "f3", "title": "박상우", "subtitle": "적금 · 펀드", "value": "+₩180,000", "icon": "profile", "tone": "green" },
+          { "id": "f4", "title": "최유진", "subtitle": "적금", "value": "+₩120,000", "icon": "profile", "tone": "purple" },
+          { "id": "f5", "title": "정하나", "subtitle": "연금", "value": "+₩300,000", "icon": "profile", "tone": "tan" }
+        ]
+      }
+    ],
+    "meta": { "section": "followers" }
+  },
+  {
+    "id": "profile:following",
+    "screenId": "profile:following",
+    "title": "팔로잉",
+    "tab": "profile",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "following-list",
+        "kind": "rankList",
+        "title": "내가 보고 있는 금융 루틴",
+        "items": [
+          { "id": "p1", "title": "코딩하는 제이", "subtitle": "자동 저축 루틴", "value": "74점", "icon": "profile", "tone": "purple" },
+          { "id": "p2", "title": "미니멀 라이프", "subtitle": "소비 절제 루틴", "value": "70점", "icon": "profile", "tone": "blue" },
+          { "id": "p3", "title": "퇴근 후 투자", "subtitle": "소액 투자 루틴", "value": "76점", "icon": "profile", "tone": "green" }
+        ]
+      }
+    ],
+    "meta": { "section": "following" }
+  },
+  {
+    "id": "profile:activities",
+    "screenId": "profile:activities",
+    "title": "금융 활동 TOP",
+    "tab": "profile",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "activity",
+        "kind": "rankList",
+        "title": "팔로잉 TOP 5 금융 활동",
+        "items": [
+          { "id": "a1", "title": "이지연", "subtitle": "적금 · 연금", "value": "+₩240,000", "icon": "profile", "tone": "purple" },
+          { "id": "a2", "title": "김민수", "subtitle": "주식", "value": "+₩520,000", "icon": "profile", "tone": "blue" },
+          { "id": "a3", "title": "박상우", "subtitle": "적금 · 펀드", "value": "+₩180,000", "icon": "profile", "tone": "green" },
+          { "id": "a4", "title": "최유진", "subtitle": "주식", "value": "+₩120,000", "icon": "profile", "tone": "purple" },
+          { "id": "a5", "title": "정하나", "subtitle": "적금", "value": "+₩300,000", "icon": "profile", "tone": "tan" }
+        ]
+      }
+    ],
+    "meta": { "section": "activities" }
+  },
+  {
+    "id": "profile:privacy",
+    "screenId": "profile:privacy",
+    "title": "공개 범위",
+    "tab": "profile",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "visible",
+        "kind": "chipGroup",
+        "title": "보이는 정보",
+        "items": [
+          { "id": "age", "title": "연령대", "tone": "green" },
+          { "id": "income", "title": "소득 구간", "tone": "green" },
+          { "id": "goal", "title": "금융 목표", "tone": "green" },
+          { "id": "summary", "title": "금융 요약", "tone": "green" }
+        ]
+      },
+      {
+        "id": "hidden",
+        "kind": "chipGroup",
+        "title": "숨겨지는 정보",
+        "items": [
+          { "id": "name", "title": "이름", "tone": "muted" },
+          { "id": "account", "title": "계좌번호", "tone": "muted" },
+          { "id": "merchant", "title": "거래처", "tone": "muted" },
+          { "id": "time", "title": "정확한 거래 시간", "tone": "muted" }
+        ]
+      }
+    ],
+    "meta": { "section": "privacy" }
+  },
+  {
+    "id": "birthdays",
+    "screenId": "birthdays",
+    "title": "생일 펀드",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-birthday.png",
+    "sections": [
+      {
+        "id": "birthday-list",
+        "kind": "birthday",
+        "title": "지우님의 생일 펀드",
+        "subtitle": "우리의 23번째 생일 축하 펀드",
+        "heroAsset": "/assets/characters/finmate-birthday.png",
+        "metrics": [
+          { "label": "현재 모금", "value": "₩72,000", "caption": "목표 ₩100,000", "tone": "green", "progress": 72 },
+          { "label": "참여자", "value": "12명", "caption": "D-7", "tone": "purple", "progress": 60 }
+        ],
+        "actions": [
+          { "label": "축하 펀드 참여하기", "path": "/birthdays/bday-jiwoo", "method": "GET", "tone": "primary" },
+          { "label": "내 생일 펀드 열기", "path": "/birthday-funds/me/open", "method": "GET", "tone": "secondary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "birthdays:bday-jiwoo",
+    "screenId": "birthdays:bday-jiwoo",
+    "title": "지우님의 생일",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-birthday.png",
+    "sections": [
+      {
+        "id": "birthday-detail",
+        "kind": "birthday",
+        "title": "생일 축하 펀드란?",
+        "subtitle": "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.",
+        "heroAsset": "/assets/characters/finmate-birthday.png",
+        "metrics": [
+          { "label": "모금 금액", "value": "₩72,000", "caption": "목표 ₩100,000", "tone": "green", "progress": 72 },
+          { "label": "남은 기간", "value": "D-7", "caption": "6월 15일까지", "tone": "purple", "progress": 70 }
+        ],
+        "actions": [
+          { "label": "참여하기", "path": "/birthday-funds/fund-jiwoo/contribute", "method": "GET", "tone": "primary" }
+        ]
+      },
+      {
+        "id": "participants",
+        "kind": "rankList",
+        "title": "실시간 참여 현황",
+        "items": [
+          { "id": "me", "title": "나", "value": "₩10,000", "icon": "profile", "tone": "purple" },
+          { "id": "minsu", "title": "민수", "value": "₩10,000", "icon": "profile", "tone": "blue" },
+          { "id": "seoyeon", "title": "서연", "value": "₩5,000", "icon": "profile", "tone": "tan" },
+          { "id": "jaehoon", "title": "재훈", "value": "₩20,000", "icon": "profile", "tone": "green" }
+        ]
+      }
+    ],
+    "meta": { "birthdayId": "bday-jiwoo", "fundId": "fund-jiwoo" }
+  },
+  {
+    "id": "birthday-funds:fund-jiwoo:status",
+    "screenId": "birthday-funds:fund-jiwoo:status",
+    "title": "참여 완료",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-birthday.png",
+    "sections": [
+      {
+        "id": "complete",
+        "kind": "coach",
+        "title": "참여 완료!",
+        "subtitle": "지우님의 생일 축하 펀드에 참여했어요.",
+        "heroAsset": "/assets/characters/finmate-birthday.png"
+      },
+      {
+        "id": "amount",
+        "kind": "points",
+        "title": "참여 금액",
+        "metrics": [
+          { "label": "참여 금액", "value": "₩10,000", "caption": "D-7", "tone": "purple", "progress": 72 }
+        ],
+        "actions": [
+          { "label": "현황 보기", "path": "/birthdays/bday-jiwoo", "method": "GET", "tone": "secondary" },
+          { "label": "홈으로", "path": "/home", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": { "fundId": "fund-jiwoo" }
+  },
+  {
+    "id": "birthday-funds:me:open",
+    "screenId": "birthday-funds:me:open",
+    "title": "내 생일 펀드",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-birthday.png",
+    "sections": [
+      {
+        "id": "open",
+        "kind": "birthday",
+        "title": "내 생일 펀드를 오픈할까요?",
+        "subtitle": "내 생일을 친구들에게 알리고 축하 펀드를 받을 수 있어요.",
+        "heroAsset": "/assets/characters/finmate-birthday.png",
+        "metrics": [
+          { "label": "목표 금액", "value": "₩100,000", "caption": "6월 15일까지", "tone": "purple", "progress": 0 }
+        ],
+        "actions": [
+          { "label": "공유하기", "path": "/birthday-funds/me/share", "method": "POST", "tone": "primary", "intent": "birthday-open" },
+          { "label": "현황 보기", "path": "/birthday-funds/me/status", "method": "GET", "tone": "secondary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "birthday-funds:me:share",
+    "screenId": "birthday-funds:me:share",
+    "title": "내 펀드 공유",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "sections": [
+      {
+        "id": "share",
+        "kind": "actionCard",
+        "title": "내 펀드가 공유됐어요",
+        "subtitle": "친구들에게 알림을 보내고 축하 메시지를 받을 수 있어요.",
+        "actions": [
+          { "label": "실시간 모금 현황 보기", "path": "/birthday-funds/me/status", "method": "GET", "tone": "primary" }
+        ]
+      }
+    ],
+    "meta": {}
+  },
+  {
+    "id": "birthday-funds:me:status",
+    "screenId": "birthday-funds:me:status",
+    "title": "실시간 모금 현황",
+    "tab": "home",
+    "statusBarTime": "9:41",
+    "heroAsset": "/assets/characters/finmate-birthday.png",
+    "sections": [
+      {
+        "id": "my-status",
+        "kind": "birthday",
+        "title": "현재 모금액",
+        "subtitle": "친구들이 보내준 축하 마음이에요.",
+        "heroAsset": "/assets/characters/finmate-birthday.png",
+        "metrics": [
+          { "label": "현재 모금액", "value": "₩72,000", "caption": "목표 ₩100,000", "tone": "green", "progress": 72 },
+          { "label": "참여자", "value": "12명", "caption": "D-7", "tone": "purple", "progress": 60 }
+        ]
+      },
+      {
+        "id": "messages",
+        "kind": "list",
+        "title": "선물/메시지 확인",
+        "items": [
+          { "id": "m1", "title": "인수", "subtitle": "생일 축하해! 좋은 하루 보내 :)", "value": "₩10,000", "icon": "profile", "tone": "purple" },
+          { "id": "m2", "title": "서연", "subtitle": "지우야 생일 진심으로 축하해!", "value": "₩10,000", "icon": "profile", "tone": "blue" },
+          { "id": "m3", "title": "재훈", "subtitle": "항상 행복하자!!", "value": "₩20,000", "icon": "profile", "tone": "green" }
+        ]
+      }
+    ],
+    "meta": {}
+  }
+]

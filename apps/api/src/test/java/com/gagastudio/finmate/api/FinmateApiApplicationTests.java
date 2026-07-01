@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -202,6 +204,133 @@ class FinmateApiApplicationTests {
     }
 
     @Test
+    void p1AppExperienceHappyPathWorks() throws Exception {
+        mockMvc.perform(get("/api/app/home").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("home"))
+                .andExpect(jsonPath("$.sections[0].kind").value("greeting"))
+                .andExpect(jsonPath("$.sections[1].id").value("birthday-alert"));
+
+        mockMvc.perform(get("/api/app/home/budget").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("home:budget"))
+                .andExpect(jsonPath("$.sections[0].metrics[2].value").value("₩2,200"));
+
+        mockMvc.perform(get("/api/app/compare/filter").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("compare:filter"));
+
+        mockMvc.perform(post("/api/app/compare/filter/search")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ageBand": "20대",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("compare:filter-results"))
+                .andExpect(jsonPath("$.sections[1].items", hasSize(3)));
+
+        mockMvc.perform(get("/api/app/compare/results/cmp-001").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("compare:cmp-001"));
+
+        mockMvc.perform(get("/api/app/compare/cmp-001/coach-flow").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("compare:coach-flow"))
+                .andExpect(jsonPath("$.heroAsset").value("/assets/characters/finmate-coach.png"));
+
+        mockMvc.perform(get("/api/app/missions/mission-food").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("missions:mission-food"));
+
+        mockMvc.perform(get("/api/app/missions/mission-fixed-cost").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("missions:mission-fixed-cost"));
+
+        mockMvc.perform(post("/api/app/missions/mission-food/feedback")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "DONE",
+                                  "note": "오늘 목표 완료"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RECORDED"))
+                .andExpect(jsonPath("$.nextPath").value("/missions/mission-food/feedback"));
+
+        mockMvc.perform(post("/api/app/missions/mission-fixed-cost/feedback")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "DONE",
+                                  "note": "구독을 정리했어요"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RECORDED"))
+                .andExpect(jsonPath("$.nextPath").value("/missions/mission-fixed-cost/feedback"));
+
+        mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("records:2026-06"));
+
+        mockMvc.perform(get("/api/app/records/2026-06-12").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("records:2026-06-12"));
+
+        mockMvc.perform(get("/api/app/profile/sections/followers").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("profile:followers"));
+
+        mockMvc.perform(get("/api/app/birthdays/bday-jiwoo/flow").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("birthdays:bday-jiwoo"));
+
+        mockMvc.perform(post("/api/app/birthday-funds/fund-jiwoo/contributions")
+                        .header("Authorization", ACCESS_AUTH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 10000,
+                                  "message": "지우야 생일 축하해!",
+                                  "anonymous": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.nextPath").value("/birthday-funds/fund-jiwoo/complete"));
+
+        mockMvc.perform(get("/api/app/birthday-funds/fund-jiwoo/complete").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("birthday-funds:fund-jiwoo:status"));
+
+        mockMvc.perform(get("/api/app/birthday-funds/me/open").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("birthday-funds:me:open"));
+
+        mockMvc.perform(post("/api/app/birthday-funds/me/open").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OPENED"));
+
+        mockMvc.perform(post("/api/app/birthday-funds/me/share").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SHARED"));
+
+        mockMvc.perform(get("/api/app/birthday-funds/me/status").header("Authorization", ACCESS_AUTH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("birthday-funds:me:status"));
+    }
+
+    @Test
     void rejectsMissingAccessToken() throws Exception {
         mockMvc.perform(get("/api/home"))
                 .andExpect(status().isUnauthorized())
@@ -289,16 +418,22 @@ class FinmateApiApplicationTests {
 
     @Test
     void corsAllowsLocalFrontendOrigins() throws Exception {
-        mockMvc.perform(options("/api/home")
-                        .header("Origin", "http://localhost:3000")
-                        .header("Access-Control-Request-Method", "GET"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+        for (String origin : List.of(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173")) {
+            mockMvc.perform(options("/api/home")
+                            .header("Origin", origin)
+                            .header("Access-Control-Request-Method", "GET"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
 
-        mockMvc.perform(options("/health")
-                        .header("Origin", "http://localhost:5173")
-                        .header("Access-Control-Request-Method", "GET"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+            mockMvc.perform(options("/health")
+                            .header("Origin", origin)
+                            .header("Access-Control-Request-Method", "GET"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
+        }
     }
 }
