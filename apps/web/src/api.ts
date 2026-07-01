@@ -10,6 +10,7 @@ import type {
   MockConsentResponse,
   OnboardingDiagnosisResponse,
   PortfolioResponse,
+  ProductOnboardingRequest,
   PrivacyConsentsResponse,
   PrivacySettingsResponse,
   PrivacyWithdrawResponse,
@@ -154,15 +155,10 @@ export const api = {
       method: 'POST',
     }),
   me: () => request<UserMeResponse>('/api/users/me'),
-  completeOnboarding: () =>
+  completeOnboarding: (body: ProductOnboardingRequest) =>
     request<UserMeResponse>('/api/users/me/onboarding', {
       method: 'POST',
-      body: {
-        goalType: 'EMERGENCY_FUND',
-        moneyStyle: '안정 추구형',
-        householdType: '1인가구',
-        area: '서울 강남권',
-      },
+      body,
     }),
   createDiagnosis: () =>
     request<OnboardingDiagnosisResponse>('/api/onboarding/diagnosis', {

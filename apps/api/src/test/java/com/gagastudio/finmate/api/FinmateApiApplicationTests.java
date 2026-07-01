@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,6 +25,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -62,6 +64,9 @@ class FinmateApiApplicationTests {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     @BeforeEach
     void resetSeedState() {
         seedStore.reset();
@@ -94,6 +99,7 @@ class FinmateApiApplicationTests {
                 .andReturn();
 
         JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String userId = signupBody.get("user").get("userId").asText();
         String accessToken = signupBody.get("accessToken").asText();
         Cookie refreshCookie = refreshCookie(signup);
 
@@ -107,14 +113,32 @@ class FinmateApiApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "goalType": "EMERGENCY_FUND",
-                                  "moneyStyle": "안정 추구형",
+                                  "ageBand": "20대 후반",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
                                   "householdType": "1인가구",
-                                  "area": "서울 강남권"
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권",
+                                  "goalType": "EMERGENCY_FUND",
+                                  "painPoint": "SAVE_CONSISTENTLY",
+                                  "privacyConsent": {
+                                    "anonymousPortfolioOptIn": true,
+                                    "friendShareDefault": "MISSION_ONLY",
+                                    "exposedFields": ["ageBand", "goalType", "financialSummary", "missionStatus"],
+                                    "privacyConsentVersion": "privacy-v1.4"
+                                  },
+                                  "mydataConsent": {
+                                    "mydataConsentVersion": "synthetic-mydata-v1.4",
+                                    "mydataScopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+                                  }
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.onboardingCompleted").value(true));
+
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM onboarding_responses WHERE user_id = ?", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM mydata_connections WHERE user_id = ? AND data_mode = 'SYNTHETIC_MYDATA'", Integer.class, userId));
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM consent_events WHERE user_id = ?", Integer.class, userId));
 
         mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -185,6 +209,43 @@ class FinmateApiApplicationTests {
         mockMvc.perform(post("/api/auth/logout").cookie(refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("LOGGED_OUT"));
+    }
+
+    @Test
+    void productOnboardingRequiresSurveyAndConsentPayloads() throws Exception {
+        String email = "invalid-onboarding-" + UUID.randomUUID() + "@finmate.local";
+        MvcResult signup = mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "password": "password123!",
+                                  "displayName": "민준"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String accessToken = signupBody.get("accessToken").asText();
+
+        mockMvc.perform(post("/api/users/me/onboarding")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ageBand": "20대 후반",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
+                                  "householdType": "1인가구",
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권",
+                                  "goalType": "EMERGENCY_FUND",
+                                  "painPoint": "SAVE_CONSISTENTLY"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test

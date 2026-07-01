@@ -116,6 +116,9 @@ public class ProductAppService implements FinancialDataProvider {
                   missions,
                   coach_results,
                   financial_snapshots,
+                  consent_events,
+                  mydata_connections,
+                  onboarding_responses,
                   privacy_settings,
                   user_profiles,
                   refresh_tokens,
@@ -127,11 +130,64 @@ public class ProductAppService implements FinancialDataProvider {
     @Transactional
     public UserMeResponse completeOnboarding(String userId, ProductOnboardingRequest request) {
         bootstrapUser(userId, displayName(userId));
+        String exposedFields = String.join(",", request.privacyConsent().exposedFields());
+        String mydataScopes = String.join(",", request.mydataConsent().mydataScopes());
+
         jdbc.update("""
                 UPDATE user_profiles
-                SET goal_type = ?, money_style = ?, household_type = ?, area = ?, updated_at = now()
+                SET age_band = ?,
+                    income_band = ?,
+                    job_category = ?,
+                    household_type = ?,
+                    money_style = ?,
+                    area = ?,
+                    goal_type = ?,
+                    updated_at = now()
                 WHERE user_id = ?
-                """, request.goalType(), request.moneyStyle(), request.householdType(), request.area(), userId);
+                """, request.ageBand(), request.incomeBand(), request.jobCategory(), request.householdType(),
+                request.moneyStyle(), request.area(), request.goalType(), userId);
+        jdbc.update("""
+                INSERT INTO privacy_settings (user_id, anonymous_portfolio_opt_in, friend_share_default, exposed_fields)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET
+                  anonymous_portfolio_opt_in = EXCLUDED.anonymous_portfolio_opt_in,
+                  friend_share_default = EXCLUDED.friend_share_default,
+                  exposed_fields = EXCLUDED.exposed_fields,
+                  updated_at = now()
+                """, userId, request.privacyConsent().anonymousPortfolioOptIn(),
+                request.privacyConsent().friendShareDefault(), exposedFields);
+        jdbc.update("""
+                INSERT INTO onboarding_responses (
+                  id, user_id, age_band, income_band, job_category, household_type,
+                  money_style, area, goal_type, pain_point
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET
+                  age_band = EXCLUDED.age_band,
+                  income_band = EXCLUDED.income_band,
+                  job_category = EXCLUDED.job_category,
+                  household_type = EXCLUDED.household_type,
+                  money_style = EXCLUDED.money_style,
+                  area = EXCLUDED.area,
+                  goal_type = EXCLUDED.goal_type,
+                  pain_point = EXCLUDED.pain_point,
+                  updated_at = now()
+                """, "onboarding-" + userId, userId, request.ageBand(), request.incomeBand(), request.jobCategory(),
+                request.householdType(), request.moneyStyle(), request.area(), request.goalType(), request.painPoint());
+        jdbc.update("""
+                INSERT INTO mydata_connections (id, user_id, connection_status, data_mode, consent_version, scopes)
+                VALUES (?, ?, 'CONNECTED', 'SYNTHETIC_MYDATA', ?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET
+                  connection_status = EXCLUDED.connection_status,
+                  data_mode = EXCLUDED.data_mode,
+                  consent_version = EXCLUDED.consent_version,
+                  scopes = EXCLUDED.scopes,
+                  updated_at = now()
+                """, "mydata-" + userId, userId, request.mydataConsent().mydataConsentVersion(), mydataScopes);
+        insertConsentEvent(userId, "PRIVACY_SETTINGS", request.privacyConsent().privacyConsentVersion(), "AGREED",
+                "익명 포트폴리오와 친구 피드 공개 범위에 동의");
+        insertConsentEvent(userId, "MYDATA_SYNTHETIC", request.mydataConsent().mydataConsentVersion(), "AGREED",
+                "합성/샘플 금융 데이터 기반 연결 범위에 동의");
         jdbc.update("UPDATE users SET onboarding_completed = TRUE, updated_at = now() WHERE id = ?", userId);
         return userMe(userId);
     }
@@ -607,6 +663,13 @@ public class ProductAppService implements FinancialDataProvider {
                 INSERT INTO point_transactions (id, user_id, type, amount, balance_after, reference_type, reference_id, description)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, "ptx-" + UUID.randomUUID(), userId, type, amount, balanceAfter, referenceType, referenceId, description);
+    }
+
+    private void insertConsentEvent(String userId, String consentItem, String consentVersion, String status, String summary) {
+        jdbc.update("""
+                INSERT INTO consent_events (id, user_id, consent_item, consent_version, status, summary)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, "consent-" + UUID.randomUUID(), userId, consentItem, consentVersion, status, summary);
     }
 
     private String missionDbId(String userId, String missionId) {

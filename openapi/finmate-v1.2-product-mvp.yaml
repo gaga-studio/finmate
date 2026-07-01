@@ -126,12 +126,40 @@ components:
         virtualMoneyBalance: { type: integer }
     ProductOnboardingRequest:
       type: object
-      required: [goalType, moneyStyle, householdType, area]
+      required: [ageBand, incomeBand, jobCategory, householdType, moneyStyle, area, goalType, painPoint, privacyConsent, mydataConsent]
       properties:
-        goalType: { type: string }
-        moneyStyle: { type: string }
+        ageBand: { type: string, example: "20대 후반" }
+        incomeBand: { type: string, example: "3,000만원 ~ 4,000만원" }
+        jobCategory: { type: string, example: "IT/개발" }
         householdType: { type: string }
+        moneyStyle: { type: string }
         area: { type: string }
+        goalType: { type: string }
+        painPoint: { type: string }
+        privacyConsent:
+          $ref: "#/components/schemas/ProductPrivacyConsentRequest"
+        mydataConsent:
+          $ref: "#/components/schemas/ProductMyDataConsentRequest"
+    ProductPrivacyConsentRequest:
+      type: object
+      required: [anonymousPortfolioOptIn, friendShareDefault, exposedFields, privacyConsentVersion]
+      properties:
+        anonymousPortfolioOptIn: { type: boolean }
+        friendShareDefault: { type: string, example: "MISSION_ONLY" }
+        exposedFields:
+          type: array
+          minItems: 1
+          items: { type: string }
+        privacyConsentVersion: { type: string, example: "privacy-v1.4" }
+    ProductMyDataConsentRequest:
+      type: object
+      required: [mydataConsentVersion, mydataScopes]
+      properties:
+        mydataConsentVersion: { type: string, example: "synthetic-mydata-v1.4" }
+        mydataScopes:
+          type: array
+          minItems: 1
+          items: { type: string }
     FinancialSnapshotV1:
       type: object
       required: [snapshotId, userId, month, monthlyIncome, monthlySpending, monthlySaving, investmentValue, cashLikeAssets, emergencyFundMonths, spendingCategories, lifestyleTags]

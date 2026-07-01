@@ -33,7 +33,16 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
   await page.getByRole('button', { name: '회원가입' }).click()
 
   await expect(page).toHaveURL(/\/onboarding/)
-  await page.getByRole('button', { name: '시작하기' }).click()
+  await expect(page.getByRole('heading', { name: '30초 설문' })).toBeVisible()
+  await page.getByRole('button', { name: '다음' }).click()
+  await expect(page.getByRole('heading', { name: '개인정보 공개 동의' })).toBeVisible()
+  await page.locator('label').filter({ hasText: '익명 비교와 친구 피드 공개 범위에 동의해요' }).click()
+  await page.getByRole('button', { name: '다음' }).click()
+  await expect(page.getByRole('heading', { name: '마이데이터 제공 동의' })).toBeVisible()
+  await page.locator('label').filter({ hasText: '선택한 범위의 합성 금융 데이터를 FinMate 분석에 사용하는 데 동의해요' }).click()
+  await page.getByRole('button', { name: '다음' }).click()
+  await expect(page.getByRole('heading', { name: '준비가 끝났어요' })).toBeVisible()
+  await page.getByRole('button', { name: 'FinMate 시작하기' }).click()
 
   await expect(page).toHaveURL(/\/home/)
   await expect(page.getByRole('heading', { name: /민준님, 좋은 아침이에요/ })).toBeVisible()

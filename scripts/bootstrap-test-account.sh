@@ -24,6 +24,25 @@ PY
 curl -fsS -X POST "${API_URL}/api/users/me/onboarding" \
   -H "Authorization: Bearer ${access_token}" \
   -H "Content-Type: application/json" \
-  -d '{"goalType":"EMERGENCY_FUND","moneyStyle":"안정 추구형","householdType":"1인가구","area":"서울 강남권"}' >/dev/null
+  -d '{
+    "ageBand": "20대 후반",
+    "incomeBand": "3,000만원 ~ 4,000만원",
+    "jobCategory": "IT/개발",
+    "householdType": "1인가구",
+    "moneyStyle": "안정 추구형",
+    "area": "서울 강남권",
+    "goalType": "EMERGENCY_FUND",
+    "painPoint": "SAVE_CONSISTENTLY",
+    "privacyConsent": {
+      "anonymousPortfolioOptIn": true,
+      "friendShareDefault": "MISSION_ONLY",
+      "exposedFields": ["ageBand", "goalType", "financialSummary", "missionStatus"],
+      "privacyConsentVersion": "privacy-v1.4"
+    },
+    "mydataConsent": {
+      "mydataConsentVersion": "synthetic-mydata-v1.4",
+      "mydataScopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+    }
+  }' >/dev/null
 
 echo "FinMate test account ready: ${EMAIL} / ${PASSWORD}"

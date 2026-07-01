@@ -20,6 +20,9 @@ EXPECTED_TABLES = {
     "refresh_tokens",
     "user_profiles",
     "privacy_settings",
+    "onboarding_responses",
+    "consent_events",
+    "mydata_connections",
     "financial_snapshots",
     "coach_results",
     "missions",
@@ -44,7 +47,10 @@ def read(path: str) -> str:
 
 def main() -> None:
     openapi = read("openapi/finmate-v1.2-product-mvp.yaml")
-    migration = read("apps/api/src/main/resources/db/migration/V1__product_mvp_schema.sql").lower()
+    migration = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "apps/api/src/main/resources/db/migration").glob("V*__*.sql"))
+    ).lower()
     controller = read("apps/api/src/main/java/com/gagastudio/finmate/api/controller/FinmateController.java")
     api_client = read("apps/web/src/api.ts")
     app = read("apps/web/src/App.tsx")

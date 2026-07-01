@@ -24,6 +24,31 @@ export type AuthResponse = {
   expiresAt: string
 }
 
+export type ProductPrivacyConsentPayload = {
+  anonymousPortfolioOptIn: boolean
+  friendShareDefault: string
+  exposedFields: string[]
+  privacyConsentVersion: string
+}
+
+export type ProductMyDataConsentPayload = {
+  mydataConsentVersion: string
+  mydataScopes: string[]
+}
+
+export type ProductOnboardingRequest = {
+  ageBand: string
+  incomeBand: string
+  jobCategory: string
+  householdType: string
+  moneyStyle: string
+  area: string
+  goalType: string
+  painPoint: string
+  privacyConsent: ProductPrivacyConsentPayload
+  mydataConsent: ProductMyDataConsentPayload
+}
+
 export type OnboardingDiagnosisResponse = {
   diagnosisId: string
   onboardingToken: string

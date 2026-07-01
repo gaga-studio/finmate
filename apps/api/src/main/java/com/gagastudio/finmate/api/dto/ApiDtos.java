@@ -1,5 +1,6 @@
 package com.gagastudio.finmate.api.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -353,10 +354,30 @@ public final class ApiDtos {
     }
 
     public record ProductOnboardingRequest(
-            @NotBlank String goalType,
-            @NotBlank String moneyStyle,
+            @NotBlank String ageBand,
+            @NotBlank String incomeBand,
+            @NotBlank String jobCategory,
             @NotBlank String householdType,
-            @NotBlank String area
+            @NotBlank String moneyStyle,
+            @NotBlank String area,
+            @NotBlank String goalType,
+            @NotBlank String painPoint,
+            @Valid @NotNull ProductPrivacyConsentRequest privacyConsent,
+            @Valid @NotNull ProductMyDataConsentRequest mydataConsent
+    ) {
+    }
+
+    public record ProductPrivacyConsentRequest(
+            @NotNull Boolean anonymousPortfolioOptIn,
+            @NotBlank String friendShareDefault,
+            @NotEmpty List<@NotBlank String> exposedFields,
+            @NotBlank String privacyConsentVersion
+    ) {
+    }
+
+    public record ProductMyDataConsentRequest(
+            @NotBlank String mydataConsentVersion,
+            @NotEmpty List<@NotBlank String> mydataScopes
     ) {
     }
 
