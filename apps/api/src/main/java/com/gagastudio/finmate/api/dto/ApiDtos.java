@@ -3,6 +3,8 @@ package com.gagastudio.finmate.api.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 import java.util.Map;
@@ -317,6 +319,88 @@ public final class ApiDtos {
             String message,
             String nextPath,
             Map<String, Object> data
+    ) {
+    }
+
+    public record AuthSignupRequest(
+            @Email @NotBlank String email,
+            @Size(min = 8, max = 72) String password,
+            @NotBlank String displayName
+    ) {
+    }
+
+    public record AuthLoginRequest(
+            @Email @NotBlank String email,
+            @NotBlank String password
+    ) {
+    }
+
+    public record AuthResponse(
+            UserMeResponse user,
+            String accessToken,
+            String expiresAt
+    ) {
+    }
+
+    public record UserMeResponse(
+            String userId,
+            String email,
+            String displayName,
+            boolean onboardingCompleted,
+            int pointBalance,
+            int virtualMoneyBalance
+    ) {
+    }
+
+    public record ProductOnboardingRequest(
+            @NotBlank String goalType,
+            @NotBlank String moneyStyle,
+            @NotBlank String householdType,
+            @NotBlank String area
+    ) {
+    }
+
+    public record FinancialSnapshotV1(
+            String snapshotId,
+            String userId,
+            String month,
+            int monthlyIncome,
+            int monthlySpending,
+            int monthlySaving,
+            int investmentValue,
+            int cashLikeAssets,
+            double emergencyFundMonths,
+            Map<String, Integer> spendingCategories,
+            List<String> lifestyleTags
+    ) {
+    }
+
+    public record CoachResultV1(
+            String resultId,
+            String snapshotId,
+            String source,
+            int score,
+            double confidence,
+            String summary,
+            List<CoachInsightV1> insights,
+            List<CoachRecommendationV1> recommendations
+    ) {
+    }
+
+    public record CoachInsightV1(
+            String type,
+            String title,
+            String body,
+            String tone
+    ) {
+    }
+
+    public record CoachRecommendationV1(
+            String missionTemplateId,
+            String title,
+            String body,
+            String difficulty,
+            int rewardPoints
     ) {
     }
 }

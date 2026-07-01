@@ -1,8 +1,14 @@
 package com.gagastudio.finmate.api.controller;
 
+import com.gagastudio.finmate.api.auth.AuthService;
 import com.gagastudio.finmate.api.dto.ApiDtos.*;
+import com.gagastudio.finmate.api.product.ProductAppService;
 import com.gagastudio.finmate.api.service.FinmateService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,19 +18,91 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 @RestController
 public class FinmateController {
     private final FinmateService service;
+    private final AuthService authService;
+    private final ProductAppService productAppService;
 
-    public FinmateController(FinmateService service) {
+    public FinmateController(FinmateService service, AuthService authService, ProductAppService productAppService) {
         this.service = service;
+        this.authService = authService;
+        this.productAppService = productAppService;
     }
 
     @GetMapping("/health")
     public Map<String, String> health() {
         return service.health();
+    }
+
+    @PostMapping("/api/auth/signup")
+    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody AuthSignupRequest request) {
+        AuthService.AuthResult result = authService.signup(request);
+        return authResponse(result);
+    }
+
+    @PostMapping("/api/auth/login")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthLoginRequest request) {
+        AuthService.AuthResult result = authService.login(request);
+        return authResponse(result);
+    }
+
+    @PostMapping("/api/auth/refresh")
+    public ResponseEntity<AuthResponse> refresh(
+            @CookieValue(value = AuthService.REFRESH_COOKIE, required = false) String refreshToken
+    ) {
+        AuthService.AuthResult result = authService.refresh(refreshToken);
+        return authResponse(result);
+    }
+
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<Map<String, String>> logout(
+            @CookieValue(value = AuthService.REFRESH_COOKIE, required = false) String refreshToken
+    ) {
+        authService.logout(refreshToken);
+        return ResponseEntity
+                .ok()
+                .header(HttpHeaders.SET_COOKIE, expiredRefreshCookie().toString())
+                .body(Map.of("status", "LOGGED_OUT"));
+    }
+
+    @GetMapping("/api/users/me")
+    public UserMeResponse me(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return authService.me(authorization);
+    }
+
+    @PostMapping("/api/users/me/onboarding")
+    public UserMeResponse completeProductOnboarding(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Valid @RequestBody ProductOnboardingRequest request
+    ) {
+        return productAppService.completeOnboarding(authService.requireUserId(authorization), request);
+    }
+
+    @GetMapping("/api/ai/financial-snapshot")
+    public FinancialSnapshotV1 getFinancialSnapshot(
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return productAppService.snapshotFor(authService.requireUserId(authorization));
+    }
+
+    @PostMapping("/api/ai/coach-results/fallback")
+    public CoachResultV1 fallbackCoach(
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return productAppService.fallbackCoach(authService.requireUserId(authorization));
+    }
+
+    @PostMapping("/api/ai/coach-results")
+    public CoachResultV1 storeCoachResult(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Valid @RequestBody CoachResultV1 request
+    ) {
+        return productAppService.storeCoachResult(authService.requireUserId(authorization), request);
     }
 
     @PostMapping("/api/onboarding/diagnosis")
@@ -129,8 +207,7 @@ public class FinmateController {
 
     @GetMapping("/api/app/home")
     public AppScreenResponse getAppHome(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getAppHome();
+        return productAppService.getHome(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/home/{detail}")
@@ -138,20 +215,17 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String detail
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppHomeDetail(detail);
+        return productAppService.getHomeDetail(authService.requireUserId(authorization), detail);
     }
 
     @GetMapping("/api/app/compare")
     public AppScreenResponse getAppCompare(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getAppCompare();
+        return productAppService.getCompare(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/compare/filter")
     public AppScreenResponse getAppCompareFilter(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getAppCompareFilter();
+        return productAppService.getCompareFilter(authService.requireUserId(authorization));
     }
 
     @PostMapping("/api/app/compare/filter/search")
@@ -159,8 +233,7 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody AppCompareSearchRequest request
     ) {
-        service.requireAccessToken(authorization);
-        return service.searchAppCompareFilter(request);
+        return productAppService.searchCompareFilter(authService.requireUserId(authorization), request);
     }
 
     @GetMapping("/api/app/compare/results/{comparisonId}")
@@ -168,8 +241,7 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String comparisonId
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppCompareResult(comparisonId);
+        return productAppService.getCompareResult(authService.requireUserId(authorization), comparisonId);
     }
 
     @GetMapping("/api/app/compare/{comparisonId}/coach-flow")
@@ -177,14 +249,12 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String comparisonId
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppCoachFlow(comparisonId);
+        return productAppService.getCoachFlow(authService.requireUserId(authorization), comparisonId);
     }
 
     @GetMapping("/api/app/missions")
     public AppScreenResponse getAppMissions(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getAppMissions();
+        return productAppService.getMissions(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/missions/{missionId}")
@@ -192,8 +262,7 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String missionId
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppMission(missionId);
+        return productAppService.getMission(authService.requireUserId(authorization), missionId);
     }
 
     @PostMapping("/api/app/missions/{missionId}/feedback")
@@ -202,8 +271,7 @@ public class FinmateController {
             @PathVariable String missionId,
             @Valid @RequestBody AppMissionFeedbackRequest request
     ) {
-        service.requireAccessToken(authorization);
-        return service.submitAppMissionFeedback(missionId, request);
+        return productAppService.submitMissionFeedback(authService.requireUserId(authorization), missionId, request);
     }
 
     @GetMapping("/api/app/records")
@@ -211,8 +279,7 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(value = "month", required = false) String month
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppRecords(month);
+        return productAppService.getRecords(authService.requireUserId(authorization), month);
     }
 
     @GetMapping("/api/app/records/{date}")
@@ -220,14 +287,12 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String date
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppRecordDetail(date);
+        return productAppService.getRecordDetail(authService.requireUserId(authorization), date);
     }
 
     @GetMapping("/api/app/profile")
     public AppScreenResponse getAppProfile(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getAppProfile();
+        return productAppService.getProfile(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/profile/sections/{section}")
@@ -235,14 +300,12 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String section
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppProfileSection(section);
+        return productAppService.getProfileSection(authService.requireUserId(authorization), section);
     }
 
     @GetMapping("/api/app/birthdays")
     public AppScreenResponse getAppBirthdays(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getAppBirthdays();
+        return productAppService.getBirthdays(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/birthdays/{birthdayId}/flow")
@@ -250,8 +313,7 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String birthdayId
     ) {
-        service.requireAccessToken(authorization);
-        return service.getAppBirthdayFlow(birthdayId);
+        return productAppService.getBirthdayFlow(authService.requireUserId(authorization), birthdayId);
     }
 
     @PostMapping("/api/app/birthday-funds/{fundId}/contributions")
@@ -260,8 +322,7 @@ public class FinmateController {
             @PathVariable String fundId,
             @Valid @RequestBody AppBirthdayContributionRequest request
     ) {
-        service.requireAccessToken(authorization);
-        return service.contributeBirthdayFund(fundId, request);
+        return productAppService.contributeBirthdayFund(authService.requireUserId(authorization), fundId, request);
     }
 
     @GetMapping("/api/app/birthday-funds/{fundId}/complete")
@@ -269,47 +330,69 @@ public class FinmateController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String fundId
     ) {
-        service.requireAccessToken(authorization);
-        return service.getBirthdayContributionComplete(fundId);
+        return productAppService.getBirthdayContributionComplete(authService.requireUserId(authorization), fundId);
     }
 
     @GetMapping("/api/app/birthday-funds/me/open")
     public AppScreenResponse getMyBirthdayFundOpenScreen(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        service.requireAccessToken(authorization);
-        return service.getMyBirthdayFundOpenScreen();
+        return productAppService.getMyBirthdayFundOpenScreen(authService.requireUserId(authorization));
     }
 
     @PostMapping("/api/app/birthday-funds/me/open")
     public AppActionResultResponse openMyBirthdayFund(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        service.requireAccessToken(authorization);
-        return service.openMyBirthdayFund();
+        return productAppService.openMyBirthdayFund(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/birthday-funds/me/share")
     public AppScreenResponse getMyBirthdayFundShareScreen(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        service.requireAccessToken(authorization);
-        return service.getMyBirthdayFundShareScreen();
+        return productAppService.getMyBirthdayFundShareScreen(authService.requireUserId(authorization));
     }
 
     @PostMapping("/api/app/birthday-funds/me/share")
     public AppActionResultResponse shareMyBirthdayFund(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        service.requireAccessToken(authorization);
-        return service.shareMyBirthdayFund();
+        return productAppService.shareMyBirthdayFund(authService.requireUserId(authorization));
     }
 
     @GetMapping("/api/app/birthday-funds/me/status")
     public AppScreenResponse getMyBirthdayFundStatus(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        service.requireAccessToken(authorization);
-        return service.getMyBirthdayFundStatus();
+        return productAppService.getMyBirthdayFundStatus(authService.requireUserId(authorization));
+    }
+
+    private ResponseEntity<AuthResponse> authResponse(AuthService.AuthResult result) {
+        return ResponseEntity
+                .ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie(result.refreshToken(), result.refreshExpiresAt()).toString())
+                .body(result.response());
+    }
+
+    private ResponseCookie refreshCookie(String token, OffsetDateTime expiresAt) {
+        long maxAgeSeconds = Math.max(0, Duration.between(OffsetDateTime.now(), expiresAt).toSeconds());
+        return ResponseCookie.from(AuthService.REFRESH_COOKIE, token)
+                .httpOnly(true)
+                .secure(false)
+                .sameSite("Strict")
+                .path("/api/auth")
+                .maxAge(Duration.ofSeconds(maxAgeSeconds))
+                .build();
+    }
+
+    private ResponseCookie expiredRefreshCookie() {
+        return ResponseCookie.from(AuthService.REFRESH_COOKIE, "")
+                .httpOnly(true)
+                .secure(false)
+                .sameSite("Strict")
+                .path("/api/auth")
+                .maxAge(Duration.ZERO)
+                .build();
     }
 }

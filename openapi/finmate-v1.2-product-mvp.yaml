@@ -1,0 +1,186 @@
+openapi: 3.1.0
+info:
+  title: FinMate Product MVP API
+  version: 1.2.0
+  description: Email auth, Postgres-backed app state, point wallet, birthday fund, and AI boundary APIs for the product MVP.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/auth/signup:
+    post:
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthSignupRequest" }
+      responses: { "200": { $ref: "#/components/responses/Auth" } }
+  /api/auth/login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthLoginRequest" }
+      responses: { "200": { $ref: "#/components/responses/Auth" } }
+  /api/auth/refresh:
+    post:
+      operationId: refresh
+      responses: { "200": { $ref: "#/components/responses/Auth" } }
+  /api/auth/logout:
+    post:
+      operationId: logout
+      responses: { "200": { description: Logged out } }
+  /api/users/me:
+    get:
+      operationId: getMe
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/User" } }
+  /api/users/me/onboarding:
+    post:
+      operationId: completeOnboarding
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductOnboardingRequest" }
+      responses: { "200": { $ref: "#/components/responses/User" } }
+  /api/ai/financial-snapshot:
+    get:
+      operationId: getFinancialSnapshot
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/FinancialSnapshot" } }
+  /api/ai/coach-results/fallback:
+    post:
+      operationId: createFallbackCoachResult
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { $ref: "#/components/responses/CoachResult" } }
+  /api/ai/coach-results:
+    post:
+      operationId: storeCoachResult
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CoachResultV1" }
+      responses: { "200": { $ref: "#/components/responses/CoachResult" } }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    Auth:
+      description: Auth session with access token and refresh cookie
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AuthResponse" }
+    User:
+      description: Current user
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/UserMeResponse" }
+    FinancialSnapshot:
+      description: AI input contract
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/FinancialSnapshotV1" }
+    CoachResult:
+      description: AI output contract
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CoachResultV1" }
+  schemas:
+    AuthSignupRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        displayName: { type: string }
+    AuthLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    AuthResponse:
+      type: object
+      required: [user, accessToken, expiresAt]
+      properties:
+        user: { $ref: "#/components/schemas/UserMeResponse" }
+        accessToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    UserMeResponse:
+      type: object
+      required: [userId, email, displayName, onboardingCompleted, pointBalance, virtualMoneyBalance]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        onboardingCompleted: { type: boolean }
+        pointBalance: { type: integer }
+        virtualMoneyBalance: { type: integer }
+    ProductOnboardingRequest:
+      type: object
+      required: [goalType, moneyStyle, householdType, area]
+      properties:
+        goalType: { type: string }
+        moneyStyle: { type: string }
+        householdType: { type: string }
+        area: { type: string }
+    FinancialSnapshotV1:
+      type: object
+      required: [snapshotId, userId, month, monthlyIncome, monthlySpending, monthlySaving, investmentValue, cashLikeAssets, emergencyFundMonths, spendingCategories, lifestyleTags]
+      properties:
+        snapshotId: { type: string }
+        userId: { type: string }
+        month: { type: string, example: "2026-06" }
+        monthlyIncome: { type: integer }
+        monthlySpending: { type: integer }
+        monthlySaving: { type: integer }
+        investmentValue: { type: integer }
+        cashLikeAssets: { type: integer }
+        emergencyFundMonths: { type: number }
+        spendingCategories:
+          type: object
+          additionalProperties: { type: integer }
+        lifestyleTags:
+          type: array
+          items: { type: string }
+    CoachResultV1:
+      type: object
+      required: [resultId, snapshotId, source, score, confidence, summary, insights, recommendations]
+      properties:
+        resultId: { type: string }
+        snapshotId: { type: string }
+        source: { type: string, enum: [RULE_BASED_FALLBACK, EXTERNAL_AI] }
+        score: { type: integer }
+        confidence: { type: number }
+        summary: { type: string }
+        insights:
+          type: array
+          items: { $ref: "#/components/schemas/CoachInsightV1" }
+        recommendations:
+          type: array
+          items: { $ref: "#/components/schemas/CoachRecommendationV1" }
+    CoachInsightV1:
+      type: object
+      required: [type, title, body, tone]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        tone: { type: string }
+    CoachRecommendationV1:
+      type: object
+      required: [missionTemplateId, title, body, difficulty, rewardPoints]
+      properties:
+        missionTemplateId: { type: string }
+        title: { type: string }
+        body: { type: string }
+        difficulty: { type: string }
+        rewardPoints: { type: integer }
