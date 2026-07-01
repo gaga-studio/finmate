@@ -38,7 +38,7 @@ tools/scripts/bootstrap-test-account.sh
 기본 계정:
 
 ```text
-minjun@finmate.local / password123!
+qa-birthday@finmate.local / password123!
 ```
 
 새로 회원가입한 사용자는 온보딩 설문과 동의가 끝나면 첫 예산, 미션, 기록, 자산 요약이 자동으로 만들어집니다. 위 bootstrap 계정은 발표/캡처/QA용으로 친구 피드와 생일 이벤트까지 포함합니다.

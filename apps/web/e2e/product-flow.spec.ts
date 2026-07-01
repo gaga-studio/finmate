@@ -27,7 +27,7 @@ test('starter signup state and seeded birthday fund product flow work end to end
   await expect(page.getByRole('heading', { name: '나와 비슷한 사람들의 금융 루틴을 비교해보세요' })).toBeVisible()
 
   const email = `e2e-${Date.now()}@finmate.local`
-  await page.getByRole('textbox', { name: '이름' }).fill('민준')
+  await page.getByRole('textbox', { name: '이름' }).fill('새사용자')
   await page.getByRole('textbox', { name: '이메일' }).fill(email)
   await page.getByRole('textbox', { name: '비밀번호' }).fill('password123!')
   await page.getByRole('button', { name: '회원가입' }).click()
@@ -45,7 +45,7 @@ test('starter signup state and seeded birthday fund product flow work end to end
   await page.getByRole('button', { name: 'FinMate 시작하기' }).click()
 
   await expect(page).toHaveURL(/\/home/)
-  await expect(page.getByRole('heading', { name: /민준님, 좋은 아침이에요/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /새사용자님, 좋은 아침이에요/ })).toBeVisible()
   await expect(page.getByText('내일 식비 10,000원 이하 사용하기')).toBeVisible()
   await expect(page.getByText('오늘의 예산')).toBeVisible()
   await expect(page.getByText('오늘의 지출 요약')).toBeVisible()
@@ -56,7 +56,7 @@ test('starter signup state and seeded birthday fund product flow work end to end
   await expectBottomTabs(page)
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: /민준님, 좋은 아침이에요/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /새사용자님, 좋은 아침이에요/ })).toBeVisible()
 
   await page.getByRole('button', { name: '비교', exact: true }).click()
   await expect(page).toHaveURL(/\/compare/)
@@ -81,15 +81,15 @@ test('starter signup state and seeded birthday fund product flow work end to end
 
   const bootstrap = await request.post(`${apiUrl}/api/dev/bootstrap-test-account`, {
     data: {
-      email: 'minjun@finmate.local',
+      email: 'qa-birthday@finmate.local',
       password: 'password123!',
-      displayName: '민준',
+      displayName: '테스트 사용자',
       includeBirthdayEvent: true,
     },
   })
   expect(bootstrap.ok()).toBeTruthy()
 
-  await page.getByRole('textbox', { name: '이메일' }).fill('minjun@finmate.local')
+  await page.getByRole('textbox', { name: '이메일' }).fill('qa-birthday@finmate.local')
   await page.getByRole('textbox', { name: '비밀번호' }).fill('password123!')
   await page.getByRole('button', { name: '로그인' }).click()
   await expect(page).toHaveURL(/\/home/)
@@ -125,7 +125,7 @@ test('starter signup state and seeded birthday fund product flow work end to end
 
   await page.getByRole('button', { name: '프로필' }).click()
   await expect(page).toHaveURL(/\/profile/)
-  const profileSummary = page.locator('article').filter({ hasText: '민준님의 금융 생활' })
+  const profileSummary = page.locator('article').filter({ hasText: '테스트 사용자님의 금융 생활' })
   await expect(profileSummary).toContainText('2570P')
   await expect(profileSummary).toContainText('₩90,000')
   await expectNoTechnicalCopy(page)

@@ -92,7 +92,7 @@ class FinmateApiApplicationTests {
                                 {
                                   "email": "%s",
                                   "password": "password123!",
-                                  "displayName": "민준"
+                                  "displayName": "새사용자"
                                 }
                                 """.formatted(email)))
                 .andExpect(status().isOk())
@@ -109,7 +109,7 @@ class FinmateApiApplicationTests {
 
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").value("민준"))
+                .andExpect(jsonPath("$.displayName").value("새사용자"))
                 .andExpect(jsonPath("$.pointBalance").value(0));
 
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
@@ -154,7 +154,7 @@ class FinmateApiApplicationTests {
         mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
-                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"))
+                .andExpect(jsonPath("$.sections[0].title").value("새사용자님, 좋은 아침이에요!"))
                 .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
                 .andExpect(jsonPath("$.sections[2].id").value("budget"))
                 .andExpect(jsonPath("$.sections[3].id").value("spending"))
@@ -249,7 +249,7 @@ class FinmateApiApplicationTests {
                                 {
                                   "email": "%s",
                                   "password": "password123!",
-                                  "displayName": "민준"
+                                  "displayName": "새사용자"
                                 }
                                 """.formatted(email)))
                 .andExpect(status().isOk())
@@ -295,14 +295,14 @@ class FinmateApiApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "minjun@finmate.local",
+                                  "email": "qa-birthday@finmate.local",
                                   "password": "password123!",
-                                  "displayName": "민준",
+                                  "displayName": "테스트 사용자",
                                   "includeBirthdayEvent": true
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.email").value("minjun@finmate.local"))
+                .andExpect(jsonPath("$.user.email").value("qa-birthday@finmate.local"))
                 .andExpect(jsonPath("$.user.onboardingCompleted").value(true))
                 .andExpect(jsonPath("$.user.pointBalance").value(2450))
                 .andReturn();

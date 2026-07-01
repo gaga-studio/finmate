@@ -2,9 +2,9 @@
 set -euo pipefail
 
 API_URL="${FINMATE_API_URL:-http://localhost:8080}"
-EMAIL="${FINMATE_TEST_EMAIL:-minjun@finmate.local}"
+EMAIL="${FINMATE_TEST_EMAIL:-qa-birthday@finmate.local}"
 PASSWORD="${FINMATE_TEST_PASSWORD:-password123!}"
-DISPLAY_NAME="${FINMATE_TEST_DISPLAY_NAME:-민준}"
+DISPLAY_NAME="${FINMATE_TEST_DISPLAY_NAME:-테스트 사용자}"
 INCLUDE_BIRTHDAY_EVENT="${FINMATE_INCLUDE_BIRTHDAY_EVENT:-true}"
 
 curl -fsS -X POST "${API_URL}/api/dev/bootstrap-test-account" \

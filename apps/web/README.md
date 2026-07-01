@@ -36,7 +36,7 @@ VITE_API_BASE_URL=http://localhost:8080 npm run dev --prefix apps/web
 ## 테스트 계정
 
 ```text
-minjun@finmate.local / password123!
+qa-birthday@finmate.local / password123!
 ```
 
 API가 실행 중일 때 아래 명령으로 DB 상태를 초기화하고 테스트 계정을 다시 만들 수 있습니다.

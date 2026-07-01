@@ -28,7 +28,7 @@ tools/scripts/bootstrap-test-account.sh
 기본 계정:
 
 ```text
-minjun@finmate.local / password123!
+qa-birthday@finmate.local / password123!
 ```
 
 ## 자동 검증
