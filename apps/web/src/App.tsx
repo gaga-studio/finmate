@@ -122,7 +122,7 @@ function renderRoute(route: Route, pathname: string, navigate: Navigate, session
     return <BirthdayContributionPage fundId={route.fundId} navigate={navigate} />
   }
   if (route.name === 'mission-feedback') {
-    return <MissionFeedbackPage missionId={route.missionId} navigate={navigate} />
+    return <MissionFeedbackPage missionId={route.missionId} navigate={navigate} userId={session.user?.userId ?? 'anonymous'} />
   }
   if (route.name === 'screen') {
     return <AppScreenPage pathname={pathname} route={route} navigate={navigate} />

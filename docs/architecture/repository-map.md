@@ -10,6 +10,7 @@ contracts/openapi/legacy
 contracts/http/legacy
 fixtures/app-seed
 fixtures/mydata-samples
+fixtures/dataset-manifests
 tools/scripts
 docs
 ```
@@ -21,13 +22,20 @@ docs
 - `contracts/http/legacy`: 과거 P0 수동 요청 파일
 - `fixtures/app-seed`: 로컬 개발과 테스트 계정 bootstrap에 쓰는 seed
 - `fixtures/mydata-samples`: 합성 MyData 원본 레포와 FinMate seed의 연결 자료
-- `tools/scripts`: reset, bootstrap, contract validation
+- `fixtures/dataset-manifests`: 외부 합성 MyData dataset source/version manifest
+- `tools/scripts`: reset, bootstrap, synthetic import, contract validation
 
 ## Runtime Data
 
 일반 사용자의 런타임 상태는 Postgres에 저장합니다. `fixtures/app-seed`는 새 사용자에게 자동으로 fake 데이터를 넣는 용도가 아니라, 개발/QA 계정과 legacy P0/P1 호환 흐름을 재현하기 위한 기준본입니다.
 
 Docker API 이미지는 `fixtures/app-seed`를 `/app/fixtures/app-seed`로 복사하고, `FINMATE_SEED_DIR`로 위치를 지정합니다.
+
+## Synthetic MyData Import
+
+외부 합성 데이터셋 `gaga-studio/financial-sns-mydata-202606`은 FinMate 레포에 직접 포함하지 않습니다. 필요할 때 `tools/scripts/import-synthetic-mydata.py`가 dataset checkout을 읽고 `/api/dev/import-synthetic-dataset`로 보내 Postgres에 synthetic user state를 생성합니다.
+
+자세한 규칙은 `docs/architecture/synthetic-data-provider.md`를 봅니다.
 
 ## Generated Artifacts
 

@@ -4,6 +4,7 @@ import com.gagastudio.finmate.api.auth.AuthService;
 import com.gagastudio.finmate.api.dto.ApiDtos.*;
 import com.gagastudio.finmate.api.error.ApiException;
 import com.gagastudio.finmate.api.product.ProductAppService;
+import com.gagastudio.finmate.api.product.SyntheticDatasetImportService;
 import com.gagastudio.finmate.api.service.FinmateService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,17 +31,20 @@ public class FinmateController {
     private final FinmateService service;
     private final AuthService authService;
     private final ProductAppService productAppService;
+    private final SyntheticDatasetImportService syntheticDatasetImportService;
     private final boolean devToolsEnabled;
 
     public FinmateController(
             FinmateService service,
             AuthService authService,
             ProductAppService productAppService,
+            SyntheticDatasetImportService syntheticDatasetImportService,
             @Value("${finmate.dev-tools.enabled:false}") boolean devToolsEnabled
     ) {
         this.service = service;
         this.authService = authService;
         this.productAppService = productAppService;
+        this.syntheticDatasetImportService = syntheticDatasetImportService;
         this.devToolsEnabled = devToolsEnabled;
     }
 
@@ -65,6 +69,14 @@ public class FinmateController {
         }
         AuthService.AuthResult result = authService.bootstrapTestAccount(request);
         return authResponse(result);
+    }
+
+    @PostMapping("/api/dev/import-synthetic-dataset")
+    public DevSyntheticImportResponse importSyntheticDataset(@Valid @RequestBody DevSyntheticImportRequest request) {
+        if (!devToolsEnabled) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found.");
+        }
+        return syntheticDatasetImportService.importDataset(request);
     }
 
     @PostMapping("/api/auth/signup")

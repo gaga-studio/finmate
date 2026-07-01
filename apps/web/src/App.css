@@ -916,6 +916,7 @@
 
 .feed-item {
   align-items: flex-start;
+  grid-template-columns: auto minmax(0, 1fr) minmax(84px, auto);
   min-height: 76px;
   padding: var(--space-4);
   border-color: var(--color-border);
@@ -932,12 +933,13 @@
 .feed-item .list-trailing {
   grid-auto-flow: row;
   justify-items: end;
-  max-width: 78px;
+  max-width: 112px;
   padding-top: 1px;
 }
 
 .feed-item .list-trailing b {
   color: var(--color-primary);
+  font-size: 13px;
 }
 
 .feed-item .list-trailing em {
@@ -950,6 +952,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.feed-item .list-trailing b,
+.feed-item .list-trailing em {
+  max-width: 100px;
 }
 
 .rank-dot {

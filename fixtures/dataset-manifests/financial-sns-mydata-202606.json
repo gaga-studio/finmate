@@ -1,0 +1,42 @@
+{
+  "name": "financial-sns-mydata-202606",
+  "sourceRepository": "https://github.com/gaga-studio/financial-sns-mydata-202606",
+  "sourceBranch": "main",
+  "sourceCommit": "8bf6dc7c228ed75771f989af12b1f24c674fce1d",
+  "datasetRoot": "outputs/financial_sns_mydata_202606",
+  "importVersion": "2026-06",
+  "expectedPersonaCount": 199,
+  "expectedMonth": "2026-06",
+  "expectedAggregateFiles": [
+    "aggregates/personas.jsonl",
+    "aggregates/feature_matrix.csv",
+    "aggregates/ledger_all.csv",
+    "aggregates/social_edges.csv",
+    "aggregates/social_feed.csv",
+    "aggregates/social_reactions.csv",
+    "validation/validation_report.json"
+  ],
+  "expectedApiScope": [
+    "정보제공-공통-002",
+    "은행-001",
+    "은행-004",
+    "카드-001",
+    "카드-008",
+    "카드-014",
+    "전금-001",
+    "전금-004",
+    "전금-101",
+    "전금-102",
+    "전금-103",
+    "금투-001",
+    "금투-002",
+    "금투-003",
+    "금투-004"
+  ],
+  "policy": {
+    "storeFullDatasetInFinMateRepo": false,
+    "useGitSubmodule": false,
+    "importMode": "external-checkout-to-dev-api",
+    "generatedAccounts": "p001@synthetic.finmate.local ... p199@synthetic.finmate.local"
+  }
+}

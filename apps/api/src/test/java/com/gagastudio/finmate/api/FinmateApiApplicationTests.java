@@ -84,7 +84,7 @@ class FinmateApiApplicationTests {
     }
 
     @Test
-    void productMvpAuthOnboardingStartsWithEmptyUserState() throws Exception {
+    void productMvpAuthOnboardingCreatesStarterUserState() throws Exception {
         String email = "user-" + UUID.randomUUID() + "@finmate.local";
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -92,7 +92,7 @@ class FinmateApiApplicationTests {
                                 {
                                   "email": "%s",
                                   "password": "password123!",
-                                  "displayName": "민준"
+                                  "displayName": "새사용자"
                                 }
                                 """.formatted(email)))
                 .andExpect(status().isOk())
@@ -109,8 +109,12 @@ class FinmateApiApplicationTests {
 
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").value("민준"))
+                .andExpect(jsonPath("$.displayName").value("새사용자"))
                 .andExpect(jsonPath("$.pointBalance").value(0));
+
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
 
         mockMvc.perform(post("/api/users/me/onboarding")
                         .header("Authorization", "Bearer " + accessToken)
@@ -143,43 +147,88 @@ class FinmateApiApplicationTests {
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM onboarding_responses WHERE user_id = ?", Integer.class, userId));
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM mydata_connections WHERE user_id = ? AND data_mode = 'SYNTHETIC_MYDATA'", Integer.class, userId));
         assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM consent_events WHERE user_id = ?", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
+        assertEquals(3, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
 
         mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
-                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"))
-                .andExpect(jsonPath("$.sections[1].id").value("mission-empty"))
-                .andExpect(jsonPath("$.sections[2].id").value("budget-empty"))
-                .andExpect(jsonPath("$.sections[4].id").value("asset-empty"));
+                .andExpect(jsonPath("$.sections[0].title").value("새사용자님, 좋은 아침이에요!"))
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("spending"))
+                .andExpect(jsonPath("$.sections[4].id").value("asset"))
+                .andExpect(jsonPath("$.sections[?(@.id == 'birthday-alert')]").doesNotExist());
 
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
-        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM friendships WHERE follower_id = ?", Integer.class, userId));
 
         mockMvc.perform(post("/api/ai/coach-results/fallback").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.source").value("USER_STATE"))
-                .andExpect(jsonPath("$.recommendations", hasSize(0)));
+                .andExpect(jsonPath("$.source").value("RULE_BASED_FALLBACK"))
+                .andExpect(jsonPath("$.recommendations", hasSize(3)));
 
         mockMvc.perform(get("/api/app/missions").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("missions"))
-                .andExpect(jsonPath("$.sections[0].id").value("mission-empty"));
+                .andExpect(jsonPath("$.sections[0].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[1].items", hasSize(3)));
 
         mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("records:2026-06"))
-                .andExpect(jsonPath("$.sections[1].id").value("record-empty"));
+                .andExpect(jsonPath("$.sections[1].id").value("budget"));
 
         mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("compare"))
-                .andExpect(jsonPath("$.sections[1].id").value("compare-empty"));
+                .andExpect(jsonPath("$.sections[1].id").value("score"));
 
         mockMvc.perform(get("/api/app/missions/not-a-mission").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MISSION_NOT_FOUND"));
+
+        mockMvc.perform(post("/api/app/missions/mission-food/feedback")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "DONE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rewardPoints").value(120));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ? AND status = 'COMPLETED'", Integer.class, userId));
+
+        mockMvc.perform(post("/api/users/me/onboarding")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ageBand": "20대 후반",
+                                  "incomeBand": "3,000만원 ~ 4,000만원",
+                                  "jobCategory": "IT/개발",
+                                  "householdType": "1인가구",
+                                  "moneyStyle": "안정 추구형",
+                                  "area": "서울 강남권",
+                                  "goalType": "EMERGENCY_FUND",
+                                  "painPoint": "SAVE_CONSISTENTLY",
+                                  "privacyConsent": {
+                                    "anonymousPortfolioOptIn": true,
+                                    "friendShareDefault": "MISSION_ONLY",
+                                    "exposedFields": ["ageBand", "goalType", "financialSummary", "missionStatus"],
+                                    "privacyConsentVersion": "privacy-v1.4"
+                                  },
+                                  "mydataConsent": {
+                                    "mydataConsentVersion": "synthetic-mydata-v1.4",
+                                    "mydataScopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onboardingCompleted").value(true));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ? AND id = ? AND status = 'COMPLETED'", Integer.class, userId, userId + ":mission-food"));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM point_transactions WHERE user_id = ? AND reference_id = 'mission-food'", Integer.class, userId));
 
         mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isOk())
@@ -200,7 +249,7 @@ class FinmateApiApplicationTests {
                                 {
                                   "email": "%s",
                                   "password": "password123!",
-                                  "displayName": "민준"
+                                  "displayName": "새사용자"
                                 }
                                 """.formatted(email)))
                 .andExpect(status().isOk())
@@ -246,14 +295,14 @@ class FinmateApiApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "minjun@finmate.local",
+                                  "email": "qa-birthday@finmate.local",
                                   "password": "password123!",
-                                  "displayName": "민준",
+                                  "displayName": "테스트 사용자",
                                   "includeBirthdayEvent": true
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.email").value("minjun@finmate.local"))
+                .andExpect(jsonPath("$.user.email").value("qa-birthday@finmate.local"))
                 .andExpect(jsonPath("$.user.onboardingCompleted").value(true))
                 .andExpect(jsonPath("$.user.pointBalance").value(2450))
                 .andReturn();
@@ -267,6 +316,236 @@ class FinmateApiApplicationTests {
                 .andExpect(jsonPath("$.sections[3].id").value("birthday-alert"))
                 .andExpect(jsonPath("$.sections[4].id").value("spending"))
                 .andExpect(jsonPath("$.sections[5].id").value("asset"));
+    }
+
+    @Test
+    void developmentSyntheticImportSeedsExternalDatasetStyleUsers() throws Exception {
+        String importPayload = """
+                {
+                  "importVersion": "2026-06",
+                  "sourceRepository": "https://github.com/gaga-studio/financial-sns-mydata-202606",
+                  "sourceCommit": "test-commit",
+                  "resetSynthetic": true,
+                  "users": [
+                    {
+                      "personaId": "P001",
+                      "email": "p001@synthetic.finmate.local",
+                      "password": "password123!",
+                      "displayName": "가상청년 P001",
+                      "profile": {
+                        "ageBand": "20대 초반",
+                        "incomeBand": "150~250만원",
+                        "jobCategory": "휴학생/단기알바",
+                        "householdType": "1인가구",
+                        "moneyStyle": "안정추구형",
+                        "area": "인천 부평구",
+                        "goalType": "EMERGENCY_FUND",
+                        "painPoint": "SAVE_CONSISTENTLY"
+                      },
+                      "privacy": {
+                        "anonymousPortfolioOptIn": true,
+                        "friendShareDefault": "MISSION_ONLY",
+                        "exposedFields": ["ageBand", "goalType", "financialSummary", "missionStatus"]
+                      },
+                      "mydata": {
+                        "consentVersion": "synthetic-mydata-v1.6",
+                        "scopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+                      },
+                      "wallet": {
+                        "pointBalance": 537,
+                        "virtualMoneyBalance": 100000
+                      },
+                      "snapshot": {
+                        "month": "2026-06",
+                        "monthlyIncome": 1700000,
+                        "monthlySpending": 2115200,
+                        "monthlySaving": 150000,
+                        "investmentValue": 76100,
+                        "cashLikeAssets": 354000,
+                        "emergencyFundMonths": 0.17,
+                        "spendingCategories": {
+                          "식비": 183000,
+                          "교통비": 201000,
+                          "카페/간식": 36700,
+                          "기타": 1694500
+                        },
+                        "lifestyleTags": ["가성비", "예산관리", "캠퍼스생활"]
+                      },
+                      "dailyRecords": [
+                        {
+                          "recordDate": "2026-06-12",
+                          "budget": 10000,
+                          "spent": 7800,
+                          "categorySpending": {
+                            "식비": 6200,
+                            "교통비": 1200,
+                            "카페/간식": 400,
+                            "기타": 0
+                          },
+                          "missionStatus": "IN_PROGRESS",
+                          "pointDelta": 0
+                        }
+                      ],
+                      "missions": [
+                        {
+                          "missionId": "mission-food",
+                          "title": "내일 식비 10,000원 이하 사용하기",
+                          "description": "하루 식비를 낮춰 남는 금액을 비상금으로 옮겨요.",
+                          "status": "ACTIVE",
+                          "difficulty": "EASY",
+                          "rewardPoints": 120,
+                          "progress": 78,
+                          "source": "SYNTHETIC_MYDATA_IMPORT"
+                        }
+                      ],
+                      "follows": ["P002"],
+                      "feedItems": [
+                        {
+                          "feedId": "feed-P001-birthday",
+                          "actorPersonaId": "P002",
+                          "kind": "BIRTHDAY",
+                          "title": "가상청년 P002님의 생일 펀드가 열렸어요",
+                          "body": "친구들이 함께 모으는 생일 축하 펀드",
+                          "amount": 72000
+                        }
+                      ],
+                      "birthdayFund": {
+                        "fundId": "fund-jiwoo",
+                        "ownerPersonaId": "P002",
+                        "title": "가상청년 P002님의 생일 펀드",
+                        "targetAmount": 100000,
+                        "currentAmount": 72000,
+                        "dueDate": "2026-06-15",
+                        "status": "OPEN",
+                        "shareCode": "SYNTH-BDAY-2026"
+                      }
+                    },
+                    {
+                      "personaId": "P002",
+                      "email": "p002@synthetic.finmate.local",
+                      "password": "password123!",
+                      "displayName": "가상청년 P002",
+                      "profile": {
+                        "ageBand": "20대 후반",
+                        "incomeBand": "250~350만원",
+                        "jobCategory": "IT/개발",
+                        "householdType": "1인가구",
+                        "moneyStyle": "중립형",
+                        "area": "서울 성동구",
+                        "goalType": "HOUSING",
+                        "painPoint": "BUILD_ROUTINE"
+                      },
+                      "privacy": {
+                        "anonymousPortfolioOptIn": true,
+                        "friendShareDefault": "MISSION_ONLY",
+                        "exposedFields": ["ageBand", "goalType", "financialSummary"]
+                      },
+                      "mydata": {
+                        "consentVersion": "synthetic-mydata-v1.6",
+                        "scopes": ["ACCOUNT_SUMMARY", "CARD_SPENDING", "INVESTMENT_SUMMARY"]
+                      },
+                      "wallet": {
+                        "pointBalance": 574,
+                        "virtualMoneyBalance": 100000
+                      },
+                      "snapshot": {
+                        "month": "2026-06",
+                        "monthlyIncome": 3160000,
+                        "monthlySpending": 3211300,
+                        "monthlySaving": 1100000,
+                        "investmentValue": 193200,
+                        "cashLikeAssets": 1479200,
+                        "emergencyFundMonths": 0.46,
+                        "spendingCategories": {
+                          "식비": 451400,
+                          "교통비": 282000,
+                          "카페/간식": 117500,
+                          "기타": 2360400
+                        },
+                        "lifestyleTags": ["구독서비스", "예산관리", "출퇴근"]
+                      },
+                      "dailyRecords": [
+                        {
+                          "recordDate": "2026-06-12",
+                          "budget": 18000,
+                          "spent": 14500,
+                          "categorySpending": {
+                            "식비": 10000,
+                            "교통비": 0,
+                            "카페/간식": 4500,
+                            "기타": 0
+                          },
+                          "missionStatus": "IN_PROGRESS",
+                          "pointDelta": 0
+                        }
+                      ],
+                      "missions": [
+                        {
+                          "missionId": "mission-food",
+                          "title": "내일 식비 10,000원 이하 사용하기",
+                          "description": "하루 식비를 낮춰 남는 금액을 비상금으로 옮겨요.",
+                          "status": "ACTIVE",
+                          "difficulty": "EASY",
+                          "rewardPoints": 120,
+                          "progress": 42,
+                          "source": "SYNTHETIC_MYDATA_IMPORT"
+                        }
+                      ],
+                      "follows": ["P001"],
+                      "feedItems": [],
+                      "birthdayFund": null
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/dev/import-synthetic-dataset")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(importPayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IMPORTED"))
+                .andExpect(jsonPath("$.importedUsers").value(2))
+                .andExpect(jsonPath("$.snapshots").value(2))
+                .andExpect(jsonPath("$.dailyRecords").value(2))
+                .andExpect(jsonPath("$.birthdayFunds").value(1));
+
+        mockMvc.perform(post("/api/dev/import-synthetic-dataset")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(importPayload.replace("\"resetSynthetic\": true", "\"resetSynthetic\": false")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.importedUsers").value(2));
+
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM users WHERE id LIKE 'synthetic-P%'", Integer.class));
+        assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id LIKE 'synthetic-P%'", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM birthday_funds WHERE id = 'fund-jiwoo'", Integer.class));
+
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "p001@synthetic.finmate.local",
+                                  "password": "password123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.email").value("p001@synthetic.finmate.local"))
+                .andReturn();
+        String accessToken = objectMapper.readTree(login.getResponse().getContentAsString()).get("accessToken").asText();
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("birthday-alert"))
+                .andExpect(jsonPath("$.sections[5].id").value("asset"));
+
+        mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[1].id").value("score"));
+
+        mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[1].id").value("budget"));
     }
 
     @Test
