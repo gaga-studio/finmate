@@ -344,6 +344,135 @@ public final class ApiDtos {
     ) {
     }
 
+    public record DevSyntheticImportRequest(
+            @NotBlank String importVersion,
+            @NotBlank String sourceRepository,
+            @NotBlank String sourceCommit,
+            Boolean resetSynthetic,
+            @Valid @NotEmpty List<DevSyntheticUserPayload> users
+    ) {
+    }
+
+    public record DevSyntheticImportResponse(
+            String status,
+            String importVersion,
+            int requestedUsers,
+            int importedUsers,
+            int snapshots,
+            int dailyRecords,
+            int missions,
+            int friendships,
+            int feedItems,
+            int birthdayFunds
+    ) {
+    }
+
+    public record DevSyntheticUserPayload(
+            @NotBlank String personaId,
+            @Email @NotBlank String email,
+            @Size(min = 8, max = 72) String password,
+            @NotBlank String displayName,
+            @Valid @NotNull DevSyntheticProfilePayload profile,
+            @Valid @NotNull DevSyntheticPrivacyPayload privacy,
+            @Valid @NotNull DevSyntheticMyDataPayload mydata,
+            @Valid @NotNull DevSyntheticWalletPayload wallet,
+            @Valid @NotNull DevSyntheticSnapshotPayload snapshot,
+            @Valid @NotEmpty List<DevSyntheticDailyRecordPayload> dailyRecords,
+            @Valid @NotEmpty List<DevSyntheticMissionPayload> missions,
+            List<@NotBlank String> follows,
+            @Valid List<DevSyntheticFeedPayload> feedItems,
+            @Valid DevSyntheticBirthdayFundPayload birthdayFund
+    ) {
+    }
+
+    public record DevSyntheticProfilePayload(
+            @NotBlank String ageBand,
+            @NotBlank String incomeBand,
+            @NotBlank String jobCategory,
+            @NotBlank String householdType,
+            @NotBlank String moneyStyle,
+            @NotBlank String area,
+            @NotBlank String goalType,
+            @NotBlank String painPoint
+    ) {
+    }
+
+    public record DevSyntheticPrivacyPayload(
+            @NotNull Boolean anonymousPortfolioOptIn,
+            @NotBlank String friendShareDefault,
+            @NotEmpty List<@NotBlank String> exposedFields
+    ) {
+    }
+
+    public record DevSyntheticMyDataPayload(
+            @NotBlank String consentVersion,
+            @NotEmpty List<@NotBlank String> scopes
+    ) {
+    }
+
+    public record DevSyntheticWalletPayload(
+            @NotNull Integer pointBalance,
+            @NotNull Integer virtualMoneyBalance
+    ) {
+    }
+
+    public record DevSyntheticSnapshotPayload(
+            @NotBlank String month,
+            @NotNull Integer monthlyIncome,
+            @NotNull Integer monthlySpending,
+            @NotNull Integer monthlySaving,
+            @NotNull Integer investmentValue,
+            @NotNull Integer cashLikeAssets,
+            @NotNull Double emergencyFundMonths,
+            @NotNull Map<String, Integer> spendingCategories,
+            @NotEmpty List<@NotBlank String> lifestyleTags
+    ) {
+    }
+
+    public record DevSyntheticDailyRecordPayload(
+            @NotBlank String recordDate,
+            @NotNull Integer budget,
+            @NotNull Integer spent,
+            @NotNull Map<String, Integer> categorySpending,
+            @NotBlank String missionStatus,
+            @NotNull Integer pointDelta
+    ) {
+    }
+
+    public record DevSyntheticMissionPayload(
+            @NotBlank String missionId,
+            @NotBlank String title,
+            @NotBlank String description,
+            @NotBlank String status,
+            @NotBlank String difficulty,
+            @NotNull Integer rewardPoints,
+            @NotNull Integer progress,
+            @NotBlank String source
+    ) {
+    }
+
+    public record DevSyntheticFeedPayload(
+            @NotBlank String feedId,
+            @NotBlank String actorPersonaId,
+            @NotBlank String kind,
+            @NotBlank String title,
+            @NotBlank String body,
+            Integer amount
+    ) {
+    }
+
+    public record DevSyntheticBirthdayFundPayload(
+            @NotBlank String fundId,
+            @NotBlank String ownerPersonaId,
+            @NotBlank String title,
+            @NotNull Integer targetAmount,
+            @NotNull Integer currentAmount,
+            @NotBlank String dueDate,
+            @NotBlank String status,
+            @NotBlank String shareCode
+    ) {
+    }
+
     public record AuthResponse(
             UserMeResponse user,
             String accessToken,

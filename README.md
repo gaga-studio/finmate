@@ -43,6 +43,36 @@ minjun@finmate.local / password123!
 
 새로 회원가입한 사용자는 빈 상태에서 시작합니다. 위 bootstrap 계정은 발표/캡처/QA용으로 미션, 예산, 자산, 친구 피드, 생일 이벤트가 들어 있습니다.
 
+## 합성 MyData import
+
+FinMate는 별도 레포의 합성 금융 SNS 데이터셋을 개발용 mock 데이터 원천으로 사용할 수 있습니다.
+
+```text
+https://github.com/gaga-studio/financial-sns-mydata-202606
+```
+
+FinMate 레포에는 전체 데이터셋을 복사하지 않습니다. source manifest와 importer만 두고, 팀원은 데이터셋 레포를 별도로 clone한 뒤 import합니다.
+
+```bash
+git clone https://github.com/gaga-studio/financial-sns-mydata-202606 ../financial-sns-mydata-202606
+
+FINMATE_SYNTHETIC_DATASET_DIR=../financial-sns-mydata-202606/outputs/financial_sns_mydata_202606 \
+  tools/scripts/import-synthetic-mydata.py --dry-run
+
+FINMATE_SYNTHETIC_DATASET_DIR=../financial-sns-mydata-202606/outputs/financial_sns_mydata_202606 \
+  tools/scripts/import-synthetic-mydata.py --reset-synthetic
+```
+
+import 후 생성되는 기본 계정:
+
+```text
+p001@synthetic.finmate.local / password123!
+...
+p199@synthetic.finmate.local / password123!
+```
+
+일반 회원가입 사용자는 계속 빈 상태로 시작합니다. synthetic 계정은 개발/QA/데이터 연동 검증용입니다.
+
 ## 주요 흐름
 
 ```text
@@ -104,6 +134,7 @@ finmate/
   fixtures/
     app-seed/             개발/데모 bootstrap seed
     mydata-samples/       합성 MyData 출처 연결용 최소 subset
+    dataset-manifests/    외부 합성 데이터셋 source/version manifest
   tools/
     scripts/              reset, bootstrap, validation scripts
 ```
@@ -131,6 +162,7 @@ npm run dev --prefix apps/web -- --host 0.0.0.0
 python3 tools/scripts/validate_contract.py
 python3 tools/scripts/validate_app_contract.py
 python3 tools/scripts/validate_product_mvp.py
+python3 tools/scripts/validate_synthetic_import.py
 ./gradlew :apps:api:test
 npm run lint --prefix apps/web
 npm run build --prefix apps/web
@@ -146,6 +178,7 @@ E2E는 `http://localhost:5173`와 `http://localhost:8080`이 실행 중이라고
 | `docs/README.md` | 전체 문서 안내 |
 | `docs/product/current-mvp.md` | 현재 제품형 MVP 범위 |
 | `docs/architecture/repository-map.md` | 디렉터리와 데이터 흐름 |
+| `docs/architecture/synthetic-data-provider.md` | 외부 합성 MyData import 구조 |
 | `docs/qa/testing.md` | 실행, 검증, QA 방법 |
 | `docs/archive/p0-p1-planning/` | 과거 P0/P1 발표·기획 자료 |
 | `DESIGN.md` | 화면 디자인 토큰과 UI 원칙 |

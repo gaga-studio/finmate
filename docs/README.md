@@ -8,6 +8,7 @@
 | --- | --- |
 | `product/current-mvp.md` | 지금 앱에서 되는 것과 안 되는 것 |
 | `architecture/repository-map.md` | 레포 구조, 계약, fixture 위치 |
+| `architecture/synthetic-data-provider.md` | 외부 합성 MyData dataset import 방식 |
 | `qa/testing.md` | 로컬 실행, 검증, E2E 기준 |
 | `assets/screenshots/` | 선별된 화면 캡처 |
 
