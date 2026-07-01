@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -302,6 +303,17 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getMission(String userId, String missionId) {
+        if ("next-goals".equals(missionId)) {
+            List<AppItem> nextMissionItems = missions(userId).stream()
+                    .filter(mission -> !"COMPLETED".equals(mission.status()))
+                    .map(this::missionItem)
+                    .toList();
+            return screen("missions:next-goals", "다음 목표 제안", "mission", "/assets/characters/finmate-growth.png", List.of(
+                    section("coach", "coach", "다음 행동으로 이어가볼까요?", "완료한 미션 다음에 이어서 하기 좋은 목표를 골랐어요.", null, "/assets/characters/finmate-growth.png", null, null, null, null),
+                    section("next", "list", "추천 다음 목표", null, null, null, null, nextMissionItems,
+                            actions(action("미션 탭으로 돌아가기", "/missions", "GET", "primary", null)), null)
+            ), Map.of("completedMissionId", "mission-food"));
+        }
         if ("mission-invest".equals(missionId)) {
             return screen("missions:mission-invest", "나의 계획 세우기", "mission", List.of(
                     section("plan", "choiceList", "AI 코치의 제안을 내 계획으로 만들어볼까요?", "이번 달 나의 핵심 목표는?", null, null, null,
@@ -391,9 +403,21 @@ public class ProductAppService implements FinancialDataProvider {
         return switch (section) {
             case "followers", "following" -> screen("profile:" + section, "팔로잉 금융 생활", "profile", List.of(followingSection(userId), feedSection(userId)), Map.of());
             case "activities" -> screen("profile:activities", "금융 활동 TOP", "profile", List.of(feedSection(userId)), Map.of());
+            case "points" -> profilePointsScreen(userId);
             case "privacy" -> privacyScreen(userId);
             default -> throw validation("section", "Unsupported profile section.");
         };
+    }
+
+    private AppScreenResponse profilePointsScreen(String userId) {
+        WalletRow wallet = wallet(userId);
+        return screen("profile:points", "포인트 내역", "profile", List.of(
+                section("wallet", "points", "포인트 지갑", "미션 보상과 생일펀드 가상머니 흐름을 확인해요.", null, null,
+                        metrics(metric("보유 포인트", wallet.pointBalance() + "P", "실천 보상", "purple", 70),
+                                metric("가상머니", won(wallet.virtualMoneyBalance()), "생일펀드 참여 가능", "green", 60)),
+                        null, null, null),
+                section("history", "list", "최근 포인트 기록", null, null, null, null, pointTransactionItems(userId), null, null)
+        ), Map.of());
     }
 
     public AppScreenResponse getBirthdays(String userId) {
@@ -650,6 +674,41 @@ public class ProductAppService implements FinancialDataProvider {
         bootstrapUser(userId, displayName(userId));
         return jdbc.query("SELECT * FROM missions WHERE user_id = ? ORDER BY created_at",
                 (rs, rowNum) -> missionRow(rs, rs.getString("id").substring((userId + ":").length())), userId);
+    }
+
+    private List<AppItem> pointTransactionItems(String userId) {
+        bootstrapUser(userId, displayName(userId));
+        List<AppItem> transactions = jdbc.query("""
+                        SELECT id, type, amount, balance_after, description, created_at
+                        FROM point_transactions
+                        WHERE user_id = ?
+                        ORDER BY created_at DESC
+                        LIMIT 10
+                        """,
+                (rs, rowNum) -> {
+                    int amount = rs.getInt("amount");
+                    String type = rs.getString("type");
+                    String value = ("VIRTUAL_MONEY".equals(type) ? won(Math.abs(amount)) : Math.abs(amount) + "P");
+                    if (amount > 0) {
+                        value = "+" + value;
+                    } else if (amount < 0) {
+                        value = "-" + value;
+                    }
+                    return item(
+                            rs.getString("id"),
+                            rs.getString("description"),
+                            rs.getObject("created_at", OffsetDateTime.class).toLocalDate().toString(),
+                            value,
+                            "잔액 " + ("VIRTUAL_MONEY".equals(type) ? won(rs.getInt("balance_after")) : rs.getInt("balance_after") + "P"),
+                            "wallet",
+                            amount >= 0 ? "purple" : "green",
+                            null
+                    );
+                }, userId);
+        if (transactions.isEmpty()) {
+            return List.of(item("points-empty", "아직 포인트 기록이 없어요", "미션을 완료하면 이곳에 기록돼요.", null, null, "wallet", "purple", null));
+        }
+        return transactions;
     }
 
     private MissionRow missionRow(ResultSet rs, String routeId) throws java.sql.SQLException {

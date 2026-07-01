@@ -152,6 +152,17 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pointBalance").value(2570));
 
+        mockMvc.perform(get("/api/app/missions/next-goals").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("missions:next-goals"))
+                .andExpect(jsonPath("$.title").value("다음 목표 제안"));
+
+        mockMvc.perform(get("/api/app/profile/sections/points").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("profile:points"))
+                .andExpect(jsonPath("$.sections[0].title").value("포인트 지갑"))
+                .andExpect(jsonPath("$.sections[1].title").value("최근 포인트 기록"));
+
         mockMvc.perform(post("/api/app/birthday-funds/fund-jiwoo/contributions")
                         .header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)

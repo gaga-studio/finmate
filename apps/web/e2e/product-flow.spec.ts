@@ -48,7 +48,11 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
   await expect(page.getByText('+120P')).toBeVisible()
   await expectNoTechnicalCopy(page)
 
-  await page.getByRole('button', { name: '기록 완료' }).click()
+  await page.getByRole('button', { name: '다음 목표 보기' }).click()
+  await expect(page).toHaveURL(/\/missions\/next-goals/)
+  await expect(page.getByRole('heading', { name: '다음 목표 제안' })).toBeVisible()
+
+  await page.goto('/records/history')
   await expect(page).toHaveURL(/\/records\/history/)
   await expect(page.getByRole('heading', { name: '월간 히스토리' })).toBeVisible()
 
@@ -60,10 +64,15 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
   await expect(page).toHaveURL(/\/birthday-funds\/fund-jiwoo\/complete/)
   await expect(page.getByText('₩82,000')).toBeVisible()
 
+  await page.goto('/profile/points')
+  await expect(page.getByRole('heading', { name: '포인트 내역' })).toBeVisible()
+  await expect(page.locator('article').filter({ hasText: '포인트 지갑' }).getByText('₩90,000', { exact: true })).toBeVisible()
+
   await page.getByRole('button', { name: '프로필' }).click()
   await expect(page).toHaveURL(/\/profile/)
-  await expect(page.getByText('2570P')).toBeVisible()
-  await expect(page.getByText('₩90,000')).toBeVisible()
+  const profileSummary = page.locator('article').filter({ hasText: '민준님의 금융 생활' })
+  await expect(profileSummary).toContainText('2570P')
+  await expect(profileSummary).toContainText('₩90,000')
   await expectNoTechnicalCopy(page)
 
   await page.getByRole('button', { name: '로그아웃' }).click()
