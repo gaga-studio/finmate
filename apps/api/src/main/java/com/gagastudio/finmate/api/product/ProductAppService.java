@@ -512,9 +512,15 @@ public class ProductAppService implements FinancialDataProvider {
         if (!"DONE".equals(request.status())) {
             throw validation("status", "Only DONE feedback is supported.");
         }
-        int reward = "COMPLETED".equals(mission.status()) ? 0 : mission.rewardPoints();
+        int completed = jdbc.update("""
+                UPDATE missions
+                SET status = 'COMPLETED',
+                    progress = 100,
+                    completed_at = now()
+                WHERE id = ? AND status <> 'COMPLETED'
+                """, mission.dbId());
+        int reward = completed > 0 ? mission.rewardPoints() : 0;
         if (reward > 0) {
-            jdbc.update("UPDATE missions SET status = 'COMPLETED', progress = 100, completed_at = now() WHERE id = ?", mission.dbId());
             addPoints(userId, reward, "MISSION", missionId, mission.title() + " 완료");
             jdbc.update("""
                     UPDATE daily_records

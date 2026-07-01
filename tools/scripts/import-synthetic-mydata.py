@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -20,6 +21,14 @@ DEFAULT_DATASET_ROOT = "outputs/financial_sns_mydata_202606"
 DEFAULT_PASSWORD = "password123!"
 DEFAULT_MONTH = "2026-06"
 TARGET_RECORD_DATE = "2026-06-12"
+SYNTHETIC_LABEL_RE = re.compile(r"가상청년 (P\d{3})")
+DISPLAY_NAME_POOL = [
+    "민준", "지우", "서연", "도윤", "하린", "유준", "나윤", "시우", "예린", "준서",
+    "수아", "현우", "채원", "지호", "다은", "건우", "유나", "태윤", "소율", "은우",
+    "하준", "서아", "이안", "윤서", "지민", "서준", "하율", "유진", "아린", "도현",
+    "채윤", "민서", "주원", "서진", "예준", "다온", "연우", "지안", "하람", "시윤",
+    "가온", "재윤", "유하", "선우", "은서", "도하", "라온", "예나", "지율", "태오",
+]
 
 
 def main() -> None:
@@ -198,6 +207,7 @@ def build_payload(
     selected_set = set(selected_ids)
     birthday_viewer = selected_ids[0] if selected_ids else None
     birthday_owner = selected_ids[1] if len(selected_ids) > 1 else birthday_viewer
+    display_names = {persona_id: display_name_for(persona_id, personas[persona_id]) for persona_id in selected_ids}
     users = []
     for persona_id in selected_ids:
         persona = personas[persona_id]
@@ -206,10 +216,10 @@ def build_payload(
             raise SystemExit(f"Missing feature row for {persona_id}")
         ledger = ledger_by_persona.get(persona_id, [])
         follows = [target for target in social_edges.get(persona_id, []) if target in selected_set][:5]
-        feed_items = build_feed_items(persona_id, follows, social_feed)
+        feed_items = build_feed_items(persona_id, follows, social_feed, display_names)
         birthday_fund = None
         if persona_id == birthday_viewer and birthday_owner:
-            owner_name = personas[birthday_owner]["synthetic_name"]
+            owner_name = display_names[birthday_owner]
             feed_items.insert(0, {
                 "feedId": f"feed-{persona_id}-birthday",
                 "actorPersonaId": birthday_owner,
@@ -232,7 +242,7 @@ def build_payload(
             "personaId": persona_id,
             "email": f"{persona_id.lower()}@synthetic.finmate.local",
             "password": password,
-            "displayName": persona.get("synthetic_name") or f"가상청년 {persona_id}",
+            "displayName": display_names[persona_id],
             "profile": build_profile(persona),
             "privacy": {
                 "anonymousPortfolioOptIn": True,
@@ -258,6 +268,21 @@ def build_payload(
         "resetSynthetic": reset_synthetic,
         "users": users,
     }
+
+
+def display_name_for(persona_id: str, persona: dict[str, Any]) -> str:
+    source_name = str(persona.get("synthetic_name") or "").strip()
+    if source_name and not SYNTHETIC_LABEL_RE.fullmatch(source_name):
+        return source_name
+    try:
+        number = int(persona_id[1:])
+    except ValueError:
+        number = 1
+    return DISPLAY_NAME_POOL[(number - 1) % len(DISPLAY_NAME_POOL)]
+
+
+def replace_synthetic_labels(text: str, display_names: dict[str, str]) -> str:
+    return SYNTHETIC_LABEL_RE.sub(lambda match: display_names.get(match.group(1), match.group(0)), text)
 
 
 def build_profile(persona: dict[str, Any]) -> dict[str, str]:
@@ -376,18 +401,25 @@ def build_missions(feature: dict[str, str]) -> list[dict[str, Any]]:
     return missions[:4]
 
 
-def build_feed_items(persona_id: str, follows: list[str], social_feed: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
+def build_feed_items(
+    persona_id: str,
+    follows: list[str],
+    social_feed: dict[str, list[dict[str, str]]],
+    display_names: dict[str, str],
+) -> list[dict[str, Any]]:
     feed_items: list[dict[str, Any]] = []
     targets = follows or [persona_id]
     for target in targets[:4]:
         for post in social_feed.get(target, [])[:2]:
+            title = replace_synthetic_labels(post.get("title") or "금융 루틴 업데이트", display_names)
+            body = replace_synthetic_labels(post.get("body") or "합성 금융 활동에서 파생된 피드입니다.", display_names)
             feed_items.append({
                 "feedId": f"feed-{persona_id}-{post['post_id']}",
                 "actorPersonaId": target,
                 "kind": feed_kind(post.get("post_type", "")),
-                "title": post.get("title") or "금융 루틴 업데이트",
-                "body": post.get("body") or "합성 금융 활동에서 파생된 피드입니다.",
-                "amount": extract_amount(post.get("body") or ""),
+                "title": title,
+                "body": body,
+                "amount": extract_amount(body),
             })
     return feed_items
 
