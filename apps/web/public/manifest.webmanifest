@@ -1,0 +1,17 @@
+{
+  "name": "FinMate",
+  "short_name": "FinMate",
+  "description": "로그인해서 금융 루틴, 미션, 기록, 포인트, 친구 피드를 관리하는 모바일 금융 습관 앱",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#704af4",
+  "icons": [
+    {
+      "src": "/assets/characters/finmate-main.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

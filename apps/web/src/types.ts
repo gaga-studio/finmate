@@ -9,6 +9,21 @@ export type ErrorResponse = {
   fieldErrors?: FieldError[]
 }
 
+export type UserMeResponse = {
+  userId: string
+  email: string
+  displayName: string
+  onboardingCompleted: boolean
+  pointBalance: number
+  virtualMoneyBalance: number
+}
+
+export type AuthResponse = {
+  user: UserMeResponse
+  accessToken: string
+  expiresAt: string
+}
+
 export type OnboardingDiagnosisResponse = {
   diagnosisId: string
   onboardingToken: string

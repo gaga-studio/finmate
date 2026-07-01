@@ -1,15 +1,26 @@
 package com.gagastudio.finmate.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gagastudio.finmate.api.auth.AuthService;
 import com.gagastudio.finmate.api.store.SeedStore;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -23,15 +34,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Testcontainers
 class FinmateApiApplicationTests {
     private static final String ONBOARDING_AUTH = "Bearer onb-token-001";
     private static final String ACCESS_AUTH = "Bearer demo-token";
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("finmate_test")
+            .withUsername("finmate")
+            .withPassword("finmate");
+
+    @DynamicPropertySource
+    static void registerDataSource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+    }
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private SeedStore seedStore;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void resetSeedState() {
@@ -43,6 +71,99 @@ class FinmateApiApplicationTests {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ok"));
+    }
+
+    @Test
+    void productMvpAuthOnboardingMissionPointsAndBirthdayFundWork() throws Exception {
+        String email = "user-" + UUID.randomUUID() + "@finmate.local";
+        MvcResult signup = mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "password": "password123!",
+                                  "displayName": "민준"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.email").value(email))
+                .andExpect(jsonPath("$.user.onboardingCompleted").value(false))
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(header().exists("Set-Cookie"))
+                .andReturn();
+
+        JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String accessToken = signupBody.get("accessToken").asText();
+        Cookie refreshCookie = refreshCookie(signup);
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("민준"))
+                .andExpect(jsonPath("$.pointBalance").value(2450));
+
+        mockMvc.perform(post("/api/users/me/onboarding")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "goalType": "EMERGENCY_FUND",
+                                  "moneyStyle": "안정 추구형",
+                                  "householdType": "1인가구",
+                                  "area": "서울 강남권"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onboardingCompleted").value(true));
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("home"))
+                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"));
+
+        mockMvc.perform(post("/api/ai/coach-results/fallback").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source").value("RULE_BASED_FALLBACK"))
+                .andExpect(jsonPath("$.recommendations", hasSize(3)));
+
+        mockMvc.perform(post("/api/app/missions/mission-food/feedback")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "DONE",
+                                  "note": "오늘 식비 목표 완료"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RECORDED"))
+                .andExpect(jsonPath("$.data.rewardPoints").value(120));
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pointBalance").value(2570));
+
+        mockMvc.perform(post("/api/app/birthday-funds/fund-jiwoo/contributions")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 5000,
+                                  "message": "생일 축하해!",
+                                  "anonymous": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.virtualMoneyBalance").value(95000));
+
+        mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(header().exists("Set-Cookie"));
+
+        mockMvc.perform(post("/api/auth/logout").cookie(refreshCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("LOGGED_OUT"));
     }
 
     @Test
@@ -435,5 +556,15 @@ class FinmateApiApplicationTests {
                     .andExpect(status().isOk())
                     .andExpect(header().string("Access-Control-Allow-Origin", origin));
         }
+    }
+
+    private Cookie refreshCookie(MvcResult result) {
+        String setCookie = result.getResponse().getHeader("Set-Cookie");
+        String prefix = AuthService.REFRESH_COOKIE + "=";
+        if (setCookie == null || !setCookie.startsWith(prefix)) {
+            throw new AssertionError("Missing refresh cookie");
+        }
+        String value = setCookie.substring(prefix.length(), setCookie.indexOf(';'));
+        return new Cookie(AuthService.REFRESH_COOKIE, value);
     }
 }

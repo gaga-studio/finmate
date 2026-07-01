@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError, api } from './api'
-import { clearSession, saveSession } from './session'
+import { clearSession, getSession, saveSession, type FinMateSession } from './session'
 import type { AppAction, AppItem, AppMetric, AppScreenResponse, AppSection } from './types'
 import './App.css'
 
@@ -8,6 +8,8 @@ type Navigate = (path: string) => void
 type TabKey = 'home' | 'compare' | 'mission' | 'records' | 'profile'
 
 type Route =
+  | { name: 'login' }
+  | { name: 'signup' }
   | { name: 'onboarding' }
   | { name: 'screen'; screen: ScreenKey; param?: string }
   | { name: 'birthday-contribution'; fundId: string }
@@ -59,7 +61,16 @@ const tabItems: Array<{ key: TabKey; label: string; icon: IconName; path: string
 function parseRoute(pathname: string): Route {
   const parts = pathname.split('/').filter(Boolean)
 
-  if (parts.length === 0 || parts[0] === 'onboarding') {
+  if (parts.length === 0) {
+    return { name: 'login' }
+  }
+  if (parts[0] === 'login') {
+    return { name: 'login' }
+  }
+  if (parts[0] === 'signup') {
+    return { name: 'signup' }
+  }
+  if (parts[0] === 'onboarding') {
     return { name: 'onboarding' }
   }
   if (parts[0] === 'home') {
@@ -161,22 +172,98 @@ function usePathname(): [string, Navigate] {
 
 function App() {
   const [pathname, navigate] = usePathname()
+  const [session, setSession] = useState<FinMateSession>(() => getSession())
+  const [refreshing, setRefreshing] = useState(() => {
+    const currentSession = getSession()
+    return !currentSession.accessToken && currentSession.canRefresh === true
+  })
   const route = useMemo(() => parseRoute(pathname), [pathname])
   const activeTab = getActiveTab(route)
+
+  useEffect(() => {
+    const handleSessionChange = () => setSession(getSession())
+    window.addEventListener('finmate-session-change', handleSessionChange)
+    return () => window.removeEventListener('finmate-session-change', handleSessionChange)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    if (session.accessToken || session.canRefresh !== true) {
+      setRefreshing(false)
+      return () => {
+        active = false
+      }
+    }
+    api.refresh()
+      .then((response) => {
+        if (active) {
+          saveSession({ accessToken: response.accessToken, expiresAt: response.expiresAt, user: response.user })
+        }
+      })
+      .catch(() => {
+        if (active) {
+          clearSession()
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setRefreshing(false)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [session.accessToken, session.canRefresh])
+
+  const handleAuth = (next: FinMateSession, target: string) => {
+    saveSession(next)
+    setSession(getSession())
+    navigate(target)
+  }
+
+  if (refreshing && route.name !== 'login' && route.name !== 'signup') {
+    return (
+      <div className="app-canvas">
+        <div className="phone-shell">
+          <main className="app-main"><LoadingScreen /></main>
+        </div>
+      </div>
+    )
+  }
+
+  if (route.name === 'login') {
+    return <AuthShell><AuthPage mode="login" onAuth={handleAuth} navigate={navigate} session={session} /></AuthShell>
+  }
+  if (route.name === 'signup') {
+    return <AuthShell><AuthPage mode="signup" onAuth={handleAuth} navigate={navigate} session={session} /></AuthShell>
+  }
+  if (!session.accessToken) {
+    return <AuthShell><AuthPage mode="login" onAuth={handleAuth} navigate={navigate} session={session} /></AuthShell>
+  }
 
   return (
     <div className="app-canvas">
       <div className="phone-shell">
-        <main className="app-main">{renderRoute(route, pathname, navigate)}</main>
+        <main className="app-main">{renderRoute(route, pathname, navigate, session)}</main>
         {route.name !== 'onboarding' ? <BottomNav active={activeTab} navigate={navigate} /> : null}
       </div>
     </div>
   )
 }
 
-function renderRoute(route: Route, pathname: string, navigate: Navigate): ReactNode {
+function AuthShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="app-canvas">
+      <div className="phone-shell">
+        <main className="app-main">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+function renderRoute(route: Route, pathname: string, navigate: Navigate, session: FinMateSession): ReactNode {
   if (route.name === 'onboarding') {
-    return <OnboardingPage navigate={navigate} />
+    return <OnboardingPage navigate={navigate} session={session} />
   }
   if (route.name === 'birthday-contribution') {
     return <BirthdayContributionPage fundId={route.fundId} navigate={navigate} />
@@ -213,6 +300,92 @@ function getActiveTab(route: Route): TabKey {
     return 'profile'
   }
   return 'home'
+}
+
+function AuthPage({
+  mode,
+  onAuth,
+  navigate,
+  session,
+}: {
+  mode: 'login' | 'signup'
+  onAuth: (session: FinMateSession, target: string) => void
+  navigate: Navigate
+  session: FinMateSession
+}) {
+  const [email, setEmail] = useState(mode === 'signup' ? '' : 'minjun@finmate.local')
+  const [password, setPassword] = useState(mode === 'signup' ? '' : 'password123!')
+  const [displayName, setDisplayName] = useState('민준')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isSignup = mode === 'signup'
+
+  const submit = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const response = isSignup
+        ? await api.signup(email, password, displayName)
+        : await api.login(email, password)
+      onAuth(
+        { accessToken: response.accessToken, expiresAt: response.expiresAt, user: response.user },
+        response.user.onboardingCompleted ? '/home' : '/onboarding',
+      )
+    } catch (caught) {
+      setError(describeError(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (session.accessToken && session.user) {
+    return (
+      <div className="screen auth-screen">
+        <StatusBar time="9:41" />
+        <section className="auth-hero">
+          <img src="/assets/characters/finmate-main.png" alt="" />
+          <h1>{session.user.displayName}님, 다시 시작할까요?</h1>
+          <p>저장된 계정으로 금융 루틴 앱을 이어서 사용할 수 있어요.</p>
+        </section>
+        <button className="app-button primary" type="button" onClick={() => navigate(session.user?.onboardingCompleted ? '/home' : '/onboarding')}>앱으로 돌아가기</button>
+        <button className="app-button secondary" type="button" onClick={() => { clearSession(); navigate('/login') }}>다른 계정으로 로그인</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="screen auth-screen">
+      <StatusBar time="9:41" />
+      <section className="auth-hero">
+        <img src="/assets/characters/finmate-main.png" alt="" />
+        <h1>{isSignup ? 'FinMate 시작하기' : 'FinMate 로그인'}</h1>
+        <p>계정으로 미션, 기록, 포인트, 친구 금융 생활을 안전하게 저장해요.</p>
+      </section>
+      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+        {isSignup ? (
+          <label>
+            이름
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
+          </label>
+        ) : null}
+        <label>
+          이메일
+          <input value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" />
+        </label>
+        <label>
+          비밀번호
+          <input value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={isSignup ? 'new-password' : 'current-password'} type="password" />
+        </label>
+        {error ? <p className="error-copy">{error}</p> : null}
+        <button className="app-button primary" type="submit" disabled={busy}>
+          {busy ? '처리 중' : isSignup ? '회원가입' : '로그인'}
+        </button>
+      </form>
+      <button className="text-link" type="button" onClick={() => navigate(isSignup ? '/login' : '/signup')}>
+        {isSignup ? '이미 계정이 있어요' : '처음이라면 회원가입'}
+      </button>
+    </div>
+  )
 }
 
 function AppScreenPage({
@@ -739,6 +912,10 @@ function ActionButton({ action, navigate }: { action: AppAction; navigate: Navig
         navigate('/birthday-funds/me/status')
       } else if (action.intent === 'mission-feedback') {
         navigate(action.path)
+      } else if (action.intent === 'logout') {
+        await api.logout()
+        clearSession()
+        navigate('/login')
       } else {
         navigate(action.path)
       }
@@ -811,8 +988,37 @@ function MissionFeedbackPage({ missionId, navigate }: { missionId: string; navig
     let active = true
     async function submit() {
       try {
-        await api.submitAppMissionFeedback(missionId)
-        const screen = await api.getAppMission('feedback')
+        const result = await api.submitAppMissionFeedback(missionId)
+        const screen: AppScreenResponse = {
+          screenId: 'missions:feedback',
+          title: '오늘 실천 피드백',
+          tab: 'mission',
+          statusBarTime: '9:41',
+          heroAsset: '/assets/characters/finmate-growth.png',
+          sections: [
+            {
+              id: 'feedback',
+              kind: 'coach',
+              title: result.title,
+              subtitle: result.message,
+              heroAsset: '/assets/characters/finmate-growth.png',
+              metrics: [
+                {
+                  label: '오늘의 포인트',
+                  value: `+${String(result.data.rewardPoints ?? 0)}P`,
+                  caption: '포인트 지갑에 저장됨',
+                  tone: 'purple',
+                  progress: 100,
+                },
+              ],
+              actions: [
+                { label: '기록 완료', path: '/records/history', method: 'GET', tone: 'primary' },
+                { label: '다음 목표 보기', path: '/missions/next-goals', method: 'GET', tone: 'secondary' },
+              ],
+            },
+          ],
+          meta: result.data,
+        }
         if (active) {
           setState({ status: 'success', screen })
         }
@@ -868,11 +1074,11 @@ function NotFoundPage({ navigate }: { navigate: Navigate }) {
   )
 }
 
-function OnboardingPage({ navigate }: { navigate: Navigate }) {
+function OnboardingPage({ navigate, session }: { navigate: Navigate; session: FinMateSession }) {
   const [steps, setSteps] = useState<OnboardingStep[]>([
-    { label: '상태 선택', status: 'pending', detail: '학생/알바 기준 데모' },
-    { label: '합성 MyData 연결', status: 'pending', detail: 'mock 금융 데이터' },
-    { label: '공개 범위 확인', status: 'pending', detail: '익명 포트폴리오' },
+    { label: '목표 설정', status: 'pending', detail: '비상금 1개월 만들기' },
+    { label: '생활 기준 저장', status: 'pending', detail: '1인가구 · 안정 추구형' },
+    { label: '기본 금융 루틴 준비', status: 'pending', detail: '미션, 기록, 포인트 지갑 생성' },
     { label: '앱 시작', status: 'pending', detail: '5탭 경험으로 이동' },
   ])
   const [error, setError] = useState<string | null>(null)
@@ -883,20 +1089,18 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
 
   const start = async () => {
     setError(null)
-    clearSession()
     try {
       updateStep(0, 'loading')
-      const diagnosis = await api.createDiagnosis()
+      await new Promise((resolve) => window.setTimeout(resolve, 180))
       updateStep(0, 'done')
       updateStep(1, 'loading')
-      const consent = await api.createMockConsent(diagnosis.onboardingToken, diagnosis.diagnosisId)
+      await new Promise((resolve) => window.setTimeout(resolve, 180))
       updateStep(1, 'done')
       updateStep(2, 'loading')
-      await api.createPrivacyConsents(diagnosis.onboardingToken)
+      const user = await api.completeOnboarding()
       updateStep(2, 'done')
       updateStep(3, 'loading')
-      const session = await api.createDemoSession(diagnosis.onboardingToken, diagnosis.diagnosisId, consent.mydataConnectionId)
-      saveSession(session)
+      saveSession({ user })
       updateStep(3, 'done')
       navigate('/home')
     } catch (caught) {
@@ -909,8 +1113,8 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
       <StatusBar time="9:41" />
       <section className="onboarding-hero">
         <img src="/assets/characters/finmate-main.png" alt="" />
-        <h1>나에게 맞는 금융 루틴 찾기</h1>
-        <p>합성 데이터 기반 데모로 홈, 비교, 미션, 기록, 프로필 흐름을 확인해요.</p>
+        <h1>{session.user?.displayName ?? 'FinMate'}님의 금융 루틴을 준비할게요</h1>
+        <p>미션, 기록, 포인트 지갑, 친구 피드를 계정에 저장해 실제 앱처럼 이어서 사용할 수 있어요.</p>
       </section>
       <div className="onboarding-steps">
         {steps.map((step) => (

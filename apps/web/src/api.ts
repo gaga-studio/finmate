@@ -1,4 +1,5 @@
 import type {
+  AuthResponse,
   AppActionResultResponse,
   AppScreenResponse,
   ComparisonResponse,
@@ -13,7 +14,9 @@ import type {
   PrivacySettingsResponse,
   PrivacyWithdrawResponse,
   SimulationResponse,
+  UserMeResponse,
 } from './types'
+import { accessToken } from './session'
 
 type BirthdayContributionPayload = {
   amount: number
@@ -54,8 +57,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (options.body !== undefined) {
     headers.set('Content-Type', 'application/json')
   }
-  if (options.token) {
-    headers.set('Authorization', `Bearer ${options.token}`)
+  const bearer = options.token ?? accessToken()
+  if (bearer) {
+    headers.set('Authorization', `Bearer ${bearer}`)
   }
   if (options.idempotencyKey) {
     headers.set('Idempotency-Key', options.idempotencyKey)
@@ -64,6 +68,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     headers,
+    credentials: 'include',
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   })
   const text = await response.text()
@@ -128,12 +133,37 @@ export const p0Payloads = {
   }),
 }
 
-const DEMO_ACCESS_TOKEN = 'demo-token'
-
-const appToken = (token?: string) => token ?? DEMO_ACCESS_TOKEN
-
 export const api = {
   health: () => request<{ status: string }>('/health'),
+  signup: (email: string, password: string, displayName: string) =>
+    request<AuthResponse>('/api/auth/signup', {
+      method: 'POST',
+      body: { email, password, displayName },
+    }),
+  login: (email: string, password: string) =>
+    request<AuthResponse>('/api/auth/login', {
+      method: 'POST',
+      body: { email, password },
+    }),
+  refresh: () =>
+    request<AuthResponse>('/api/auth/refresh', {
+      method: 'POST',
+    }),
+  logout: () =>
+    request<{ status: string }>('/api/auth/logout', {
+      method: 'POST',
+    }),
+  me: () => request<UserMeResponse>('/api/users/me'),
+  completeOnboarding: () =>
+    request<UserMeResponse>('/api/users/me/onboarding', {
+      method: 'POST',
+      body: {
+        goalType: 'EMERGENCY_FUND',
+        moneyStyle: '안정 추구형',
+        householdType: '1인가구',
+        area: '서울 강남권',
+      },
+    }),
   createDiagnosis: () =>
     request<OnboardingDiagnosisResponse>('/api/onboarding/diagnosis', {
       method: 'POST',
@@ -212,17 +242,17 @@ export const api = {
       },
     }),
   getAppHome: (token?: string) =>
-    request<AppScreenResponse>('/api/app/home', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/home', { token }),
   getAppHomeDetail: (detail: string, token?: string) =>
-    request<AppScreenResponse>(`/api/app/home/${detail}`, { token: appToken(token) }),
+    request<AppScreenResponse>(`/api/app/home/${detail}`, { token }),
   getAppCompare: (token?: string) =>
-    request<AppScreenResponse>('/api/app/compare', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/compare', { token }),
   getAppCompareFilter: (token?: string) =>
-    request<AppScreenResponse>('/api/app/compare/filter', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/compare/filter', { token }),
   searchAppCompareFilter: (token?: string) =>
     request<AppScreenResponse>('/api/app/compare/filter/search', {
       method: 'POST',
-      token: appToken(token),
+      token,
       body: {
         ageBand: '20대',
         incomeBand: '3,000만원 ~ 4,000만원',
@@ -233,34 +263,34 @@ export const api = {
     }),
   getAppCompareResult: (comparisonId = 'cmp-001', token?: string) =>
     request<AppScreenResponse>(`/api/app/compare/results/${comparisonId}`, {
-      token: appToken(token),
+      token,
     }),
   getAppCoachFlow: (comparisonId = 'cmp-001', token?: string) =>
     request<AppScreenResponse>(`/api/app/compare/${comparisonId}/coach-flow`, {
-      token: appToken(token),
+      token,
     }),
   getAppMissions: (token?: string) =>
-    request<AppScreenResponse>('/api/app/missions', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/missions', { token }),
   getAppMission: (missionId: string, token?: string) =>
-    request<AppScreenResponse>(`/api/app/missions/${missionId}`, { token: appToken(token) }),
+    request<AppScreenResponse>(`/api/app/missions/${missionId}`, { token }),
   submitAppMissionFeedback: (missionId: string, token?: string) =>
     request<AppActionResultResponse>(`/api/app/missions/${missionId}/feedback`, {
       method: 'POST',
-      token: appToken(token),
+      token,
       body: { status: 'DONE', note: '오늘 목표를 완료했어요.' },
     }),
   getAppRecords: (month = '2026-06', token?: string) =>
-    request<AppScreenResponse>(`/api/app/records?month=${month}`, { token: appToken(token) }),
+    request<AppScreenResponse>(`/api/app/records?month=${month}`, { token }),
   getAppRecordDetail: (date: string, token?: string) =>
-    request<AppScreenResponse>(`/api/app/records/${date}`, { token: appToken(token) }),
+    request<AppScreenResponse>(`/api/app/records/${date}`, { token }),
   getAppProfile: (token?: string) =>
-    request<AppScreenResponse>('/api/app/profile', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/profile', { token }),
   getAppProfileSection: (section: string, token?: string) =>
-    request<AppScreenResponse>(`/api/app/profile/sections/${section}`, { token: appToken(token) }),
+    request<AppScreenResponse>(`/api/app/profile/sections/${section}`, { token }),
   getAppBirthdays: (token?: string) =>
-    request<AppScreenResponse>('/api/app/birthdays', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/birthdays', { token }),
   getAppBirthdayFlow: (birthdayId: string, token?: string) =>
-    request<AppScreenResponse>(`/api/app/birthdays/${birthdayId}/flow`, { token: appToken(token) }),
+    request<AppScreenResponse>(`/api/app/birthdays/${birthdayId}/flow`, { token }),
   contributeBirthdayFund: (
     fundId: string,
     payload: BirthdayContributionPayload = {
@@ -272,27 +302,27 @@ export const api = {
   ) =>
     request<AppActionResultResponse>(`/api/app/birthday-funds/${fundId}/contributions`, {
       method: 'POST',
-      token: appToken(token),
+      token,
       body: payload,
     }),
   getBirthdayContributionComplete: (fundId: string, token?: string) =>
     request<AppScreenResponse>(`/api/app/birthday-funds/${fundId}/complete`, {
-      token: appToken(token),
+      token,
     }),
   getMyBirthdayFundOpenScreen: (token?: string) =>
-    request<AppScreenResponse>('/api/app/birthday-funds/me/open', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/birthday-funds/me/open', { token }),
   openMyBirthdayFund: (token?: string) =>
     request<AppActionResultResponse>('/api/app/birthday-funds/me/open', {
       method: 'POST',
-      token: appToken(token),
+      token,
     }),
   getMyBirthdayFundShareScreen: (token?: string) =>
-    request<AppScreenResponse>('/api/app/birthday-funds/me/share', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/birthday-funds/me/share', { token }),
   shareMyBirthdayFund: (token?: string) =>
     request<AppActionResultResponse>('/api/app/birthday-funds/me/share', {
       method: 'POST',
-      token: appToken(token),
+      token,
     }),
   getMyBirthdayFundStatus: (token?: string) =>
-    request<AppScreenResponse>('/api/app/birthday-funds/me/status', { token: appToken(token) }),
+    request<AppScreenResponse>('/api/app/birthday-funds/me/status', { token }),
 }
