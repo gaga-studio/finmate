@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const apiUrl = process.env.PLAYWRIGHT_API_URL ?? 'http://localhost:8080'
 
-test('signup to birthday fund product flow works end to end', async ({ context, page, request }) => {
+test('empty signup state and seeded birthday fund product flow work end to end', async ({ context, page, request }) => {
   const reset = await request.post(`${apiUrl}/api/dev/reset`)
   expect(reset.ok()).toBeTruthy()
 
@@ -46,12 +46,40 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
 
   await expect(page).toHaveURL(/\/home/)
   await expect(page.getByRole('heading', { name: /민준님, 좋은 아침이에요/ })).toBeVisible()
+  await expect(page.getByText('아직 진행 중인 미션이 없어요')).toBeVisible()
+  await expect(page.getByText('오늘 예산을 아직 등록하지 않았어요')).toBeVisible()
+  await expect(page.getByText('아직 팔로잉한 친구가 없어요')).toBeVisible()
+  await expect(page.getByRole('button', { name: '축하 펀드 참여하기' })).toHaveCount(0)
   await expectNoTechnicalCopy(page)
   await expectBottomTabs(page)
 
   await page.reload()
   await expect(page.getByRole('heading', { name: /민준님, 좋은 아침이에요/ })).toBeVisible()
 
+  await page.getByRole('button', { name: '프로필' }).click()
+  await expect(page).toHaveURL(/\/profile/)
+  await page.getByRole('button', { name: '로그아웃' }).click()
+  await expect(page).toHaveURL(/\/login/)
+
+  const bootstrap = await request.post(`${apiUrl}/api/dev/bootstrap-test-account`, {
+    data: {
+      email: 'minjun@finmate.local',
+      password: 'password123!',
+      displayName: '민준',
+      includeBirthdayEvent: true,
+    },
+  })
+  expect(bootstrap.ok()).toBeTruthy()
+
+  await page.getByRole('textbox', { name: '이메일' }).fill('minjun@finmate.local')
+  await page.getByRole('textbox', { name: '비밀번호' }).fill('password123!')
+  await page.getByRole('button', { name: '로그인' }).click()
+  await expect(page).toHaveURL(/\/home/)
+  await expect(page.getByText('내일 식비 10,000원 이하 사용하기')).toBeVisible()
+  await expect(page.getByRole('button', { name: '축하 펀드 참여하기' })).toBeVisible()
+
+  await page.getByRole('button', { name: '미션', exact: true }).click()
+  await expect(page).toHaveURL(/\/missions/)
   await page.getByRole('button', { name: /오늘 실천 기록하기/ }).click()
   await expect(page).toHaveURL(/\/missions\/mission-food\/feedback/)
   await expect(page.getByText('+120P')).toBeVisible()

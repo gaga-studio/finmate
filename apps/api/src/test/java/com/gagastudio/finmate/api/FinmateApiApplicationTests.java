@@ -3,6 +3,7 @@ package com.gagastudio.finmate.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gagastudio.finmate.api.auth.AuthService;
+import com.gagastudio.finmate.api.auth.JwtService;
 import com.gagastudio.finmate.api.store.SeedStore;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +68,9 @@ class FinmateApiApplicationTests {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private JwtService jwtService;
+
     @BeforeEach
     void resetSeedState() {
         seedStore.reset();
@@ -80,7 +84,7 @@ class FinmateApiApplicationTests {
     }
 
     @Test
-    void productMvpAuthOnboardingMissionPointsAndBirthdayFundWork() throws Exception {
+    void productMvpAuthOnboardingStartsWithEmptyUserState() throws Exception {
         String email = "user-" + UUID.randomUUID() + "@finmate.local";
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -106,7 +110,7 @@ class FinmateApiApplicationTests {
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("민준"))
-                .andExpect(jsonPath("$.pointBalance").value(2450));
+                .andExpect(jsonPath("$.pointBalance").value(0));
 
         mockMvc.perform(post("/api/users/me/onboarding")
                         .header("Authorization", "Bearer " + accessToken)
@@ -143,63 +147,39 @@ class FinmateApiApplicationTests {
         mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
-                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"));
+                .andExpect(jsonPath("$.sections[0].title").value("민준님, 좋은 아침이에요!"))
+                .andExpect(jsonPath("$.sections[1].id").value("mission-empty"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget-empty"))
+                .andExpect(jsonPath("$.sections[4].id").value("asset-empty"));
+
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM missions WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM daily_records WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM financial_snapshots WHERE user_id = ?", Integer.class, userId));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM friendships WHERE follower_id = ?", Integer.class, userId));
 
         mockMvc.perform(post("/api/ai/coach-results/fallback").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.source").value("RULE_BASED_FALLBACK"))
-                .andExpect(jsonPath("$.recommendations", hasSize(3)));
+                .andExpect(jsonPath("$.source").value("USER_STATE"))
+                .andExpect(jsonPath("$.recommendations", hasSize(0)));
 
-        mockMvc.perform(get("/api/app/missions/mission-fixed-cost").header("Authorization", "Bearer " + accessToken))
+        mockMvc.perform(get("/api/app/missions").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.screenId").value("missions:mission-fixed-cost"))
-                .andExpect(jsonPath("$.sections[0].title").value("고정 지출 5% 줄이기"));
+                .andExpect(jsonPath("$.screenId").value("missions"))
+                .andExpect(jsonPath("$.sections[0].id").value("mission-empty"));
+
+        mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("records:2026-06"))
+                .andExpect(jsonPath("$.sections[1].id").value("record-empty"));
+
+        mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.screenId").value("compare"))
+                .andExpect(jsonPath("$.sections[1].id").value("compare-empty"));
 
         mockMvc.perform(get("/api/app/missions/not-a-mission").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MISSION_NOT_FOUND"));
-
-        mockMvc.perform(post("/api/app/missions/mission-food/feedback")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "status": "DONE",
-                                  "note": "오늘 식비 목표 완료"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("RECORDED"))
-                .andExpect(jsonPath("$.data.rewardPoints").value(120));
-
-        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pointBalance").value(2570));
-
-        mockMvc.perform(get("/api/app/missions/next-goals").header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.screenId").value("missions:next-goals"))
-                .andExpect(jsonPath("$.title").value("다음 목표 제안"));
-
-        mockMvc.perform(get("/api/app/profile/sections/points").header("Authorization", "Bearer " + accessToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.screenId").value("profile:points"))
-                .andExpect(jsonPath("$.sections[0].title").value("포인트 지갑"))
-                .andExpect(jsonPath("$.sections[1].title").value("최근 포인트 기록"));
-
-        mockMvc.perform(post("/api/app/birthday-funds/fund-jiwoo/contributions")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "amount": 5000,
-                                  "message": "생일 축하해!",
-                                  "anonymous": false
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.virtualMoneyBalance").value(95000));
 
         mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isOk())
@@ -258,6 +238,35 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
                 .andExpect(jsonPath("$.sections[0].title").value("jinn님, 좋은 아침이에요!"));
+    }
+
+    @Test
+    void developmentBootstrapTestAccountSeedsReferenceDemoData() throws Exception {
+        MvcResult bootstrap = mockMvc.perform(post("/api/dev/bootstrap-test-account")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "minjun@finmate.local",
+                                  "password": "password123!",
+                                  "displayName": "민준",
+                                  "includeBirthdayEvent": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.email").value("minjun@finmate.local"))
+                .andExpect(jsonPath("$.user.onboardingCompleted").value(true))
+                .andExpect(jsonPath("$.user.pointBalance").value(2450))
+                .andReturn();
+
+        String accessToken = objectMapper.readTree(bootstrap.getResponse().getContentAsString()).get("accessToken").asText();
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("birthday-alert"))
+                .andExpect(jsonPath("$.sections[4].id").value("spending"))
+                .andExpect(jsonPath("$.sections[5].id").value("asset"));
     }
 
     @Test
@@ -424,7 +433,9 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("home"))
                 .andExpect(jsonPath("$.sections[0].kind").value("greeting"))
-                .andExpect(jsonPath("$.sections[1].id").value("birthday-alert"));
+                .andExpect(jsonPath("$.sections[1].id").value("mission-hero"))
+                .andExpect(jsonPath("$.sections[2].id").value("budget"))
+                .andExpect(jsonPath("$.sections[3].id").value("birthday-alert"));
 
         mockMvc.perform(get("/api/app/home/budget").header("Authorization", ACCESS_AUTH))
                 .andExpect(status().isOk())
@@ -568,6 +579,15 @@ class FinmateApiApplicationTests {
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 
         mockMvc.perform(get("/api/home").header("Authorization", "Bearer wrong-access-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void rejectsAccessTokenForUserMissingFromDatabase() throws Exception {
+        String accessToken = jwtService.issue("user-missing-from-db").token();
+
+        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }

@@ -8,10 +8,10 @@
   --color-muted-soft: #8F92A3;
   --color-border: #E7E8EF;
   --color-border-strong: #D9DBE7;
-  --color-primary: #007A68;
-  --color-primary-strong: #005D51;
-  --color-primary-soft: #E7F6F2;
-  --color-primary-border: #CBECE4;
+  --color-primary: #6546E8;
+  --color-primary-strong: #4E34C4;
+  --color-primary-soft: #F1EEFF;
+  --color-primary-border: #DED7FF;
   --color-success: #149E61;
   --color-success-soft: #E8F7F0;
   --color-success-strong: #026B3F;
@@ -24,7 +24,7 @@
   --color-danger-soft: #FFF0F0;
   --color-track: #EEF0F6;
   --color-track-strong: #BFC3D4;
-  --color-focus: rgba(0, 122, 104, 0.16);
+  --color-focus: rgba(101, 70, 232, 0.16);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -40,7 +40,7 @@
   --radius-lg: 18px;
   --radius-xl: 24px;
   --shadow-card: 0 1px 2px rgba(16, 17, 20, 0.04), 0 10px 30px rgba(16, 17, 20, 0.06);
-  --shadow-button: 0 8px 18px rgba(0, 122, 104, 0.18);
+  --shadow-button: 0 8px 18px rgba(101, 70, 232, 0.18);
   --shadow-shell: 0 28px 90px rgba(18, 18, 31, 0.14);
   --motion-fast: 150ms cubic-bezier(.2, .8, .2, 1);
   --motion-base: 220ms cubic-bezier(.2, .8, .2, 1);

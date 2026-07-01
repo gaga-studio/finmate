@@ -336,6 +336,14 @@ public final class ApiDtos {
     ) {
     }
 
+    public record DevBootstrapTestAccountRequest(
+            @Email @NotBlank String email,
+            @Size(min = 8, max = 72) String password,
+            @NotBlank String displayName,
+            Boolean includeBirthdayEvent
+    ) {
+    }
+
     public record AuthResponse(
             UserMeResponse user,
             String accessToken,

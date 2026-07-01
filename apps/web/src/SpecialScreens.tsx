@@ -49,9 +49,13 @@ export function BirthdayContributionPage({ fundId, navigate }: { fundId: string;
           </div>
           <label className="field-label" htmlFor="birthday-message">축하 메시지</label>
           <textarea id="birthday-message" value={message} onChange={(event) => setMessage(event.target.value)} />
-          <label className="toggle-row">
-            <span>익명으로 참여하기</span>
+          <label className={`switch-row ${anonymous ? 'checked' : ''}`}>
+            <span>
+              익명으로 참여하기
+              <small>친구 피드에는 이름 없이 금액만 표시돼요.</small>
+            </span>
             <input type="checkbox" checked={anonymous} onChange={(event) => setAnonymous(event.target.checked)} />
+            <i aria-hidden="true" />
           </label>
           <button className="app-button primary" type="button" disabled={busy} onClick={() => { void submit() }}>
             {busy ? '참여 중' : '다음'}

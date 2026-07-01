@@ -146,6 +146,12 @@ function toIconName(icon: string): IconName {
     'avatar-j': 'profile',
     'avatar-m': 'profile',
     'avatar-t': 'profile',
+    feed: 'check',
+    lock: 'settings',
+    records: 'calendar',
+    target: 'check-square',
+    wallet: 'saving',
+    work: 'profile',
     piggy: 'saving',
   }
   const mapped = iconMap[icon] ?? icon

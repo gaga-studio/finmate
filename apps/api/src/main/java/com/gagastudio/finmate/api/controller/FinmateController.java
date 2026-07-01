@@ -58,6 +58,15 @@ public class FinmateController {
         return Map.of("status", "RESET");
     }
 
+    @PostMapping("/api/dev/bootstrap-test-account")
+    public ResponseEntity<AuthResponse> bootstrapTestAccount(@Valid @RequestBody DevBootstrapTestAccountRequest request) {
+        if (!devToolsEnabled) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found.");
+        }
+        AuthService.AuthResult result = authService.bootstrapTestAccount(request);
+        return authResponse(result);
+    }
+
     @PostMapping("/api/auth/signup")
     public ResponseEntity<AuthResponse> signup(@Valid @RequestBody AuthSignupRequest request) {
         AuthService.AuthResult result = authService.signup(request);

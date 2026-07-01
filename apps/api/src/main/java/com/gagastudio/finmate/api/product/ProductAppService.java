@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,14 +47,9 @@ public class ProductAppService implements FinancialDataProvider {
                 VALUES (?, ?, 'seed-user', ?, TRUE)
                 ON CONFLICT (id) DO NOTHING
                 """, userId, userId + "@finmate.local", displayName);
-        insertSeedFriend("friend-jiwoo", "jiwoo@finmate.local", "지우");
-        insertSeedFriend("friend-minsu", "minsu@finmate.local", "민수");
-        insertSeedFriend("friend-seoyeon", "seoyeon@finmate.local", "서연");
-        insertSeedFriend("friend-jaehun", "jaehun@finmate.local", "재훈");
-
         jdbc.update("""
-                INSERT INTO user_profiles (user_id, age_band, income_band, job_category, household_type, money_style, area, goal_type)
-                VALUES (?, '20대', '3,000만원 ~ 4,000만원', 'IT/개발', '1인가구', '안정 추구형', '서울 강남권', 'EMERGENCY_FUND')
+                INSERT INTO user_profiles (user_id)
+                VALUES (?)
                 ON CONFLICT (user_id) DO NOTHING
                 """, userId);
         jdbc.update("""
@@ -63,8 +59,56 @@ public class ProductAppService implements FinancialDataProvider {
                 """, userId);
         jdbc.update("""
                 INSERT INTO point_wallets (user_id, point_balance, virtual_money_balance)
-                VALUES (?, 2450, 100000)
+                VALUES (?, 0, 100000)
                 ON CONFLICT (user_id) DO NOTHING
+                """, userId);
+    }
+
+    @Transactional
+    public void bootstrapDemoUserData(String userId, String displayName, boolean includeBirthdayEvent) {
+        bootstrapUser(userId, displayName);
+        clearUserRuntimeData(userId);
+        insertSeedFriend("friend-jiwoo", "jiwoo@finmate.local", "지우");
+        insertSeedFriend("friend-minsu", "minsu@finmate.local", "민수");
+        insertSeedFriend("friend-seoyeon", "seoyeon@finmate.local", "서연");
+        insertSeedFriend("friend-jaehun", "jaehun@finmate.local", "재훈");
+
+        jdbc.update("""
+                UPDATE users
+                SET display_name = ?,
+                    onboarding_completed = TRUE,
+                    updated_at = now()
+                WHERE id = ?
+                """, displayName, userId);
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id, age_band, income_band, job_category, household_type, money_style, area, goal_type)
+                VALUES (?, '20대 후반', '3,000만원 ~ 4,000만원', 'IT/개발', '1인가구', '안정 추구형', '서울 강남권', 'EMERGENCY_FUND')
+                ON CONFLICT (user_id) DO UPDATE SET
+                  age_band = EXCLUDED.age_band,
+                  income_band = EXCLUDED.income_band,
+                  job_category = EXCLUDED.job_category,
+                  household_type = EXCLUDED.household_type,
+                  money_style = EXCLUDED.money_style,
+                  area = EXCLUDED.area,
+                  goal_type = EXCLUDED.goal_type,
+                  updated_at = now()
+                """, userId);
+        jdbc.update("""
+                INSERT INTO privacy_settings (user_id, anonymous_portfolio_opt_in, friend_share_default, exposed_fields)
+                VALUES (?, TRUE, 'MISSION_ONLY', 'ageBand,goalType,financialSummary,missionStatus')
+                ON CONFLICT (user_id) DO UPDATE SET
+                  anonymous_portfolio_opt_in = EXCLUDED.anonymous_portfolio_opt_in,
+                  friend_share_default = EXCLUDED.friend_share_default,
+                  exposed_fields = EXCLUDED.exposed_fields,
+                  updated_at = now()
+                """, userId);
+        jdbc.update("""
+                INSERT INTO point_wallets (user_id, point_balance, virtual_money_balance)
+                VALUES (?, 2450, 100000)
+                ON CONFLICT (user_id) DO UPDATE SET
+                  point_balance = EXCLUDED.point_balance,
+                  virtual_money_balance = EXCLUDED.virtual_money_balance,
+                  updated_at = now()
                 """, userId);
         jdbc.update("""
                 INSERT INTO financial_snapshots (
@@ -73,7 +117,7 @@ public class ProductAppService implements FinancialDataProvider {
                 )
                 VALUES (?, ?, '2026-06', 3200000, 1680000, 620000, 1200000, 400000, 0.4, ?, '식비절약,비상금,또래비교')
                 ON CONFLICT (user_id, month) DO NOTHING
-                """, "snapshot-" + userId, userId, json(Map.of("식비", 6200, "교통비", 1200, "카페/간식", 600, "기타", 1800)));
+                """, "snapshot-" + userId, userId, json(demoCategorySpending()));
 
         upsertMission(userId, "mission-food", "내일 식비 10,000원 이하 사용하기", "하루 식비를 낮춰 남는 금액을 비상금으로 옮겨요.", "ACTIVE", "EASY", 120, 78, "RULE_BASED_FALLBACK");
         upsertMission(userId, "mission-cafe", "카페 지출 줄이기", "이번 주 카페 2회 이하 이용", "ACTIVE", "EASY", 100, 50, "RULE_BASED_FALLBACK");
@@ -84,7 +128,7 @@ public class ProductAppService implements FinancialDataProvider {
                 INSERT INTO daily_records (id, user_id, record_date, budget, spent, category_spending_json, mission_status, point_delta)
                 VALUES (?, ?, DATE '2026-06-12', 10000, 7800, ?, 'IN_PROGRESS', 0)
                 ON CONFLICT (user_id, record_date) DO NOTHING
-                """, "record-" + userId + "-2026-06-12", userId, json(Map.of("식비", 6200, "교통비", 1200, "카페/간식", 600, "기타", 1800)));
+                """, "record-" + userId + "-2026-06-12", userId, json(demoCategorySpending()));
 
         upsertFriendship(userId, "friend-jiwoo");
         upsertFriendship(userId, "friend-minsu");
@@ -92,13 +136,41 @@ public class ProductAppService implements FinancialDataProvider {
         upsertFriendship(userId, "friend-jaehun");
         upsertFeed(userId, "feed-" + userId + "-1", "friend-minsu", "MISSION", "민수가 카페 지출 줄이기를 완료했어요", "이번 주 카페 2회 이하 미션 성공", null);
         upsertFeed(userId, "feed-" + userId + "-2", "friend-seoyeon", "SAVING", "서연이 비상금 목표를 70% 채웠어요", "비슷한 또래의 저축 루틴이 올라왔어요", null);
-        upsertFeed(userId, "feed-" + userId + "-3", "friend-jiwoo", "BIRTHDAY", "지우님의 생일 펀드가 열렸어요", "친구들이 함께 모으는 생일 축하 펀드", 72000);
 
-        jdbc.update("""
-                INSERT INTO birthday_funds (id, owner_user_id, title, target_amount, current_amount, due_date, status, share_code)
-                VALUES ('fund-jiwoo', 'friend-jiwoo', '지우님의 생일 펀드', 100000, 72000, DATE '2026-06-15', 'OPEN', 'JIWOO-2026')
-                ON CONFLICT (id) DO NOTHING
-                """);
+        if (includeBirthdayEvent) {
+            upsertFeed(userId, "feed-" + userId + "-3", "friend-jiwoo", "BIRTHDAY", "지우님의 생일 펀드가 열렸어요", "친구들이 함께 모으는 생일 축하 펀드", 72000);
+            jdbc.update("""
+                    INSERT INTO birthday_funds (id, owner_user_id, title, target_amount, current_amount, due_date, status, share_code)
+                    VALUES ('fund-jiwoo', 'friend-jiwoo', '지우님의 생일 펀드', 100000, 72000, DATE '2026-06-15', 'OPEN', 'JIWOO-2026')
+                    ON CONFLICT (id) DO UPDATE SET
+                      current_amount = EXCLUDED.current_amount,
+                      status = EXCLUDED.status,
+                      updated_at = now()
+                    """);
+        }
+    }
+
+    @Transactional
+    public void ensureDemoUserData(String userId, String displayName, boolean includeBirthdayEvent) {
+        bootstrapUser(userId, displayName);
+        boolean missingCoreData = findSnapshot(userId) == null || findMission(userId, "mission-food") == null || findDailyRecord(userId) == null;
+        boolean missingBirthdayData = includeBirthdayEvent && !hasBirthdayEvent(userId);
+        if (missingCoreData || missingBirthdayData) {
+            bootstrapDemoUserData(userId, displayName, includeBirthdayEvent);
+        }
+    }
+
+    private void clearUserRuntimeData(String userId) {
+        jdbc.update("DELETE FROM birthday_fund_contributions WHERE contributor_user_id = ?", userId);
+        jdbc.update("DELETE FROM point_transactions WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM feed_items WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM friendships WHERE follower_id = ?", userId);
+        jdbc.update("DELETE FROM daily_records WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM mission_events WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM missions WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM coach_results WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM financial_snapshots WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM birthday_funds WHERE owner_user_id = ?", userId);
     }
 
     @Transactional
@@ -214,7 +286,22 @@ public class ProductAppService implements FinancialDataProvider {
     @Override
     public FinancialSnapshotV1 snapshotFor(String userId) {
         bootstrapUser(userId, displayName(userId));
-        SnapshotRow snapshot = snapshot(userId);
+        SnapshotRow snapshot = findSnapshot(userId);
+        if (snapshot == null) {
+            return new FinancialSnapshotV1(
+                    "snapshot-empty-" + userId,
+                    userId,
+                    "2026-06",
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    Map.of(),
+                    List.of("데이터 대기")
+            );
+        }
         return new FinancialSnapshotV1(
                 snapshot.id(),
                 userId,
@@ -232,6 +319,9 @@ public class ProductAppService implements FinancialDataProvider {
 
     @Transactional
     public CoachResultV1 fallbackCoach(String userId) {
+        if (findSnapshot(userId) == null) {
+            return emptyCoach(userId);
+        }
         CoachResultV1 result = coachProvider.coach(snapshotFor(userId));
         storeCoachResult(userId, result);
         return result;
@@ -250,32 +340,39 @@ public class ProductAppService implements FinancialDataProvider {
     public AppScreenResponse getHome(String userId) {
         bootstrapUser(userId, displayName(userId));
         UserMeResponse user = userMe(userId);
-        DailyRecordRow record = dailyRecord(userId);
-        WalletRow wallet = wallet(userId);
-        SnapshotRow snapshot = snapshot(userId);
-        FundRow fund = fund("fund-jiwoo");
-        return screen("home", "", "home", List.of(
-                section("greeting", "greeting", user.displayName() + "님, 좋은 아침이에요!", "오늘도 똑똑한 금융 습관을 만들어가요.", null, null, null, null, null, null),
-                section("birthday-alert", "actionCard", "지우님의 생일이 다가오고 있어요", "친구들이 함께 모으는 생일 펀드가 열렸어요.", "/birthdays/bday-jiwoo", "/assets/characters/finmate-birthday.png",
-                        metrics(metric("현재 모금", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
-                                metric("가상머니", won(wallet.virtualMoneyBalance()), "참여 가능", "purple", null)),
-                        null, actions(action("축하 펀드 참여하기", "/birthday-funds/fund-jiwoo/contribute", "GET", "primary", null)), null),
-                missionHero(mission(userId, "mission-food")),
-                budgetSection(record),
-                spendingSection(record),
-                assetSection(snapshot),
-                section("points", "points", "포인트 지갑", null, null, null,
-                        metrics(metric("보유 포인트", user.pointBalance() + "P", "가상머니 " + won(user.virtualMoneyBalance()), "purple", 62)),
-                        null, null, null),
-                followingSection(userId)
-        ), Map.of("version", "product-mvp"));
+        DailyRecordRow record = findDailyRecord(userId);
+        SnapshotRow snapshot = findSnapshot(userId);
+        MissionRow mission = findMission(userId, "mission-food");
+        FundRow birthdayFund = hasBirthdayEvent(userId) ? findFund("fund-jiwoo") : null;
+        List<AppSection> sections = new ArrayList<>();
+        sections.add(section("greeting", "greeting", user.displayName() + "님, 좋은 아침이에요!", "하루 30초, 나의 금융 습관을 확인하고 한 걸음 더 성장해요.", null, null, null, null, null, null));
+        sections.add(mission == null
+                ? emptyActionSection("mission-empty", "오늘의 미션", "아직 진행 중인 미션이 없어요.", "비교와 기록이 쌓이면 나에게 맞는 실천 목표를 만들 수 있어요.", "/missions")
+                : missionHero(mission));
+        sections.add(record == null
+                ? emptyActionSection("budget-empty", "오늘의 예산", "오늘 예산을 아직 등록하지 않았어요.", "기록 탭에서 하루 예산과 사용 금액을 확인해보세요.", "/records")
+                : budgetSection(record));
+        if (birthdayFund != null) {
+            sections.add(section("birthday-alert", "actionCard", "지우님의 생일이 다가오고 있어요", "친구들이 함께 모으는 생일 펀드가 열렸어요.", "/birthdays/bday-jiwoo", "/assets/characters/finmate-birthday.png",
+                    metrics(metric("현재 모금", won(birthdayFund.currentAmount()), "목표 " + won(birthdayFund.targetAmount()), "green", percent(birthdayFund.currentAmount(), birthdayFund.targetAmount())),
+                            metric("남은 기간", "D-7", birthdayFund.dueDate().toString(), "purple", null)),
+                    null, actions(action("축하 펀드 참여하기", "/birthday-funds/fund-jiwoo/contribute", "GET", "primary", null)), null));
+        }
+        sections.add(record == null
+                ? emptyActionSection("spending-empty", "오늘의 지출 요약", "오늘 지출 기록이 아직 없어요.", "지출이 기록되면 식비, 교통비, 카페/간식 비중을 바로 볼 수 있어요.", "/records")
+                : spendingSection(record));
+        sections.add(snapshot == null
+                ? emptyActionSection("asset-empty", "자산 현황", "연결된 자산 데이터가 없어요.", "마이데이터 연결 또는 샘플 데이터가 준비되면 자산 흐름을 보여드릴게요.", "/profile")
+                : assetSection(snapshot));
+        sections.add(followingSection(userId));
+        return screen("home", "", "home", sections, Map.of("version", "product-mvp"));
     }
 
     public AppScreenResponse getHomeDetail(String userId, String detail) {
         return switch (detail) {
-            case "budget" -> screen("home:budget", "오늘의 예산", "home", List.of(budgetSection(dailyRecord(userId))), Map.of());
-            case "spending" -> screen("home:spending", "오늘의 지출 요약", "home", List.of(spendingSection(dailyRecord(userId))), Map.of());
-            case "assets" -> screen("home:assets", "자산 현황", "home", List.of(assetSection(snapshot(userId))), Map.of());
+            case "budget" -> screen("home:budget", "오늘의 예산", "home", List.of(recordOrEmpty(userId, "budget")), Map.of());
+            case "spending" -> screen("home:spending", "오늘의 지출 요약", "home", List.of(recordOrEmpty(userId, "spending")), Map.of());
+            case "assets" -> screen("home:assets", "자산 현황", "home", List.of(snapshotOrEmpty(userId)), Map.of());
             case "following" -> screen("home:following", "팔로잉 금융 근황", "home", List.of(followingSection(userId), feedSection(userId)), Map.of());
             case "mission" -> getMission(userId, "mission-food");
             default -> throw validation("detail", "Unsupported home detail.");
@@ -283,6 +380,12 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getCompare(String userId) {
+        if (findSnapshot(userId) == null) {
+            return screen("compare", "그룹 비교", "compare", List.of(
+                    section("lead", "lead", "비교할 금융 데이터가 아직 없어요", "가계부나 마이데이터 요약이 준비되면 비슷한 또래와 비교할 수 있어요.", null, null, null, null, null, null),
+                    emptyActionSection("compare-empty", "또래 비교 준비 중", "아직 비교 기준이 부족해요.", "기록과 자산 요약이 쌓이면 금융 점수와 항목별 차이를 보여드릴게요.", "/home")
+            ), Map.of("comparisonId", "empty"));
+        }
         CoachResultV1 coach = latestOrFallbackCoach(userId);
         return screen("compare", "그룹 비교", "compare", List.of(
                 section("lead", "lead", "비슷한 사람들과 비교해보세요", "나와 비슷한 금융 생활을 가진 사람들의 평균과 비교할 수 있어요.", null, null, null, null, null, null),
@@ -321,6 +424,11 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getCompareResult(String userId, String comparisonId) {
+        if (findSnapshot(userId) == null) {
+            return screen("compare:" + comparisonId, "비교 결과", "compare", List.of(
+                    emptyActionSection("compare-result-empty", "비교 결과가 아직 없어요", "금융 데이터가 준비되면 또래와의 차이를 보여드릴게요.", "지금은 홈에서 연결 상태를 먼저 확인해주세요.", "/home")
+            ), Map.of("comparisonId", comparisonId));
+        }
         CoachResultV1 coach = latestOrFallbackCoach(userId);
         return screen("compare:cmp-001", "비교 결과", "compare", List.of(
                 section("result", "coach", userName(userId) + "님, 또래와 비교해봤어요!", coach.summary(), null, "/assets/characters/finmate-main.png",
@@ -331,6 +439,11 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getCoachFlow(String userId, String comparisonId) {
+        if (findSnapshot(userId) == null) {
+            return screen("compare:coach-flow", "AI 코치 분석", "compare", List.of(
+                    emptyActionSection("coach-empty", "AI 코치가 기다리고 있어요", "아직 분석할 금융 흐름이 충분하지 않아요.", "기록과 자산 요약이 준비되면 추천 행동을 만들 수 있어요.", "/home")
+            ), Map.of("comparisonId", comparisonId));
+        }
         CoachResultV1 coach = latestOrFallbackCoach(userId);
         List<AppItem> insightItems = coach.insights().stream()
                 .map(insight -> item(insight.type(), insight.title(), insight.body(), null, null, "check", insight.tone(), null))
@@ -348,14 +461,17 @@ public class ProductAppService implements FinancialDataProvider {
 
     public AppScreenResponse getMissions(String userId) {
         List<MissionRow> missions = missions(userId);
-        return screen("missions", "미션", "mission", List.of(
-                missionHero(mission(userId, "mission-food")),
-                section("active", "list", "진행 중인 미션", null, null, null, null,
-                        missions.stream().filter(m -> !"COMPLETED".equals(m.status())).map(this::missionItem).toList(),
-                        null, null),
-                section("points", "points", "나의 포인트", null, null, null,
-                        metrics(metric("보유 포인트", wallet(userId).pointBalance() + "P", "실천 완료 시 자동 적립", "purple", 62)), null, null, null)
-        ), Map.of());
+        List<AppSection> sections = new ArrayList<>();
+        MissionRow todayMission = findMission(userId, "mission-food");
+        sections.add(todayMission == null
+                ? emptyActionSection("mission-empty", "오늘의 미션이 아직 없어요", "비교와 기록이 쌓이면 맞춤 미션을 만들 수 있어요.", "지금은 홈에서 데이터 연결 상태를 확인해주세요.", "/home")
+                : missionHero(todayMission));
+        sections.add(section("active", "list", "진행 중인 미션", null, null, null, null,
+                missions.stream().filter(m -> !"COMPLETED".equals(m.status())).map(this::missionItem).toList(),
+                null, null));
+        sections.add(section("points", "points", "나의 포인트", null, null, null,
+                metrics(metric("보유 포인트", wallet(userId).pointBalance() + "P", "실천 완료 시 자동 적립", "purple", 62)), null, null, null));
+        return screen("missions", "미션", "mission", sections, Map.of());
     }
 
     public AppScreenResponse getMission(String userId, String missionId) {
@@ -415,7 +531,16 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getRecords(String userId, String month) {
-        DailyRecordRow record = dailyRecord(userId);
+        DailyRecordRow record = findDailyRecord(userId);
+        if (record == null) {
+            return screen("records:2026-06", "기록", "records", List.of(
+                    section("calendar", "calendar", "2026년 6월", "아직 기록된 지출과 미션이 없어요.", "/records/history", null, null,
+                            items(item("history", "월간 히스토리", "실천 기록 보기", null, null, "records", "purple", "/records/history"),
+                                    item("stats", "포인트 통계", wallet(userId).pointBalance() + "P", null, null, "wallet", "green", "/records/stats")),
+                            null, null),
+                    emptyActionSection("record-empty", "오늘 기록이 비어 있어요", "예산과 지출이 기록되면 달력에서 바로 확인할 수 있어요.", "미션을 완료하면 포인트 기록도 함께 쌓입니다.", "/missions")
+            ), Map.of("month", month == null ? "2026-06" : month));
+        }
         return screen("records:2026-06", "기록", "records", List.of(
                 section("calendar", "calendar", "2026년 6월", "날짜별 지출과 미션 성공 기록", "/records/2026-06-12", null, null,
                         items(item("2026-06-12", "12", won(record.spent()), null, record.missionStatus(), "calendar", "green", "/records/2026-06-12"),
@@ -439,7 +564,12 @@ public class ProductAppService implements FinancialDataProvider {
                             null, null, null)
             ), Map.of());
         }
-        DailyRecordRow record = dailyRecord(userId);
+        DailyRecordRow record = findDailyRecord(userId);
+        if (record == null) {
+            return screen("records:" + date, "날짜별 기록", "records", List.of(
+                    emptyActionSection("record-detail-empty", "이 날짜의 기록이 없어요", "아직 예산, 지출, 미션 실천 내역이 기록되지 않았어요.", "기록이 쌓이면 날짜별 흐름을 보여드릴게요.", "/records")
+            ), Map.of("date", date));
+        }
         return screen("records:" + date, "날짜별 기록", "records", List.of(budgetSection(record), spendingSection(record), feedSection(userId)), Map.of("date", date));
     }
 
@@ -478,7 +608,12 @@ public class ProductAppService implements FinancialDataProvider {
 
     public AppScreenResponse getBirthdays(String userId) {
         bootstrapUser(userId, displayName(userId));
-        FundRow fund = fund("fund-jiwoo");
+        FundRow fund = hasBirthdayEvent(userId) ? findFund("fund-jiwoo") : null;
+        if (fund == null) {
+            return screen("birthdays", "생일 펀드", "home", List.of(
+                    emptyActionSection("birthdays-empty", "열린 생일 펀드가 없어요", "친구 생일 이벤트가 생기면 이곳에서 바로 확인할 수 있어요.", "내 생일 펀드는 프로필에서 열 수 있습니다.", "/profile")
+            ), Map.of());
+        }
         return screen("birthdays", "생일 펀드", "home", List.of(
                 section("fund", "birthday", "지우님의 생일 펀드", "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", "/birthdays/bday-jiwoo", "/assets/characters/finmate-birthday.png",
                         metrics(metric("모금 금액", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
@@ -491,7 +626,12 @@ public class ProductAppService implements FinancialDataProvider {
         if (!"bday-jiwoo".equals(birthdayId)) {
             throw validation("birthdayId", "Unsupported birthdayId.");
         }
-        FundRow fund = fund("fund-jiwoo");
+        FundRow fund = hasBirthdayEvent(userId) ? findFund("fund-jiwoo") : null;
+        if (fund == null) {
+            return screen("birthdays:" + birthdayId, "생일 펀드", "home", List.of(
+                    emptyActionSection("birthday-empty", "이 생일 이벤트를 찾을 수 없어요", "아직 참여 가능한 생일 펀드가 없거나 종료된 상태입니다.", "홈에서 새 이벤트가 열렸는지 확인해주세요.", "/home")
+            ), Map.of("birthdayId", birthdayId));
+        }
         return screen("birthdays:bday-jiwoo", "지우님의 생일", "home", List.of(
                 section("fund", "birthday", "생일 축하 펀드란?", "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", null, "/assets/characters/finmate-birthday.png",
                         metrics(metric("모금 금액", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
@@ -508,6 +648,10 @@ public class ProductAppService implements FinancialDataProvider {
     @Transactional
     public AppActionResultResponse contributeBirthdayFund(String userId, String fundId, AppBirthdayContributionRequest request) {
         bootstrapUser(userId, displayName(userId));
+        FundRow fund = findFund(fundId);
+        if (fund == null) {
+            throw validation("fundId", "참여 가능한 생일 펀드가 없습니다.");
+        }
         int amount = request.amount();
         if (amount <= 0 || amount > 20000) {
             throw validation("amount", "amount must be between 1 and 20000.");
@@ -527,7 +671,12 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getBirthdayContributionComplete(String userId, String fundId) {
-        FundRow fund = fund(fundId);
+        FundRow fund = findFund(fundId);
+        if (fund == null) {
+            return screen("birthday-funds:" + fundId + ":status", "참여 완료", "home", List.of(
+                    emptyActionSection("birthday-complete-empty", "생일 펀드 현황이 없어요", "참여 가능한 생일 펀드를 찾을 수 없습니다.", "홈으로 돌아가 새 이벤트를 확인해주세요.", "/home")
+            ), Map.of());
+        }
         return screen("birthday-funds:" + fundId + ":status", "참여 완료", "home", List.of(
                 section("complete", "birthday", "축하가 완료되었어요!", "따뜻한 마음이 전달됐습니다.", null, "/assets/characters/finmate-birthday.png",
                         metrics(metric("현재 모금", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount()))),
@@ -598,6 +747,9 @@ public class ProductAppService implements FinancialDataProvider {
 
     private CoachResultV1 latestOrFallbackCoach(String userId) {
         bootstrapUser(userId, displayName(userId));
+        if (findSnapshot(userId) == null) {
+            return emptyCoach(userId);
+        }
         try {
             return jdbc.queryForObject("""
                     SELECT id, snapshot_id, source, score, confidence, summary, insights_json, recommendations_json
@@ -618,6 +770,19 @@ public class ProductAppService implements FinancialDataProvider {
         } catch (EmptyResultDataAccessException exception) {
             return fallbackCoach(userId);
         }
+    }
+
+    private CoachResultV1 emptyCoach(String userId) {
+        return new CoachResultV1(
+                "coach-empty-" + userId,
+                "snapshot-empty-" + userId,
+                "USER_STATE",
+                0,
+                0,
+                "비교할 금융 데이터가 아직 충분하지 않아요. 마이데이터 연결 또는 기록이 쌓이면 또래 비교와 코칭을 시작할 수 있어요.",
+                List.of(),
+                List.of()
+        );
     }
 
     private void insertSeedFriend(String id, String email, String displayName) {
@@ -693,26 +858,42 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private SnapshotRow snapshot(String userId) {
-        bootstrapUser(userId, displayName(userId));
-        return jdbc.queryForObject("""
-                SELECT * FROM financial_snapshots WHERE user_id = ? AND month = '2026-06'
-                """, (rs, rowNum) -> new SnapshotRow(
-                rs.getString("id"),
-                rs.getString("month"),
-                rs.getInt("monthly_income"),
-                rs.getInt("monthly_spending"),
-                rs.getInt("monthly_saving"),
-                rs.getInt("investment_value"),
-                rs.getInt("cash_like_assets"),
-                number(rs.getObject("emergency_fund_months")),
-                rs.getString("categories_json"),
-                rs.getString("lifestyle_tags")
-        ), userId);
+        SnapshotRow snapshot = findSnapshot(userId);
+        if (snapshot == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SNAPSHOT_NOT_FOUND", "Financial snapshot not found.");
+        }
+        return snapshot;
+    }
+
+    private SnapshotRow findSnapshot(String userId) {
+        List<SnapshotRow> rows = jdbc.query("""
+                        SELECT * FROM financial_snapshots WHERE user_id = ? AND month = '2026-06'
+                        """,
+                (rs, rowNum) -> new SnapshotRow(
+                        rs.getString("id"),
+                        rs.getString("month"),
+                        rs.getInt("monthly_income"),
+                        rs.getInt("monthly_spending"),
+                        rs.getInt("monthly_saving"),
+                        rs.getInt("investment_value"),
+                        rs.getInt("cash_like_assets"),
+                        number(rs.getObject("emergency_fund_months")),
+                        rs.getString("categories_json"),
+                        rs.getString("lifestyle_tags")
+                ), userId);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     private DailyRecordRow dailyRecord(String userId) {
-        bootstrapUser(userId, displayName(userId));
-        return jdbc.queryForObject("SELECT * FROM daily_records WHERE user_id = ? AND record_date = DATE '2026-06-12'",
+        DailyRecordRow record = findDailyRecord(userId);
+        if (record == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "RECORD_NOT_FOUND", "Daily record not found.");
+        }
+        return record;
+    }
+
+    private DailyRecordRow findDailyRecord(String userId) {
+        List<DailyRecordRow> rows = jdbc.query("SELECT * FROM daily_records WHERE user_id = ? AND record_date = DATE '2026-06-12'",
                 (rs, rowNum) -> new DailyRecordRow(
                         rs.getDate("record_date").toLocalDate(),
                         rs.getInt("budget"),
@@ -721,16 +902,21 @@ public class ProductAppService implements FinancialDataProvider {
                         rs.getString("mission_status"),
                         rs.getInt("point_delta")
                 ), userId);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     private MissionRow mission(String userId, String missionId) {
-        bootstrapUser(userId, displayName(userId));
-        try {
-            return jdbc.queryForObject("SELECT * FROM missions WHERE id = ?",
-                    (rs, rowNum) -> missionRow(rs, missionId), missionDbId(userId, missionId));
-        } catch (EmptyResultDataAccessException exception) {
+        MissionRow mission = findMission(userId, missionId);
+        if (mission == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "MISSION_NOT_FOUND", "Mission not found.");
         }
+        return mission;
+    }
+
+    private MissionRow findMission(String userId, String missionId) {
+        List<MissionRow> rows = jdbc.query("SELECT * FROM missions WHERE id = ?",
+                (rs, rowNum) -> missionRow(rs, missionId), missionDbId(userId, missionId));
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     private List<MissionRow> missions(String userId) {
@@ -789,12 +975,21 @@ public class ProductAppService implements FinancialDataProvider {
 
     private WalletRow wallet(String userId) {
         bootstrapUser(userId, displayName(userId));
-        return jdbc.queryForObject("SELECT point_balance, virtual_money_balance FROM point_wallets WHERE user_id = ?",
+        List<WalletRow> rows = jdbc.query("SELECT point_balance, virtual_money_balance FROM point_wallets WHERE user_id = ?",
                 (rs, rowNum) -> new WalletRow(rs.getInt("point_balance"), rs.getInt("virtual_money_balance")), userId);
+        return rows.isEmpty() ? new WalletRow(0, 100000) : rows.get(0);
     }
 
     private FundRow fund(String fundId) {
-        return jdbc.queryForObject("SELECT * FROM birthday_funds WHERE id = ?",
+        FundRow fund = findFund(fundId);
+        if (fund == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "BIRTHDAY_FUND_NOT_FOUND", "Birthday fund not found.");
+        }
+        return fund;
+    }
+
+    private FundRow findFund(String fundId) {
+        List<FundRow> rows = jdbc.query("SELECT * FROM birthday_funds WHERE id = ?",
                 (rs, rowNum) -> new FundRow(
                         rs.getString("id"),
                         rs.getString("title"),
@@ -803,6 +998,7 @@ public class ProductAppService implements FinancialDataProvider {
                         rs.getDate("due_date").toLocalDate(),
                         rs.getString("status")
                 ), fundId);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     private PrivacyRow privacy(String userId) {
@@ -814,6 +1010,15 @@ public class ProductAppService implements FinancialDataProvider {
     private int followingCount(String userId) {
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM friendships WHERE follower_id = ? AND status = 'ACTIVE'", Integer.class, userId);
         return count == null ? 0 : count;
+    }
+
+    private boolean hasBirthdayEvent(String userId) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM feed_items
+                WHERE user_id = ? AND kind = 'BIRTHDAY'
+                """, Integer.class, userId);
+        return count != null && count > 0;
     }
 
     private List<AppItem> contributionItems(String fundId) {
@@ -828,6 +1033,10 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private AppSection followingSection(String userId) {
+        int count = followingCount(userId);
+        if (count == 0) {
+            return emptyActionSection("following-empty", "팔로잉 금융 근황", "아직 팔로잉한 친구가 없어요.", "친구 금융 활동이 생기면 지출, 저축, 투자 근황을 한눈에 볼 수 있어요.", "/profile");
+        }
         return section("following", "signalGrid", "팔로잉 금융 근황", "친구 " + followingCount(userId) + "명의 금융 활동 요약", "/profile/following", null,
                 metrics(metric("주식 투자", "18명", "36%", "purple", 36),
                         metric("적금 가입", "32명", "64%", "green", 64),
@@ -845,7 +1054,36 @@ public class ProductAppService implements FinancialDataProvider {
                 ORDER BY f.created_at DESC
                 LIMIT 10
                 """, (rs, rowNum) -> item(rs.getString("id"), rs.getString("title"), rs.getString("body"), rs.getObject("amount") == null ? null : won(rs.getInt("amount")), rs.getString("display_name"), "feed", "purple", null), userId);
+        if (feed.isEmpty()) {
+            return section("feed", "list", "친구 피드", null, null, null, null,
+                    items(item("feed-empty", "아직 친구 활동이 없어요", "팔로잉한 친구의 금융 루틴이 생기면 여기에 표시됩니다.", null, null, "feed", "purple", null)),
+                    null, null);
+        }
         return section("feed", "list", "친구 피드", null, null, null, null, feed, null, null);
+    }
+
+    private AppSection recordOrEmpty(String userId, String section) {
+        DailyRecordRow record = findDailyRecord(userId);
+        if (record == null) {
+            return "spending".equals(section)
+                    ? emptyActionSection("spending-empty", "오늘의 지출 요약", "오늘 지출 기록이 아직 없어요.", "지출이 기록되면 카테고리별 소비 비중을 보여드릴게요.", "/records")
+                    : emptyActionSection("budget-empty", "오늘의 예산", "오늘 예산을 아직 등록하지 않았어요.", "기록 탭에서 예산과 사용 금액을 확인할 수 있어요.", "/records");
+        }
+        return "spending".equals(section) ? spendingSection(record) : budgetSection(record);
+    }
+
+    private AppSection snapshotOrEmpty(String userId) {
+        SnapshotRow snapshot = findSnapshot(userId);
+        if (snapshot == null) {
+            return emptyActionSection("asset-empty", "자산 현황", "연결된 자산 데이터가 없어요.", "마이데이터 연결 또는 샘플 데이터가 준비되면 자산 흐름을 보여드릴게요.", "/profile");
+        }
+        return assetSection(snapshot);
+    }
+
+    private AppSection emptyActionSection(String id, String title, String subtitle, String body, String path) {
+        return section(id, "actionCard", title, subtitle, path, null,
+                metrics(metric("상태", "대기", body, "purple", null)),
+                null, actions(action("확인하기", path, "GET", "secondary", null)), Map.of("empty", true));
     }
 
     private AppSection budgetSection(DailyRecordRow record) {
@@ -882,7 +1120,7 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private AppSection missionHero(MissionRow mission) {
-        return section("mission-hero", "missionHero", mission.title(), "오늘의 미션", "/missions/" + mission.routeId(), null,
+        return section("mission-hero", "missionHero", mission.title(), "오늘의 미션", "/missions/" + mission.routeId(), "/assets/characters/finmate-main.png",
                 metrics(metric("진행률", mission.progress() + "%", mission.rewardPoints() + "P 보상", "purple", mission.progress())),
                 null, actions(action("오늘 실천 기록하기", "/missions/" + mission.routeId() + "/feedback", "POST", "primary", "mission-feedback")), null);
     }
@@ -934,7 +1172,7 @@ public class ProductAppService implements FinancialDataProvider {
     private String iconForCategory(String category) {
         return switch (category) {
             case "식비" -> "food";
-            case "교통비" -> "bus";
+            case "교통비" -> "transport";
             case "카페/간식" -> "cafe";
             default -> "more";
         };
@@ -949,6 +1187,15 @@ public class ProductAppService implements FinancialDataProvider {
             return 0;
         }
         return Math.max(0, Math.min(100, (int) Math.round(value * 100.0 / total)));
+    }
+
+    private Map<String, Integer> demoCategorySpending() {
+        Map<String, Integer> categories = new LinkedHashMap<>();
+        categories.put("식비", 6200);
+        categories.put("교통비", 1200);
+        categories.put("카페/간식", 600);
+        categories.put("기타", 1800);
+        return categories;
     }
 
     private double number(Object value) {

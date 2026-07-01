@@ -24,8 +24,12 @@ type SectionProps = {
 export function ScreenRenderer({ screen, navigate }: { screen: AppScreenResponse; navigate: Navigate }) {
   const canGoBack = !['home', 'compare', 'missions', 'records:2026-06', 'profile'].includes(screen.screenId)
 
+  if (screen.screenId === 'home') {
+    return <HomeScreen screen={screen} navigate={navigate} />
+  }
+
   return (
-    <div className={`screen screen-${screen.tab}`}>
+    <div className={`screen screen-${screen.tab} ${screenClass(screen.screenId)}`}>
       <StatusBar time={screen.statusBarTime} />
       <header className="app-header">
         <div className="header-side">
@@ -44,6 +48,179 @@ export function ScreenRenderer({ screen, navigate }: { screen: AppScreenResponse
           <SectionRenderer section={section} navigate={navigate} key={section.id} />
         ))}
       </section>
+    </div>
+  )
+}
+
+function HomeScreen({ screen, navigate }: { screen: AppScreenResponse; navigate: Navigate }) {
+  const greeting = screen.sections.find((section) => section.kind === 'greeting')
+  const content = screen.sections.filter((section) => section.kind !== 'greeting')
+
+  return (
+    <div className={`screen screen-home screen-home-reference ${screenClass(screen.screenId)}`}>
+      <StatusBar time={screen.statusBarTime} />
+      <header className="home-app-header">
+        <div>
+          <h1>{greeting?.title ?? '좋은 아침이에요'}</h1>
+          {greeting?.subtitle ? <p>{greeting.subtitle}</p> : null}
+        </div>
+        <IconButton icon="bell" label="알림" onClick={() => navigate('/birthdays')} />
+      </header>
+      <section className="home-stack">
+        {content.map((section) => (
+          <HomeSection section={section} navigate={navigate} key={section.id} />
+        ))}
+      </section>
+    </div>
+  )
+}
+
+function HomeSection({ section, navigate }: SectionProps) {
+  if (section.kind === 'missionHero') {
+    return <HomeMissionCard section={section} navigate={navigate} />
+  }
+  if (section.kind === 'budget') {
+    return <HomeBudgetCard section={section} navigate={navigate} />
+  }
+  if (section.kind === 'spendingGrid') {
+    return <HomeSpendingCard section={section} navigate={navigate} />
+  }
+  if (section.kind === 'asset') {
+    return <HomeAssetCard section={section} navigate={navigate} />
+  }
+  if (section.kind === 'signalGrid') {
+    return <HomeFollowingCard section={section} navigate={navigate} />
+  }
+  if (section.kind === 'actionCard' && section.id === 'birthday-alert') {
+    return <HomeBirthdayCard section={section} navigate={navigate} />
+  }
+  if (section.kind === 'actionCard') {
+    return <HomeEmptyCard section={section} navigate={navigate} />
+  }
+  return <SectionRenderer section={section} navigate={navigate} />
+}
+
+function HomeMissionCard({ section, navigate }: SectionProps) {
+  const metric = section.metrics?.[0]
+  return (
+    <button className="home-card home-mission-card" type="button" onClick={() => goDetail(section, navigate)}>
+      <div className="home-card-copy">
+        <div className="home-card-head">
+          <span>오늘의 미션</span>
+          <Chevron />
+        </div>
+        <strong>{section.title}</strong>
+        <small>{metric?.label ?? '진행률'} {metric?.value ?? '0%'}</small>
+        <ProgressLine value={metric?.progress ?? 0} tone="purple" />
+      </div>
+      <img className="home-character" src={section.heroAsset ?? '/assets/characters/finmate-main.png'} alt="" />
+    </button>
+  )
+}
+
+function HomeBudgetCard({ section, navigate }: SectionProps) {
+  const progress = numberFromData(section.data, 'progress') ?? section.metrics?.[1]?.progress ?? 0
+  return (
+    <article className="home-card home-budget-card">
+      <HomeCardHeader section={section} navigate={navigate} />
+      <div className="home-budget-grid">
+        {section.metrics?.map((metric) => <MetricView metric={metric} key={metric.label} />)}
+      </div>
+      <ProgressLine value={progress} tone="green" />
+    </article>
+  )
+}
+
+function HomeSpendingCard({ section, navigate }: SectionProps) {
+  return (
+    <article className="home-card home-spending-card">
+      <HomeCardHeader section={section} navigate={navigate} />
+      <div className="home-spending-grid">
+        {section.items?.slice(0, 4).map((item) => (
+          <button type="button" onClick={() => item.detailPath && navigate(item.detailPath)} key={item.id}>
+            <IconBadge icon={(item.icon ?? 'more') as IconName} tone={item.tone ?? 'warning'} />
+            <strong>{item.title}</strong>
+            {item.value ? <b>{item.value}</b> : null}
+            {item.caption ? <small>{item.caption}</small> : null}
+          </button>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function HomeAssetCard({ section, navigate }: SectionProps) {
+  return (
+    <article className="home-card home-asset-card">
+      <HomeCardHeader section={section} navigate={navigate} />
+      <div className="home-asset-layout">
+        <div>
+          {section.metrics?.map((metric) => <MetricView metric={metric} key={metric.label} />)}
+          {section.subtitle ? <p>{section.subtitle}</p> : null}
+        </div>
+        <MiniLineChart values={arrayFromData(section.data, 'sparkline')} />
+      </div>
+    </article>
+  )
+}
+
+function HomeFollowingCard({ section, navigate }: SectionProps) {
+  return (
+    <article className="home-card home-following-card">
+      <HomeCardHeader section={section} navigate={navigate} />
+      {section.subtitle ? <p>{section.subtitle}</p> : null}
+      <div className="home-following-grid">
+        {section.metrics?.map((metric) => (
+          <div className="home-following-stat" key={metric.label}>
+            <IconBadge icon={metric.label.includes('주식') ? 'stocks' : metric.label.includes('적금') ? 'saving' : metric.label.includes('펀드') ? 'chart' : 'wallet'} tone={metric.tone ?? 'purple'} />
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function HomeBirthdayCard({ section, navigate }: SectionProps) {
+  return (
+    <article className="home-card home-birthday-card">
+      <div className="home-birthday-layout">
+        <div>
+          <HomeCardHeader section={section} navigate={navigate} />
+          {section.subtitle ? <p>{section.subtitle}</p> : null}
+          <div className="home-budget-grid compact">
+            {section.metrics?.map((metric) => <MetricView metric={metric} key={metric.label} />)}
+          </div>
+        </div>
+        {section.heroAsset ? <img className="home-character" src={section.heroAsset} alt="" /> : null}
+      </div>
+      {section.metrics?.[0]?.progress ? <ProgressLine value={section.metrics[0].progress ?? 0} tone="green" /> : null}
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </article>
+  )
+}
+
+function HomeEmptyCard({ section, navigate }: SectionProps) {
+  return (
+    <article className="home-card home-empty-card">
+      <HomeCardHeader section={section} navigate={navigate} />
+      {section.subtitle ? <p>{section.subtitle}</p> : null}
+      {section.metrics?.[0]?.caption ? <small>{section.metrics[0].caption}</small> : null}
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </article>
+  )
+}
+
+function HomeCardHeader({ section, navigate }: { section: AppSection; navigate: Navigate }) {
+  return (
+    <div className="home-section-header">
+      <h2>{section.title}</h2>
+      {section.detailPath ? (
+        <button type="button" onClick={() => navigate(section.detailPath ?? '/home')}>
+          자세히 보기 <Chevron />
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -280,7 +457,7 @@ function CalendarSection({ section, navigate }: SectionProps) {
 function IllustratedSection({ section, navigate }: SectionProps) {
   const asset = section.heroAsset
   return (
-    <Card section={section} navigate={navigate} className={`illustrated-card ${section.kind}`}>
+    <Card section={section} navigate={navigate} className={`illustrated-card ${section.kind} section-${section.id}`}>
       <div className="illustrated-layout">
         <div>
           {section.subtitle ? <p>{section.subtitle}</p> : null}
@@ -328,10 +505,21 @@ function ChipSection({ section }: { section: AppSection }) {
 
 function ListSection({ section, navigate }: SectionProps) {
   return (
-    <Card section={section} navigate={navigate} className={section.kind === 'feed' ? 'feed-card' : undefined}>
+    <Card
+      section={section}
+      navigate={navigate}
+      className={`${section.id === 'feed' ? 'feed-card' : ''} section-${section.id}`}
+    >
       <div className={section.kind === 'profileRail' ? 'profile-rail' : 'list-stack'}>
         {section.items?.map((item, index) => (
-          <ListItem item={item} index={index} navigate={navigate} rank={section.kind === 'rankList'} key={item.id} />
+          <ListItem
+            item={item}
+            index={index}
+            navigate={navigate}
+            rank={section.kind === 'rankList'}
+            variant={section.id}
+            key={item.id}
+          />
         ))}
       </div>
       <ActionButtons actions={section.actions} navigate={navigate} />
@@ -412,15 +600,15 @@ function BarRow({ item, navigate }: { item: AppItem; navigate: Navigate }) {
       <IconBadge icon={item.icon ?? 'saving'} tone={item.tone ?? 'purple'} />
       <div className="bar-copy">
         <strong>{item.title}</strong>
-        {item.subtitle ? <span>{item.subtitle}</span> : null}
+        {item.subtitle ? <span>{cleanCaption(item.subtitle)}</span> : null}
         <div className="dual-bars">
           <ProgressLine value={mine} tone="purple" />
           {group ? <ProgressLine value={group} tone="gray" /> : null}
         </div>
       </div>
       <div className="bar-value">
-        {item.value ? <b>{item.value}</b> : null}
-        {item.caption ? <small>{item.caption}</small> : null}
+        {item.value ? <b>{cleanCaption(item.value)}</b> : null}
+        {item.caption ? <small>{cleanCaption(item.caption)}</small> : null}
       </div>
     </button>
   )
@@ -430,24 +618,28 @@ function ListItem({
   item,
   index,
   rank,
+  variant,
   navigate,
 }: {
   item: AppItem
   index: number
   rank: boolean
+  variant?: string
   navigate: Navigate
 }) {
+  const inferred = inferItemPresentation(item, variant)
+
   return (
-    <button className="list-item" type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
-      {rank ? <span className="rank-dot">{index + 1}</span> : <IconBadge icon={item.icon ?? 'check'} tone={item.tone ?? 'purple'} />}
+    <button className={`list-item ${variant === 'feed' ? 'feed-item' : ''}`} type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
+      {rank ? <span className="rank-dot">{index + 1}</span> : <IconBadge icon={inferred.icon} tone={inferred.tone} />}
       <div>
         <strong>{item.title}</strong>
-        {item.subtitle ? <small>{item.subtitle}</small> : null}
+        {item.subtitle ? <small>{cleanCaption(item.subtitle)}</small> : null}
       </div>
       {item.value || item.caption || item.detailPath ? (
         <span className="list-trailing">
-          {item.value ? <b>{item.value}</b> : null}
-          {item.caption ? <em>{item.caption}</em> : null}
+          {item.value ? <b>{cleanCaption(item.value)}</b> : null}
+          {item.caption ? <em>{cleanCaption(item.caption)}</em> : null}
           {item.detailPath ? <Chevron /> : null}
         </span>
       ) : null}
@@ -508,4 +700,35 @@ function goDetail(section: AppSection, navigate: Navigate) {
   if (section.detailPath) {
     navigate(section.detailPath)
   }
+}
+
+function screenClass(screenId: string) {
+  return `screen-${screenId.replace(/[^a-z0-9]+/gi, '-')}`
+}
+
+function cleanCaption(caption: string) {
+  if (/RULE_BASED|FALLBACK|SOURCE|DEMO|MOCK/i.test(caption)) {
+    return '코치 분석'
+  }
+  return caption
+}
+
+function inferItemPresentation(item: AppItem, variant?: string): { icon: string; tone: string } {
+  if (variant === 'feed' || item.icon === 'feed') {
+    const text = `${item.title} ${item.subtitle}`.toLowerCase()
+    if (text.includes('펀드') || text.includes('생일')) {
+      return { icon: 'gift', tone: 'green' }
+    }
+    if (text.includes('저축') || text.includes('비상금')) {
+      return { icon: 'saving', tone: 'green' }
+    }
+    if (text.includes('투자') || text.includes('주식')) {
+      return { icon: 'stocks', tone: 'purple' }
+    }
+    if (text.includes('지출') || text.includes('카페')) {
+      return { icon: 'spend', tone: 'warning' }
+    }
+    return { icon: 'check', tone: 'green' }
+  }
+  return { icon: (item.icon ?? 'check') as IconName, tone: item.tone ?? 'purple' }
 }
