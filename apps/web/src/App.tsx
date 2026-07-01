@@ -49,8 +49,17 @@ const peerPortfolioId = 'peer-portfolio-023'
 const p0SimulationId = 'sim-001'
 const emergencyFundTargetCash = 1_000_000
 const emergencyFundTargetMonths = 1
-const onboardingStatuses = ['학생/알바', '사회초년생', '취준생', '프리랜서']
-const onboardingGoals = ['비상금 만들기', '지출 줄이기', '투자 시작 준비']
+const onboardingStatuses = [
+  { label: '학생/알바', detail: '이번 P0 반영', available: true },
+  { label: '사회초년생', detail: '다음 버전', available: false },
+  { label: '취준생', detail: '다음 버전', available: false },
+  { label: '프리랜서', detail: '다음 버전', available: false },
+]
+const onboardingGoals = [
+  { label: '비상금 만들기', detail: '이번 P0 반영', available: true },
+  { label: '지출 줄이기', detail: '다음 버전', available: false },
+  { label: '투자 시작 준비', detail: '다음 버전', available: false },
+]
 
 function parseRoute(pathname: string): Route {
   const parts = pathname.split('/').filter(Boolean)
@@ -331,11 +340,9 @@ function ProtectedPage({
 function OnboardingPage({ navigate }: { navigate: Navigate }) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState(onboardingStatuses[0])
-  const [selectedGoal, setSelectedGoal] = useState(onboardingGoals[0])
   const [steps, setSteps] = useState<OnboardingStep[]>([
-    { label: '지금 상태 선택', status: 'pending', detail: '학생/알바 · 사회초년생 · 취준생 · 프리랜서' },
-    { label: '금융 목표 선택', status: 'pending', detail: '비상금 만들기 · 지출 줄이기 · 투자 시작 준비' },
+    { label: '지금 상태 선택', status: 'pending', detail: '이번 P0는 학생/알바 기준으로 시연돼요' },
+    { label: '금융 목표 선택', status: 'pending', detail: '비상금 만들기 루틴을 기준으로 비교합니다' },
     { label: '체험용 데이터 안내', status: 'pending', detail: '실제 금융정보가 아닌 합성 데이터로 시연됩니다' },
     { label: '공개 미리보기 동의', status: 'pending', detail: '공개 전 미리보고 언제든 철회할 수 있어요' },
   ])
@@ -360,7 +367,7 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
         onboardingToken: diagnosis.onboardingToken,
         goalType: diagnosis.goalType,
       })
-      markStep(0, 'done', `${selectedStatus} 기준으로 준비했어요`)
+      markStep(0, 'done', '학생/알바 기준으로 준비했어요')
 
       markStep(1, 'loading', '선택한 목표를 연결하고 있어요')
       const mockConsent = await api.createMockConsent(
@@ -368,7 +375,7 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
         diagnosis.diagnosisId,
       )
       saveSession({ mydataConnectionId: mockConsent.mydataConnectionId })
-      markStep(1, 'done', `${selectedGoal} 목표로 체험합니다`)
+      markStep(1, 'done', '비상금 만들기 목표로 체험합니다')
 
       markStep(2, 'loading', '합성 마이데이터를 연결하고 있어요')
       const privacy = await api.createPrivacyConsents(diagnosis.onboardingToken)
@@ -402,10 +409,16 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
         <p className="section-label">FinMate</p>
         <h1>나에게 맞는 비상금 루틴을 찾아볼까요?</h1>
         <p>
-          실제 금융정보를 쓰지 않고, 합성 마이데이터로 또래 사례와 미션 흐름을
-          체험합니다.
+          학생/알바 페르소나와 합성 마이데이터로 또래 비교, 시뮬레이션, 미션
+          생성 흐름을 안전하게 체험합니다.
         </p>
       </div>
+
+      <article className="demo-note">
+        <span>이번 P0 데모</span>
+        <strong>비상금 루틴 기준 고정 시연</strong>
+        <p>다른 상태와 목표는 다음 버전에서 연결될 예정이에요.</p>
+      </article>
 
       <div className="onboarding-flow">
         <article className="choice-card onboarding-step-card">
@@ -413,13 +426,13 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
           <div className="choice-grid">
             {onboardingStatuses.map((status) => (
               <button
-                className={`selectable-chip ${selectedStatus === status ? 'selected' : ''}`}
+                className={`selectable-chip ${status.available ? 'selected' : 'unavailable'}`}
                 type="button"
-                key={status}
-                onClick={() => setSelectedStatus(status)}
-                disabled={running}
+                key={status.label}
+                disabled={running || !status.available}
               >
-                {status}
+                <span>{status.label}</span>
+                <small>{status.detail}</small>
               </button>
             ))}
           </div>
@@ -430,13 +443,13 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
           <div className="choice-grid">
             {onboardingGoals.map((goal) => (
               <button
-                className={`selectable-chip ${selectedGoal === goal ? 'selected' : ''}`}
+                className={`selectable-chip ${goal.available ? 'selected' : 'unavailable'}`}
                 type="button"
-                key={goal}
-                onClick={() => setSelectedGoal(goal)}
-                disabled={running}
+                key={goal.label}
+                disabled={running || !goal.available}
               >
-                {goal}
+                <span>{goal.label}</span>
+                <small>{goal.detail}</small>
               </button>
             ))}
           </div>
@@ -455,14 +468,14 @@ function OnboardingPage({ navigate }: { navigate: Navigate }) {
 
       {error ? <InlineError message={error} /> : null}
 
-      <StickyAction>
+      <ActionPanel>
         <button className="primary-button" type="button" onClick={startOnboarding} disabled={running}>
           {running ? '준비 중이에요' : '동의하고 시작하기'}
         </button>
         <button type="button" onClick={() => navigate('/home')}>
           이어서 보기
         </button>
-      </StickyAction>
+      </ActionPanel>
     </section>
   )
 }
@@ -477,37 +490,51 @@ function HomePage({ token, navigate }: { token: string; navigate: Navigate }) {
         const remainingCash = Math.max(0, emergencyFundTargetCash - home.assetSummary.cashLikeAssets)
 
         return (
-          <section className="stack">
+          <section className="stack home-dashboard">
             <div className="hero-copy compact">
               <p className="section-label">오늘의 홈</p>
-              <h1>오늘은 비상금 루틴을 시작하기 좋은 날이에요</h1>
-              <p>{home.goal.label}까지 남은 거리를 한눈에 확인해요.</p>
+              <h1>오늘은 비상금 루틴을 한 칸만 올려볼까요?</h1>
+              <p>{home.goal.label}까지 남은 거리와 바로 할 일을 한눈에 확인해요.</p>
             </div>
 
-            <article className="hero-card">
-              <span>비상금 준비율</span>
-              <strong>{formatMonths(home.assetSummary.emergencyFundMonths)}</strong>
-              <p>목표 1개월까지 {formatKrwCompact(remainingCash)} 남았어요.</p>
-              <ProgressBar
-                value={home.assetSummary.emergencyFundMonths}
-                max={emergencyFundTargetMonths}
-              />
+            <article className="daily-mission-card">
+              <div>
+                <span>오늘의 미션</span>
+                <h2>{home.todayMissionCandidate.title}</h2>
+                <p>비교와 시뮬레이션에서 이어지는 첫 행동이에요.</p>
+              </div>
+              <button className="primary-button" type="button" onClick={() => navigate(`/missions/new/${p0SimulationId}`)}>
+                미션 보기
+              </button>
             </article>
 
-            <div className="metric-grid">
-              <MetricCard label="오늘 예산" value={formatKrw(home.todayBudget)} />
-              <MetricCard label="이번 달 소비" value={formatKrwCompact(home.spendingSummary.monthlySpent)} />
-              <MetricCard label="현금성 자산" value={formatKrwCompact(home.assetSummary.cashLikeAssets)} />
-              <MetricCard label="고정비 비중" value={formatRatio(home.spendingSummary.fixedCostRatio)} />
+            <div className="snapshot-grid">
+              <article className="snapshot-card">
+                <span>오늘 예산</span>
+                <strong>{formatKrw(home.todayBudget)}</strong>
+                <p>하루 안에서 지킬 수 있는 기준선</p>
+              </article>
+              <article className="snapshot-card purple">
+                <span>이번 달 소비</span>
+                <strong>{formatKrwCompact(home.spendingSummary.monthlySpent)}</strong>
+                <p>고정비 {formatRatio(home.spendingSummary.fixedCostRatio)}</p>
+              </article>
             </div>
 
-            <InsightCard
-              label="오늘의 미션 후보"
-              title={home.todayMissionCandidate.title}
-              body="작게 먼저 떼어두는 루틴으로 비상금 목표에 가까워질 수 있어요."
-              actionLabel="미션 만들기"
-              onAction={() => navigate(`/missions/new/${p0SimulationId}`)}
-            />
+            <article className="goal-card">
+              <div className="goal-ring" aria-hidden="true">
+                {formatRatio(home.assetSummary.emergencyFundMonths / emergencyFundTargetMonths)}
+              </div>
+              <div>
+                <span>비상금 준비율</span>
+                <h2>{formatMonths(home.assetSummary.emergencyFundMonths)}</h2>
+                <p>목표 1개월까지 {formatKrwCompact(remainingCash)} 남았어요.</p>
+                <ProgressBar
+                  value={home.assetSummary.emergencyFundMonths}
+                  max={emergencyFundTargetMonths}
+                />
+              </div>
+            </article>
 
             <InsightCard
               tone="accent"
@@ -551,7 +578,7 @@ function PortfolioPage({
             <div>
               <p className="section-label">익명 또래 포트폴리오</p>
               <h1>{portfolio.displayName}</h1>
-              <p>사회초년생 · 1인가구 · 비상금 목표</p>
+              <p>학생/알바와 비슷한 생활 맥락 · 비상금 목표</p>
             </div>
             <span className="mode-pill">{formatDataMode(portfolio.dataMode)}</span>
           </article>
@@ -564,7 +591,16 @@ function PortfolioPage({
             ))}
           </div>
 
-          <div className="metric-grid">
+          <article className="panel learn-card">
+            <span>이 사람에게 배울 점</span>
+            <h2>금액보다 먼저 루틴을 고정했어요</h2>
+            <p>
+              카드 소비를 줄이는 조언보다, 월초에 작은 금액을 자동으로 떼어두는 행동이
+              비상금 준비 기간을 만든 사례예요.
+            </p>
+          </article>
+
+          <div className="metric-grid profile-metrics">
             <MetricCard
               label="비상금 준비율"
               value={formatMonths(portfolio.financialSummary.emergencyFundMonths)}
@@ -592,7 +628,7 @@ function PortfolioPage({
             </div>
           </section>
 
-          <StickyAction>
+          <ActionPanel>
             <button
               className="primary-button"
               type="button"
@@ -600,7 +636,7 @@ function PortfolioPage({
             >
               내 데이터와 비교하기
             </button>
-          </StickyAction>
+          </ActionPanel>
         </section>
       )}
     </AsyncBoundary>
@@ -629,20 +665,37 @@ function ComparisonPage({
 
         return (
           <section className="stack">
-            <article className="hero-card comparison-hero">
-              <span>가장 큰 차이</span>
-              <strong>{comparison.mainGap.label}</strong>
+            <article className="comparison-stage">
+              <div className="stage-copy">
+                <span>1:1 금융 비교</span>
+                <h1>가장 큰 차이는 비상금 준비 기간이에요</h1>
+                {emergencyGap ? (
+                  <p>
+                    나 {formatMonths(emergencyGap.userValue)} vs 또래{' '}
+                    {formatMonths(emergencyGap.peerValue)}. 약{' '}
+                    {formatMonths(Math.abs(emergencyGap.peerValue - emergencyGap.userValue))} 차이가 납니다.
+                  </p>
+                ) : null}
+              </div>
               {emergencyGap ? (
-                <p>
-                  나 {formatMonths(emergencyGap.userValue)} vs 또래{' '}
-                  {formatMonths(emergencyGap.peerValue)}. 약{' '}
-                  {formatMonths(Math.abs(emergencyGap.peerValue - emergencyGap.userValue))} 차이예요.
-                </p>
+                <div className="state-compare">
+                  <StateTile label="나" value={formatMonths(emergencyGap.userValue)} tone="user" />
+                  <StateTile label="또래" value={formatMonths(emergencyGap.peerValue)} tone="peer" />
+                </div>
               ) : null}
-              <small>비슷한 맥락의 또래 사례 {formatRatio(comparison.similarityScore)}</small>
+              <small>비슷한 맥락 {formatRatio(comparison.similarityScore)} · 공개 범위 안에서만 비교</small>
             </article>
 
             {emergencyGap ? <CompareBars item={emergencyGap} /> : null}
+
+            <article className="coach-card">
+              <span>AI 코치 시사점</span>
+              <h2>소비를 한 번에 줄이기보다, 월초 자동 저축을 먼저 고정해보세요.</h2>
+              <p>
+                또래와의 차이는 투자 수익률보다 현금성 자산을 먼저 쌓는 루틴에서 크게
+                벌어졌어요.
+              </p>
+            </article>
 
             <section className="gap-list">
               <div className="section-heading">
@@ -654,7 +707,7 @@ function ComparisonPage({
               ))}
             </section>
 
-            <StickyAction>
+            <ActionPanel>
               <button
                 className="primary-button"
                 type="button"
@@ -662,7 +715,7 @@ function ComparisonPage({
               >
                 {comparison.nextAction.label}
               </button>
-            </StickyAction>
+            </ActionPanel>
           </section>
         )
       }}
@@ -690,10 +743,24 @@ function SimulationPage({
       {(simulation) => (
         <section className="stack">
           <div className="hero-copy compact">
-            <p className="section-label">3개월 시뮬레이션</p>
-            <h1>작게 먼저 떼어두면 이렇게 달라져요</h1>
+            <p className="section-label">행동 리허설</p>
+            <h1>만약 이 또래처럼 먼저 떼어둔다면?</h1>
             <p>{simulation.insight}</p>
           </div>
+
+          <article className="rehearsal-card">
+            <div className="section-heading">
+              <h2>{formatKrwCompact(simulation.monthlyAdditionalSaving)} 자동 저축</h2>
+              <span>P0 고정 시나리오</span>
+            </div>
+            <div className="rehearsal-track" aria-hidden="true">
+              <span />
+            </div>
+            <div className="rehearsal-labels">
+              <span>오늘</span>
+              <span>{simulation.periodMonths}개월 뒤</span>
+            </div>
+          </article>
 
           <article className="simulation-card">
             <ValueCard title="현재" values={simulation.before} />
@@ -724,7 +791,7 @@ function SimulationPage({
 
           <p className="disclaimer">{simulation.disclaimer}</p>
 
-          <StickyAction>
+          <ActionPanel>
             <button
               className="primary-button"
               type="button"
@@ -732,7 +799,7 @@ function SimulationPage({
             >
               {simulation.nextAction.label}
             </button>
-          </StickyAction>
+          </ActionPanel>
         </section>
       )}
     </AsyncBoundary>
@@ -758,6 +825,12 @@ function MissionPage({
     <AsyncBoundary state={state}>
       {(mission) => (
         <section className="stack">
+          <article className="context-card">
+            <span>미션 생성 맥락</span>
+            <strong>비교와 시뮬레이션 결과에서 만든 미션입니다</strong>
+            <p>비상금 격차를 줄이기 위해 오늘 실행할 수 있는 작은 행동만 남겼어요.</p>
+          </article>
+
           <article className="mission-card">
             <p className="section-label">오늘의 미션</p>
             <h1>{mission.title}</h1>
@@ -767,6 +840,15 @@ function MissionPage({
               <span>{formatVerificationType(mission.verificationType)}</span>
               <span>{mission.rewardPoints}P</span>
             </div>
+          </article>
+
+          <article className="panel action-guide">
+            <h2>실행 가이드</h2>
+            <ol>
+              <li>월초 자동이체 날짜를 먼저 정해요.</li>
+              <li>금액은 공개하지 않고 완료 여부만 기록해요.</li>
+              <li>하루 뒤 홈에서 비상금 준비율 변화를 확인해요.</li>
+            </ol>
           </article>
 
           <article className="panel share-preview">
@@ -779,7 +861,7 @@ function MissionPage({
             </p>
           </article>
 
-          <StickyAction>
+          <ActionPanel>
             <button type="button" onClick={() => navigate('/home')}>
               홈으로 이동
             </button>
@@ -790,7 +872,7 @@ function MissionPage({
             >
               공개 범위 확인
             </button>
-          </StickyAction>
+          </ActionPanel>
         </section>
       )}
     </AsyncBoundary>
@@ -979,8 +1061,8 @@ function InlineError({ message }: { message: string }) {
   return <p className="inline-error">{message}</p>
 }
 
-function StickyAction({ children }: { children: ReactNode }) {
-  return <div className="sticky-action">{children}</div>
+function ActionPanel({ children }: { children: ReactNode }) {
+  return <div className="action-panel">{children}</div>
 }
 
 function StepTitle({ index, step }: { index: number; step: OnboardingStep }) {
@@ -1002,6 +1084,24 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     <article className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
+    </article>
+  )
+}
+
+function StateTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: 'user' | 'peer'
+}) {
+  return (
+    <article className={`state-tile ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{tone === 'peer' ? '보유 루틴 있음' : '준비 중'}</small>
     </article>
   )
 }
@@ -1208,9 +1308,13 @@ function formatPrivacyField(field: string): string {
     goalType: '금융 목표',
     financialSummary: '금융 요약',
     routineCards: '루틴 카드',
+    occupationStatus: '직업 상태',
+    householdType: '가구 형태',
     name: '이름',
     accountNumber: '계좌번호',
+    cardNumber: '카드번호',
     merchantName: '거래처',
+    transactionTimestamp: '거래 일시',
     exactTransactionTime: '정확한 거래 시간',
   }
   return labels[field] ?? field
