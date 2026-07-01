@@ -1,6 +1,8 @@
 # FinMate 모바일 웹/PWA 앱
 
-React + Vite 기반의 FinMate 모바일 웹앱입니다. 사용자는 회원가입/로그인 후 30초 설문, 개인정보 공개 동의, 마이데이터 제공 동의를 거쳐 홈, 비교, 미션, 기록, 프로필, 친구 피드, 생일펀드, 포인트 지갑 흐름을 사용할 수 있습니다.
+React + Vite 기반의 FinMate 모바일 웹/PWA 앱입니다. 사용자는 회원가입/로그인 후 30초 설문, 개인정보 공개 동의, 마이데이터 제공 동의를 거쳐 홈, 비교, 미션, 기록, 프로필, 친구 피드, 생일펀드, 포인트 지갑 흐름을 사용할 수 있습니다.
+
+v1.5 화면은 딥 그린/틸 중심의 금융 앱 톤으로 정리했고, AI 코치와 비교 인사이트에서만 보조 색을 사용합니다.
 
 ## Docker 실행
 
@@ -90,5 +92,7 @@ PWA manifest는 `public/manifest.webmanifest`, 기본 service worker는 `public/
 - `onboarding-consent.png`
 - `home.png`
 - `compare.png`
+- `coach.png`
 - `mission.png`
+- `records.png`
 - `profile.png`

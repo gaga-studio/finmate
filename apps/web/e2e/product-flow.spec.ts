@@ -24,7 +24,7 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
     }))
   })
   await page.goto('/signup')
-  await expect(page.getByRole('heading', { name: 'FinMate 시작하기' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '나와 비슷한 사람들의 금융 루틴을 비교해보세요' })).toBeVisible()
 
   const email = `e2e-${Date.now()}@finmate.local`
   await page.getByRole('textbox', { name: '이름' }).fill('민준')
@@ -86,10 +86,10 @@ test('signup to birthday fund product flow works end to end', async ({ context, 
 
   await page.getByRole('button', { name: '로그아웃' }).click()
   await expect(page).toHaveURL(/\/login/)
-  await expect(page.getByRole('heading', { name: 'FinMate 로그인' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '금융 루틴으로 다시 들어가기' })).toBeVisible()
 
   await page.goto('/home')
-  await expect(page.getByRole('heading', { name: 'FinMate 로그인' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '금융 루틴으로 다시 들어가기' })).toBeVisible()
 })
 
 async function expectBottomTabs(page: Page) {

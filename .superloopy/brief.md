@@ -1,0 +1,1 @@
+FinMate v1.5 frontend redesign: preserve auth, onboarding 4-step flow, backend APIs, and five bottom tabs while adding DESIGN.md tokens, splitting the React UI into maintainable screen/component modules, polishing financial SNS visuals, and recording browser QA evidence.

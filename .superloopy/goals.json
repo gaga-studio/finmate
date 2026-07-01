@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "mode": "light",
+  "createdAt": "2026-07-01T14:02:26.133Z",
+  "updatedAt": "2026-07-01T14:26:25.626Z",
+  "briefPath": ".superloopy/brief.md",
+  "evidencePath": ".superloopy/evidence",
+  "goalsPath": ".superloopy/goals.json",
+  "ledgerPath": ".superloopy/ledger.jsonl",
+  "goals": [
+    {
+      "id": "G001",
+      "title": "FinMate v1.5 frontend redesign: preserve auth, onboarding 4-step flow...",
+      "objective": "FinMate v1.5 frontend redesign: preserve auth, onboarding 4-step flow, backend APIs, and five bottom tabs while adding DESIGN.md tokens, splitting the React UI into maintainable screen/component modules, polishing financial SNS visuals, and recording browser QA evidence.",
+      "status": "complete",
+      "attempt": 1,
+      "createdAt": "2026-07-01T14:02:26.133Z",
+      "updatedAt": "2026-07-01T14:26:25.626Z",
+      "criteria": [
+        {
+          "id": "C001",
+          "kind": "happy",
+          "scenario": "Happy path works from the real user-facing surface.",
+          "essential": true,
+          "status": "pass",
+          "artifact": ".superloopy/evidence/G001-C001-capture.txt",
+          "capturedAt": "2026-07-01T14:25:36.620Z",
+          "notes": "Docker product happy path E2E passes after frontend redesign",
+          "command": [
+            "npm",
+            "run",
+            "e2e",
+            "--prefix",
+            "apps/web"
+          ],
+          "exitCode": 0
+        },
+        {
+          "id": "C002",
+          "kind": "risk",
+          "scenario": "Riskiest edge or failure path is handled.",
+          "essential": true,
+          "status": "pass",
+          "artifact": ".superloopy/evidence/G001-C002-capture.txt",
+          "capturedAt": "2026-07-01T14:25:54.610Z",
+          "notes": "Static build, contract validators, and backend tests pass after modular frontend refactor",
+          "command": [
+            "zsh",
+            "-lc",
+            "npm run lint --prefix apps/web && npm run build --prefix apps/web && ./gradlew :apps:api:test && python3 scripts/validate_contract.py && python3 scripts/validate_app_contract.py && python3 scripts/validate_product_mvp.py"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "startedAt": "2026-07-01T14:02:26.136Z",
+      "completedAt": "2026-07-01T14:26:25.626Z",
+      "evidence": "FinMate v1.5 frontend redesign completed with token contract, real-browser screenshots, E2E, build, backend tests, and contract validation"
+    }
+  ],
+  "aggregateCompletion": {
+    "status": "complete",
+    "completedAt": "2026-07-01T14:26:25.626Z",
+    "evidence": "FinMate v1.5 frontend redesign completed with token contract, real-browser screenshots, E2E, build, backend tests, and contract validation",
+    "qualityGate": {
+      "status": "passed",
+      "artifacts": [
+        {
+          "absolutePath": "/Users/sungjh/Documents/Codex/2026-06-30/d/work/finmate/.superloopy/evidence/G001-C001-capture.txt",
+          "relativePath": ".superloopy/evidence/G001-C001-capture.txt",
+          "size": 630
+        },
+        {
+          "absolutePath": "/Users/sungjh/Documents/Codex/2026-06-30/d/work/finmate/.superloopy/evidence/G001-C002-capture.txt",
+          "relativePath": ".superloopy/evidence/G001-C002-capture.txt",
+          "size": 1501
+        }
+      ]
+    }
+  }
+}

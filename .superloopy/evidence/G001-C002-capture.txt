@@ -1,0 +1,42 @@
+Superloopy command capture
+startedAt: 2026-07-01T14:25:52.135Z
+finishedAt: 2026-07-01T14:25:54.609Z
+cwd: /Users/sungjh/Documents/Codex/2026-06-30/d/work/finmate
+status: pass
+exitCode: 0
+signal: null
+command: ["zsh","-lc","npm run lint --prefix apps/web && npm run build --prefix apps/web && ./gradlew :apps:api:test && python3 scripts/validate_contract.py && python3 scripts/validate_app_contract.py && python3 scripts/validate_product_mvp.py"]
+[stdout]
+
+> finmate-web@1.0.0 lint
+> oxlint
+
+
+> finmate-web@1.0.0 build
+> tsc -b && vite build
+
+vite v8.1.1 building client environment for production...
+[2Ktransforming...✓ 28 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.83 kB │ gzip:  0.53 kB
+dist/assets/index-BMIC-bqQ.css   21.75 kB │ gzip:  4.51 kB
+dist/assets/index-BFjzMG0g.js   238.58 kB │ gzip: 73.46 kB
+
+✓ built in 95ms
+> Task :apps:api:compileJava UP-TO-DATE
+> Task :apps:api:processResources UP-TO-DATE
+> Task :apps:api:classes UP-TO-DATE
+> Task :apps:api:compileTestJava UP-TO-DATE
+> Task :apps:api:processTestResources NO-SOURCE
+> Task :apps:api:testClasses UP-TO-DATE
+> Task :apps:api:test UP-TO-DATE
+
+BUILD SUCCESSFUL in 695ms
+4 actionable tasks: 4 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.3.0/userguide/configuration_cache_enabling.html
+FinMate P0 contract validation passed
+FinMate P1 app contract validation passed
+FinMate product MVP validation passed
+
+[stderr]

@@ -53,7 +53,10 @@ def main() -> None:
     ).lower()
     controller = read("apps/api/src/main/java/com/gagastudio/finmate/api/controller/FinmateController.java")
     api_client = read("apps/web/src/api.ts")
-    app = read("apps/web/src/App.tsx")
+    app_sources = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "apps/web/src").glob("*.tsx"))
+    )
     manifest = read("apps/web/public/manifest.webmanifest")
     compose = read("docker-compose.yml")
     web_package = read("apps/web/package.json")
@@ -94,7 +97,7 @@ def main() -> None:
             fail(f"Missing frontend API auth snippet: {snippet}")
 
     for route in ["login", "signup", "AuthPage", "clearSession", "api.logout"]:
-        if route not in app:
+        if route not in app_sources:
             fail(f"Missing frontend auth flow snippet: {route}")
 
     if "display\": \"standalone\"" not in manifest:
