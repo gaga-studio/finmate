@@ -162,6 +162,14 @@ public class FinmateController {
         return productAppService.searchCompareFilter(authService.requireUserId(authorization), request);
     }
 
+    @PostMapping("/api/app/compare/groups")
+    public AppActionResultResponse createAppCompareGroup(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody AppCompareSearchRequest request
+    ) {
+        return productAppService.createCompareGroup(authService.requireUserId(authorization), request);
+    }
+
     @GetMapping("/api/app/compare/results/{comparisonId}")
     public AppScreenResponse getAppCompareResult(
             @RequestHeader(value = "Authorization", required = false) String authorization,

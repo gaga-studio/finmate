@@ -9,6 +9,7 @@ EXPECTED_CONTROLLER_SNIPPETS = [
     'GetMapping("/api/app/compare")',
     'GetMapping("/api/app/compare/filter")',
     'PostMapping("/api/app/compare/filter/search")',
+    'PostMapping("/api/app/compare/groups")',
     'GetMapping("/api/app/compare/results/{comparisonId}")',
     'GetMapping("/api/app/compare/{comparisonId}/coach-flow")',
     'GetMapping("/api/app/missions")',
@@ -33,6 +34,7 @@ EXPECTED_CONTROLLER_SNIPPETS = [
 EXPECTED_WEB_SNIPPETS = [
     "getAppHome",
     "getAppCompare",
+    "createAppCompareGroup",
     "getAppMissions",
     "getAppMissionAdd",
     "addAppMissionFromTemplate",

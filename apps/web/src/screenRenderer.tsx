@@ -296,6 +296,24 @@ function SectionRenderer({ section, navigate }: { section: AppSection; navigate:
   if (section.kind === 'greeting' || section.kind === 'lead') {
     return <LeadSection section={section} />
   }
+  if (section.kind === 'comparePrompt') {
+    return <ComparePromptSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'compareGroupRail') {
+    return <CompareGroupRailSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'savedCompareGroups') {
+    return <SavedCompareGroupsSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'compareProfileList') {
+    return <CompareProfileListSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'profileSegmented') {
+    return <ProfileSegmentedSection section={section} navigate={navigate} />
+  }
+  if (section.kind === 'profileFollowingHero') {
+    return <ProfileFollowingHeroSection section={section} navigate={navigate} />
+  }
   if (section.kind === 'missionHero') {
     return <MissionHero section={section} navigate={navigate} />
   }
@@ -370,11 +388,16 @@ function BudgetSection({ section, navigate }: SectionProps) {
 
 function GridSection({ section, navigate }: SectionProps) {
   const isScore = section.kind === 'scoreGrid'
+  const hasMetricTiles = !isScore && section.metrics && section.metrics.length > 0
   return (
     <Card section={section} navigate={navigate} className={isScore ? 'score-card' : undefined}>
       {isScore ? (
         <div className="score-grid">
           {section.metrics?.map((metric) => <ScoreTile metric={metric} key={metric.label} />)}
+        </div>
+      ) : hasMetricTiles ? (
+        <div className="tile-grid metric-tile-grid">
+          {section.metrics?.map((metric) => <MetricTile metric={metric} key={metric.label} />)}
         </div>
       ) : (
         <div className="tile-grid">
@@ -509,6 +532,105 @@ function ChipSection({ section }: { section: AppSection }) {
   )
 }
 
+function ComparePromptSection({ section, navigate }: SectionProps) {
+  return (
+    <button className="compare-prompt-card" type="button" onClick={() => goDetail(section, navigate)}>
+      <span>{section.title}</span>
+      <Chevron />
+    </button>
+  )
+}
+
+function CompareGroupRailSection({ section, navigate }: SectionProps) {
+  return (
+    <article className="card compare-group-section">
+      <SectionHeader section={section} navigate={navigate} />
+      {section.subtitle ? <p className="card-subtitle">{section.subtitle}</p> : null}
+      <div className="compare-group-rail">
+        {section.items?.map((item) => (
+          <button className="compare-group-card" type="button" onClick={() => item.detailPath && navigate(item.detailPath)} key={item.id}>
+            <IconBadge icon={item.icon ?? 'profile'} tone={item.tone ?? 'purple'} />
+            <strong>{item.title}</strong>
+            {item.subtitle ? <span>{item.subtitle}</span> : null}
+            {item.caption ? <small>{item.caption}</small> : null}
+          </button>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function SavedCompareGroupsSection({ section, navigate }: SectionProps) {
+  return (
+    <article className="card saved-compare-section">
+      <SectionHeader section={section} navigate={navigate} />
+      {section.subtitle ? <p className="card-subtitle">{section.subtitle}</p> : null}
+      <div className="saved-compare-list">
+        {section.items?.map((item) => (
+          <button className="saved-compare-card" type="button" onClick={() => item.detailPath && navigate(item.detailPath)} key={item.id}>
+            <IconBadge icon={item.icon ?? 'profile'} tone={item.tone ?? 'purple'} />
+            <div>
+              <strong>{item.title}</strong>
+              {item.subtitle ? <small>{item.subtitle}</small> : null}
+            </div>
+            {item.caption ? <span>{item.caption}</span> : null}
+            <Chevron />
+          </button>
+        ))}
+      </div>
+      <ActionButtons actions={section.actions} navigate={navigate} />
+    </article>
+  )
+}
+
+function CompareProfileListSection({ section, navigate }: SectionProps) {
+  return (
+    <article className="card compare-profile-list-section">
+      <SectionHeader section={section} navigate={navigate} />
+      {section.subtitle ? <p className="card-subtitle">{section.subtitle}</p> : null}
+      <div className="compare-profile-list">
+        {section.items?.map((item) => (
+          <button className="compare-profile-card" type="button" onClick={() => item.detailPath && navigate(item.detailPath)} key={item.id}>
+            <IconBadge icon={item.icon ?? 'profile'} tone={item.tone ?? 'purple'} />
+            <div className="compare-profile-copy">
+              <strong>{item.title}</strong>
+              {item.subtitle ? <span>{item.subtitle}</span> : null}
+              {item.caption ? <small>{item.caption}</small> : null}
+            </div>
+            {item.value ? <b>{item.value}</b> : null}
+          </button>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function ProfileSegmentedSection({ section, navigate }: SectionProps) {
+  return (
+    <div className="profile-segmented">
+      {section.items?.map((item) => (
+        <button className={item.caption ? 'active' : ''} type="button" onClick={() => item.detailPath && navigate(item.detailPath)} key={item.id}>
+          <span>{item.title}</span>
+          {item.subtitle ? <strong>{item.subtitle}</strong> : null}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ProfileFollowingHeroSection({ section, navigate }: SectionProps) {
+  return (
+    <button className="profile-following-hero" type="button" onClick={() => goDetail(section, navigate)}>
+      <IconBadge icon="profile" tone="purple" />
+      <div>
+        <strong>{section.title}</strong>
+        {section.subtitle ? <span>{section.subtitle}</span> : null}
+      </div>
+      <Chevron />
+    </button>
+  )
+}
+
 function ListSection({ section, navigate }: SectionProps) {
   return (
     <Card
@@ -582,6 +704,18 @@ function ScoreTile({ metric }: { metric: AppMetric }) {
       <span>{metric.label}</span>
       <strong>{metric.value}</strong>
       {metric.caption ? <small>{metric.caption}</small> : null}
+    </div>
+  )
+}
+
+function MetricTile({ metric }: { metric: AppMetric }) {
+  return (
+    <div className="mini-tile metric-mini-tile">
+      <IconBadge icon={metric.label.includes('주식') ? 'stocks' : metric.label.includes('적금') ? 'saving' : metric.label.includes('펀드') ? 'fund' : 'pension'} tone={metric.tone ?? 'purple'} />
+      <strong>{metric.label}</strong>
+      <b>{metric.value}</b>
+      {metric.caption ? <small>{metric.caption}</small> : null}
+      {typeof metric.progress === 'number' ? <ProgressLine value={metric.progress} tone={metric.tone === 'green' ? 'green' : 'purple'} /> : null}
     </div>
   )
 }

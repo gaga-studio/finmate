@@ -75,7 +75,9 @@ public final class ApiDtos {
             String incomeBand,
             String jobCategory,
             String moneyStyle,
-            String area
+            String area,
+            String householdType,
+            String assetRange
     ) {
     }
 

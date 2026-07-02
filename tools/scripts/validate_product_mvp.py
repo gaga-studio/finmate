@@ -35,6 +35,8 @@ EXPECTED_TABLES = {
     "birthday_funds",
     "birthday_fund_contributions",
     "financial_transactions",
+    "compare_groups",
+    "compare_group_members",
 }
 
 

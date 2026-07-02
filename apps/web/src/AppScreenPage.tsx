@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import { clearSession } from './session'
 import type { Route, Navigate } from './navigation'
-import type { AppScreenResponse } from './types'
+import type { AppCompareSearchRequest, AppScreenResponse } from './types'
 import { describeError, isUnauthorized } from './errors'
 import { ErrorScreen, LoadingScreen, ScreenRenderer } from './screenRenderer'
+import { CompareFilterPage } from './CompareFilterPage'
 
 type LoadState =
   | { status: 'loading' }
@@ -12,6 +13,22 @@ type LoadState =
   | { status: 'error'; message: string }
 
 export function AppScreenPage({
+  pathname,
+  route,
+  navigate,
+}: {
+  pathname: string
+  route: Extract<Route, { name: 'screen' }>
+  navigate: Navigate
+}) {
+  if (route.screen === 'compare-filter') {
+    return <CompareFilterPage navigate={navigate} />
+  }
+
+  return <LoadedAppScreen pathname={pathname} route={route} navigate={navigate} />
+}
+
+function LoadedAppScreen({
   pathname,
   route,
   navigate,
@@ -71,7 +88,7 @@ function loadScreen(route: Extract<Route, { name: 'screen' }>): Promise<AppScree
     case 'compare-filter':
       return api.getAppCompareFilter()
     case 'compare-results':
-      return api.searchAppCompareFilter()
+      return api.searchAppCompareFilter(defaultCompareFilters)
     case 'compare-result':
       return api.getAppCompareResult(route.param ?? 'cmp-001')
     case 'compare-coach':
@@ -103,4 +120,14 @@ function loadScreen(route: Extract<Route, { name: 'screen' }>): Promise<AppScree
     case 'birthday-status':
       return api.getMyBirthdayFundStatus()
   }
+}
+
+const defaultCompareFilters: AppCompareSearchRequest = {
+  ageBand: '전체',
+  incomeBand: '전체',
+  jobCategory: '전체',
+  moneyStyle: '전체',
+  area: '전체',
+  householdType: '전체',
+  assetRange: '전체',
 }

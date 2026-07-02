@@ -171,6 +171,51 @@ class FinmateApiApplicationTests {
         assertTrue(sparkline.size() >= 2, "asset sparkline should be derived from transaction movement");
         assertTrue(!"[12,18,16,24,21,31,28,35]".equals(sparkline.toString()));
 
+        mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[?(@.id == 'recommended')]").exists())
+                .andExpect(jsonPath("$.sections[?(@.id == 'my-groups')]").exists())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("1,246"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("68점"))));
+
+        mockMvc.perform(post("/api/app/compare/filter/search")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(compareRequestPayload()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.resultCount").value(1))
+                .andExpect(content().string(containsString("서연")));
+
+        MvcResult compareGroupResult = mockMvc.perform(post("/api/app/compare/groups")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(compareRequestPayload()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.memberCount").value(1))
+                .andReturn();
+        String comparePath = objectMapper.readTree(compareGroupResult.getResponse().getContentAsString()).get("nextPath").asText();
+        String comparisonId = comparePath.substring(comparePath.lastIndexOf('/') + 1);
+
+        mockMvc.perform(get("/api/app/compare/results/" + comparisonId).header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[?(@.id == 'score')]").exists())
+                .andExpect(content().string(containsString("나의 금융 점수")))
+                .andExpect(content().string(containsString("비교 그룹 평균")))
+                .andExpect(content().string(containsString("1명의 평균")));
+
+        mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(comparisonId)))
+                .andExpect(content().string(containsString("나 vs 20대 평균")));
+
+        mockMvc.perform(get("/api/app/profile").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("팔로잉 금융 현황"))
+                .andExpect(jsonPath("$.meta.followingCount").value(1))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("128명"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("18명"))));
+
         mockMvc.perform(get("/api/app/missions").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("missions"));
@@ -330,6 +375,20 @@ class FinmateApiApplicationTests {
         String[] parts = accessToken.split("\\.");
         JsonNode payload = objectMapper.readTree(java.util.Base64.getUrlDecoder().decode(parts[1]));
         return payload.get("sub").asText();
+    }
+
+    private String compareRequestPayload() {
+        return """
+                {
+                  "ageBand": "20대",
+                  "incomeBand": "전체",
+                  "jobCategory": "전체",
+                  "moneyStyle": "전체",
+                  "area": "전체",
+                  "householdType": "전체",
+                  "assetRange": "전체"
+                }
+                """;
     }
 
     private int count(String table, String userId) {

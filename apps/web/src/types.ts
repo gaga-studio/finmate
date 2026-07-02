@@ -49,6 +49,16 @@ export type ProductOnboardingRequest = {
   mydataConsent: ProductMyDataConsentPayload
 }
 
+export type AppCompareSearchRequest = {
+  ageBand: string
+  incomeBand: string
+  jobCategory: string
+  moneyStyle: string
+  area: string
+  householdType: string
+  assetRange: string
+}
+
 export type AppScreenResponse = {
   screenId: string
   title: string
