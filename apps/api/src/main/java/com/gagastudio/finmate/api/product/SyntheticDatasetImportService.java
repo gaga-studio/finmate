@@ -19,11 +19,13 @@ public class SyntheticDatasetImportService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
+    private final MissionEvaluationService missionEvaluationService;
 
-    public SyntheticDatasetImportService(JdbcTemplate jdbc, ObjectMapper objectMapper, PasswordEncoder passwordEncoder) {
+    public SyntheticDatasetImportService(JdbcTemplate jdbc, ObjectMapper objectMapper, PasswordEncoder passwordEncoder, MissionEvaluationService missionEvaluationService) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.passwordEncoder = passwordEncoder;
+        this.missionEvaluationService = missionEvaluationService;
     }
 
     @Transactional
@@ -39,13 +41,16 @@ public class SyntheticDatasetImportService {
 
         int snapshots = 0;
         int dailyRecords = 0;
+        int transactions = 0;
         int missions = 0;
         for (DevSyntheticUserPayload user : request.users()) {
             upsertProfileAndConsent(user, request.importVersion());
             upsertSnapshot(user);
             snapshots += 1;
             dailyRecords += upsertDailyRecords(user);
+            transactions += upsertTransactions(user);
             missions += upsertMissions(user);
+            missionEvaluationService.evaluateUserMissions(userId(user.personaId()));
         }
 
         int friendships = 0;
@@ -67,6 +72,7 @@ public class SyntheticDatasetImportService {
                 request.users().size(),
                 snapshots,
                 dailyRecords,
+                transactions,
                 missions,
                 friendships,
                 feedItems,
@@ -75,8 +81,8 @@ public class SyntheticDatasetImportService {
     }
 
     private void resetSyntheticUsers() {
-        jdbc.update("DELETE FROM birthday_fund_contributions WHERE fund_id = 'fund-jiwoo'");
-        jdbc.update("DELETE FROM birthday_funds WHERE id = 'fund-jiwoo' OR owner_user_id LIKE ?", USER_ID_PREFIX + "%");
+        jdbc.update("DELETE FROM birthday_fund_contributions WHERE fund_id IN (SELECT id FROM birthday_funds WHERE owner_user_id LIKE ?)", USER_ID_PREFIX + "%");
+        jdbc.update("DELETE FROM birthday_funds WHERE owner_user_id LIKE ?", USER_ID_PREFIX + "%");
         jdbc.update("DELETE FROM users WHERE id LIKE ?", USER_ID_PREFIX + "%");
     }
 
@@ -109,6 +115,7 @@ public class SyntheticDatasetImportService {
         jdbc.update("DELETE FROM feed_items WHERE user_id = ? OR actor_user_id = ?", userId, userId);
         jdbc.update("DELETE FROM friendships WHERE follower_id = ? OR followee_id = ?", userId, userId);
         jdbc.update("DELETE FROM daily_records WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM financial_transactions WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM mission_events WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM missions WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM coach_results WHERE user_id = ?", userId);
@@ -216,6 +223,49 @@ public class SyntheticDatasetImportService {
                       point_delta = EXCLUDED.point_delta
                     """, "record-" + userId + "-" + record.recordDate(), userId, LocalDate.parse(record.recordDate()),
                     record.budget(), record.spent(), json(record.categorySpending()), record.missionStatus(), record.pointDelta());
+            count += 1;
+        }
+        return count;
+    }
+
+    private int upsertTransactions(DevSyntheticUserPayload user) {
+        String userId = userId(user.personaId());
+        int count = 0;
+        for (DevSyntheticTransactionPayload transaction : nullSafe(user.transactions())) {
+            jdbc.update("""
+                    INSERT INTO financial_transactions (
+                      id, user_id, source_transaction_id, transaction_date, transaction_time,
+                      transaction_type, category, subcategory, description, amount_krw,
+                      cashflow_bucket, account_ref, api_ref, raw_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (user_id, source_transaction_id) DO UPDATE SET
+                      transaction_date = EXCLUDED.transaction_date,
+                      transaction_time = EXCLUDED.transaction_time,
+                      transaction_type = EXCLUDED.transaction_type,
+                      category = EXCLUDED.category,
+                      subcategory = EXCLUDED.subcategory,
+                      description = EXCLUDED.description,
+                      amount_krw = EXCLUDED.amount_krw,
+                      cashflow_bucket = EXCLUDED.cashflow_bucket,
+                      account_ref = EXCLUDED.account_ref,
+                      api_ref = EXCLUDED.api_ref,
+                      raw_json = EXCLUDED.raw_json
+                    """,
+                    "txn-" + userId + "-" + transaction.transactionId(),
+                    userId,
+                    transaction.transactionId(),
+                    LocalDate.parse(transaction.transactionDate()),
+                    transaction.transactionTime(),
+                    transaction.transactionType(),
+                    transaction.category(),
+                    transaction.subcategory(),
+                    transaction.description(),
+                    transaction.amountKrw(),
+                    transaction.cashflowBucket(),
+                    transaction.accountRef(),
+                    transaction.apiRef(),
+                    json(transaction));
             count += 1;
         }
         return count;

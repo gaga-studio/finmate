@@ -36,17 +36,21 @@ public class ProductAppService implements FinancialDataProvider {
     };
     private static final TypeReference<List<CoachRecommendationV1>> RECOMMENDATION_LIST = new TypeReference<>() {
     };
+    private static final TypeReference<Map<String, Object>> OBJECT_MAP = new TypeReference<>() {
+    };
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final CoachProvider coachProvider;
     private final SeedStore seedStore;
+    private final MissionEvaluationService missionEvaluationService;
 
-    public ProductAppService(JdbcTemplate jdbc, ObjectMapper objectMapper, CoachProvider coachProvider, SeedStore seedStore) {
+    public ProductAppService(JdbcTemplate jdbc, ObjectMapper objectMapper, CoachProvider coachProvider, SeedStore seedStore, MissionEvaluationService missionEvaluationService) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.coachProvider = coachProvider;
         this.seedStore = seedStore;
+        this.missionEvaluationService = missionEvaluationService;
     }
 
     @Transactional
@@ -73,108 +77,13 @@ public class ProductAppService implements FinancialDataProvider {
                 """, userId);
     }
 
-    @Transactional
-    public void bootstrapDemoUserData(String userId, String displayName, boolean includeBirthdayEvent) {
-        bootstrapUser(userId, displayName);
-        clearUserRuntimeData(userId);
-        insertSeedFriend("friend-jiwoo", "jiwoo@finmate.local", "지우");
-        insertSeedFriend("friend-minsu", "minsu@finmate.local", "민수");
-        insertSeedFriend("friend-seoyeon", "seoyeon@finmate.local", "서연");
-        insertSeedFriend("friend-jaehun", "jaehun@finmate.local", "재훈");
-
-        jdbc.update("""
-                UPDATE users
-                SET display_name = ?,
-                    onboarding_completed = TRUE,
-                    updated_at = now()
-                WHERE id = ?
-                """, displayName, userId);
-        jdbc.update("""
-                INSERT INTO user_profiles (user_id, age_band, income_band, job_category, household_type, money_style, area, goal_type)
-                VALUES (?, '20대 후반', '3,000만원 ~ 4,000만원', 'IT/개발', '1인가구', '안정 추구형', '서울 강남권', 'EMERGENCY_FUND')
-                ON CONFLICT (user_id) DO UPDATE SET
-                  age_band = EXCLUDED.age_band,
-                  income_band = EXCLUDED.income_band,
-                  job_category = EXCLUDED.job_category,
-                  household_type = EXCLUDED.household_type,
-                  money_style = EXCLUDED.money_style,
-                  area = EXCLUDED.area,
-                  goal_type = EXCLUDED.goal_type,
-                  updated_at = now()
-                """, userId);
-        jdbc.update("""
-                INSERT INTO privacy_settings (user_id, anonymous_portfolio_opt_in, friend_share_default, exposed_fields)
-                VALUES (?, TRUE, 'MISSION_ONLY', 'ageBand,goalType,financialSummary,missionStatus')
-                ON CONFLICT (user_id) DO UPDATE SET
-                  anonymous_portfolio_opt_in = EXCLUDED.anonymous_portfolio_opt_in,
-                  friend_share_default = EXCLUDED.friend_share_default,
-                  exposed_fields = EXCLUDED.exposed_fields,
-                  updated_at = now()
-                """, userId);
-        jdbc.update("""
-                INSERT INTO point_wallets (user_id, point_balance, virtual_money_balance)
-                VALUES (?, 2450, 100000)
-                ON CONFLICT (user_id) DO UPDATE SET
-                  point_balance = EXCLUDED.point_balance,
-                  virtual_money_balance = EXCLUDED.virtual_money_balance,
-                  updated_at = now()
-                """, userId);
-        jdbc.update("""
-                INSERT INTO financial_snapshots (
-                  id, user_id, month, monthly_income, monthly_spending, monthly_saving,
-                  investment_value, cash_like_assets, emergency_fund_months, categories_json, lifestyle_tags
-                )
-                VALUES (?, ?, '2026-06', 3200000, 1680000, 620000, 1200000, 400000, 0.4, ?, '식비절약,비상금,또래비교')
-                ON CONFLICT (user_id, month) DO NOTHING
-                """, "snapshot-" + userId, userId, json(demoCategorySpending()));
-
-        upsertMission(userId, "mission-food", "내일 식비 10,000원 이하 사용하기", "하루 식비를 낮춰 남는 금액을 비상금으로 옮겨요.", "ACTIVE", "EASY", 120, 78, "RULE_BASED_FALLBACK");
-        upsertMission(userId, "mission-cafe", "카페 지출 줄이기", "이번 주 카페 2회 이하 이용", "ACTIVE", "EASY", 100, 50, "RULE_BASED_FALLBACK");
-        upsertMission(userId, "mission-fixed-cost", "고정 지출 5% 줄이기", "구독과 자동결제를 점검해 반복 지출을 낮춰요.", "ACTIVE", "NORMAL", 180, 45, "RULE_BASED_FALLBACK");
-        upsertMission(userId, "mission-saving", "저축하기 습관 만들기", "3일 연속 저축 성공", "ACTIVE", "EASY", 200, 66, "RULE_BASED_FALLBACK");
-
-        jdbc.update("""
-                INSERT INTO daily_records (id, user_id, record_date, budget, spent, category_spending_json, mission_status, point_delta)
-                VALUES (?, ?, DATE '2026-06-12', 10000, 7800, ?, 'IN_PROGRESS', 0)
-                ON CONFLICT (user_id, record_date) DO NOTHING
-                """, "record-" + userId + "-2026-06-12", userId, json(demoCategorySpending()));
-
-        upsertFriendship(userId, "friend-jiwoo");
-        upsertFriendship(userId, "friend-minsu");
-        upsertFriendship(userId, "friend-seoyeon");
-        upsertFriendship(userId, "friend-jaehun");
-        upsertFeed(userId, "feed-" + userId + "-1", "friend-minsu", "MISSION", "민수가 카페 지출 줄이기를 완료했어요", "이번 주 카페 2회 이하 미션 성공", null);
-        upsertFeed(userId, "feed-" + userId + "-2", "friend-seoyeon", "SAVING", "서연이 비상금 목표를 70% 채웠어요", "비슷한 또래의 저축 루틴이 올라왔어요", null);
-
-        if (includeBirthdayEvent) {
-            upsertFeed(userId, "feed-" + userId + "-3", "friend-jiwoo", "BIRTHDAY", "지우님의 생일 펀드가 열렸어요", "친구들이 함께 모으는 생일 축하 펀드", 72000);
-            jdbc.update("""
-                    INSERT INTO birthday_funds (id, owner_user_id, title, target_amount, current_amount, due_date, status, share_code)
-                    VALUES ('fund-jiwoo', 'friend-jiwoo', '지우님의 생일 펀드', 100000, 72000, DATE '2026-06-15', 'OPEN', 'JIWOO-2026')
-                    ON CONFLICT (id) DO UPDATE SET
-                      current_amount = EXCLUDED.current_amount,
-                      status = EXCLUDED.status,
-                      updated_at = now()
-                    """);
-        }
-    }
-
-    @Transactional
-    public void ensureDemoUserData(String userId, String displayName, boolean includeBirthdayEvent) {
-        bootstrapUser(userId, displayName);
-        boolean missingCoreData = findSnapshot(userId) == null || findMission(userId, "mission-food") == null || findDailyRecord(userId) == null;
-        boolean missingBirthdayData = includeBirthdayEvent && !hasBirthdayEvent(userId);
-        if (missingCoreData || missingBirthdayData) {
-            bootstrapDemoUserData(userId, displayName, includeBirthdayEvent);
-        }
-    }
-
     private void clearUserRuntimeData(String userId) {
         jdbc.update("DELETE FROM birthday_fund_contributions WHERE contributor_user_id = ?", userId);
         jdbc.update("DELETE FROM point_transactions WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM feed_items WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM friendships WHERE follower_id = ?", userId);
         jdbc.update("DELETE FROM daily_records WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM financial_transactions WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM mission_events WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM missions WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM coach_results WHERE user_id = ?", userId);
@@ -192,6 +101,7 @@ public class ProductAppService implements FinancialDataProvider {
                   point_wallets,
                   feed_items,
                   friendships,
+                  financial_transactions,
                   daily_records,
                   mission_events,
                   missions,
@@ -524,8 +434,8 @@ public class ProductAppService implements FinancialDataProvider {
         UserMeResponse user = userMe(userId);
         DailyRecordRow record = findDailyRecord(userId);
         SnapshotRow snapshot = findSnapshot(userId);
-        MissionRow mission = findMission(userId, "mission-food");
-        FundRow birthdayFund = hasBirthdayEvent(userId) ? findFund("fund-jiwoo") : null;
+        MissionRow mission = todayMission(missions(userId));
+        FundRow birthdayFund = availableBirthdayFund(userId);
         List<AppSection> sections = new ArrayList<>();
         sections.add(section("greeting", "greeting", user.displayName() + "님, 좋은 아침이에요!", "하루 30초, 나의 금융 습관을 확인하고 한 걸음 더 성장해요.", null, null, null, null, null, null));
         sections.add(mission == null
@@ -535,10 +445,10 @@ public class ProductAppService implements FinancialDataProvider {
                 ? emptyActionSection("budget-empty", "오늘의 예산", "오늘 예산을 아직 등록하지 않았어요.", "기록 탭에서 하루 예산과 사용 금액을 확인해보세요.", "/records")
                 : budgetSection(record));
         if (birthdayFund != null) {
-            sections.add(section("birthday-alert", "actionCard", "지우님의 생일이 다가오고 있어요", "친구들이 함께 모으는 생일 펀드가 열렸어요.", "/birthdays/bday-jiwoo", "/assets/characters/finmate-birthday.png",
+            sections.add(section("birthday-alert", "actionCard", birthdayFund.title() + "가 열렸어요", "친구들이 함께 모으는 생일 펀드가 열렸어요.", "/birthdays/" + birthdayFund.id(), "/assets/characters/finmate-birthday.png",
                     metrics(metric("현재 모금", won(birthdayFund.currentAmount()), "목표 " + won(birthdayFund.targetAmount()), "green", percent(birthdayFund.currentAmount(), birthdayFund.targetAmount())),
                             metric("남은 기간", "D-7", birthdayFund.dueDate().toString(), "purple", null)),
-                    null, actions(action("축하 펀드 참여하기", "/birthday-funds/fund-jiwoo/contribute", "GET", "primary", null)), null));
+                    null, actions(action("축하 펀드 참여하기", "/birthday-funds/" + birthdayFund.id() + "/contribute", "GET", "primary", null)), null));
         }
         sections.add(record == null
                 ? emptyActionSection("spending-empty", "오늘의 지출 요약", "오늘 지출 기록이 아직 없어요.", "지출이 기록되면 식비, 교통비, 카페/간식 비중을 바로 볼 수 있어요.", "/records")
@@ -556,7 +466,10 @@ public class ProductAppService implements FinancialDataProvider {
             case "spending" -> screen("home:spending", "오늘의 지출 요약", "home", List.of(recordOrEmpty(userId, "spending")), Map.of());
             case "assets" -> screen("home:assets", "자산 현황", "home", List.of(snapshotOrEmpty(userId)), Map.of());
             case "following" -> screen("home:following", "팔로잉 금융 근황", "home", List.of(followingSection(userId), feedSection(userId)), Map.of());
-            case "mission" -> getMission(userId, "mission-food");
+            case "mission" -> {
+                MissionRow mission = todayMission(missions(userId));
+                yield mission == null ? getMissions(userId) : getMission(userId, mission.routeId());
+            }
             default -> throw validation("detail", "Unsupported home detail.");
         };
     }
@@ -642,6 +555,7 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getMissions(String userId) {
+        missionEvaluationService.evaluateUserMissions(userId);
         List<MissionRow> missions = missions(userId);
         List<AppSection> sections = new ArrayList<>();
         MissionRow todayMission = todayMission(missions);
@@ -662,7 +576,7 @@ public class ProductAppService implements FinancialDataProvider {
                 items(item("mission-add", "추천 미션 보기", "아직 추가하지 않은 행동 목표를 확인해요.", null, "맞춤 추천", "target", "purple", "/missions/add")),
                 actions(action("미션 추가하기", "/missions/add", "GET", "primary", null)), null));
         sections.add(section("points", "points", "나의 포인트", null, null, null,
-                metrics(metric("보유 포인트", wallet(userId).pointBalance() + "P", "실천 완료 시 자동 적립", "purple", 62)), null, null, null));
+                metrics(metric("보유 포인트", wallet(userId).pointBalance() + "P", "행동 데이터 검증 시 자동 적립", "purple", 62)), null, null, null));
         return screen("missions", "미션", "mission", sections, Map.of());
     }
 
@@ -687,13 +601,14 @@ public class ProductAppService implements FinancialDataProvider {
                             actions(action("계획 저장하기", "/missions/mission-food", "GET", "primary", null)), null)
             ), Map.of("missionId", missionId));
         }
+        missionEvaluationService.evaluateMission(userId, missionId);
         MissionRow mission = mission(userId, missionId);
         return screen("missions:" + missionId, mission.title(), "mission", List.of(
                 missionHero(mission),
-                section("guide", "checkList", "오늘의 행동 가이드", null, null, null, null,
-                        items(item("step1", "오늘 쓴 금액을 확인해요.", "기록 탭에서 예산 대비 사용액을 봐요.", null, null, "check", "green", null),
-                                item("step2", "작은 행동 하나를 먼저 실천해요.", mission.description(), null, null, "check", "purple", null),
-                                item("step3", "완료 후 포인트를 기록해요.", "실천 기록은 피드백과 포인트로 남아요.", null, null, "saving", "green", null)),
+                section("evidence", "checkList", "완료 조건과 근거", "미션은 버튼이 아니라 행동 데이터가 조건을 만족할 때 자동 완료돼요.", null, null, null,
+                        items(item("condition", "완료 조건", mission.description(), null, null, "check", "purple", null),
+                                item("status", "현재 판정", mission.evaluationStatus(), null, mission.evaluatedAt(), "target", "green", null),
+                                item("evidence", "근거 데이터", mission.evidenceSummary(), null, null, "records", "purple", null)),
                         null, null)
         ), Map.of("missionId", missionId));
     }
@@ -744,37 +659,8 @@ public class ProductAppService implements FinancialDataProvider {
         return new AppActionResultResponse("ADDED", "미션을 추가했어요", template.title() + " 미션이 진행 중 목록에 들어갔습니다.", "/missions/" + template.missionId(), Map.of("missionId", template.missionId()));
     }
 
-    @Transactional
-    public AppActionResultResponse submitMissionFeedback(String userId, String missionId, AppMissionFeedbackRequest request) {
-        MissionRow mission = mission(userId, missionId);
-        if (!"DONE".equals(request.status())) {
-            throw validation("status", "Only DONE feedback is supported.");
-        }
-        int completed = jdbc.update("""
-                UPDATE missions
-                SET status = 'COMPLETED',
-                    progress = 100,
-                    completed_at = now()
-                WHERE id = ? AND status <> 'COMPLETED'
-                """, mission.dbId());
-        int reward = completed > 0 ? mission.rewardPoints() : 0;
-        if (reward > 0) {
-            addPoints(userId, reward, "MISSION", missionId, mission.title() + " 완료");
-            jdbc.update("""
-                    UPDATE daily_records
-                    SET mission_status = 'SUCCESS', point_delta = point_delta + ?
-                    WHERE user_id = ? AND record_date = ?
-                    """, reward, userId, APP_TODAY);
-            upsertFeed(userId, "feed-" + userId + "-mission-" + missionId, userId, "MISSION", mission.title() + " 완료", "오늘의 금융 루틴을 실천했어요.", null);
-        }
-        jdbc.update("""
-                INSERT INTO mission_events (id, mission_id, user_id, event_type, note, reward_points, event_date)
-                VALUES (?, ?, ?, 'DONE', ?, ?, ?)
-                """, "event-" + UUID.randomUUID(), mission.dbId(), userId, request.note(), reward, APP_TODAY);
-        return new AppActionResultResponse("RECORDED", "오늘 실천을 기록했어요", reward + "P가 포인트 지갑에 반영됐습니다.", "/missions/" + missionId + "/feedback", Map.of("rewardPoints", reward, "pointBalance", wallet(userId).pointBalance()));
-    }
-
     public AppScreenResponse getRecords(String userId, String month) {
+        missionEvaluationService.evaluateUserMissions(userId);
         YearMonth targetMonth = parseMonth(month);
         List<DailyRecordRow> records = dailyRecords(userId, targetMonth);
         List<MissionEventRow> events = missionEvents(userId, targetMonth);
@@ -785,7 +671,7 @@ public class ProductAppService implements FinancialDataProvider {
                             items(item("history", "월간 히스토리", "실천 기록 보기", null, null, "records", "purple", "/records/history"),
                                     item("stats", "포인트 통계", wallet(userId).pointBalance() + "P", null, null, "wallet", "green", "/records/stats")),
                             null, null),
-                    emptyActionSection("record-empty", "오늘 기록이 비어 있어요", "예산과 지출이 기록되면 달력에서 바로 확인할 수 있어요.", "미션을 완료하면 포인트 기록도 함께 쌓입니다.", "/missions")
+                    emptyActionSection("record-empty", "오늘 기록이 비어 있어요", "예산과 지출이 기록되면 달력에서 바로 확인할 수 있어요.", "행동 데이터가 검증되면 포인트 기록도 함께 쌓입니다.", "/missions")
             ), Map.of("month", targetMonth.toString()));
         }
         List<AppSection> sections = new ArrayList<>();
@@ -865,41 +751,38 @@ public class ProductAppService implements FinancialDataProvider {
 
     public AppScreenResponse getBirthdays(String userId) {
         bootstrapUser(userId, displayName(userId));
-        FundRow fund = hasBirthdayEvent(userId) ? findFund("fund-jiwoo") : null;
+        FundRow fund = availableBirthdayFund(userId);
         if (fund == null) {
             return screen("birthdays", "생일 펀드", "home", List.of(
                     emptyActionSection("birthdays-empty", "열린 생일 펀드가 없어요", "친구 생일 이벤트가 생기면 이곳에서 바로 확인할 수 있어요.", "내 생일 펀드는 프로필에서 열 수 있습니다.", "/profile")
             ), Map.of());
         }
         return screen("birthdays", "생일 펀드", "home", List.of(
-                section("fund", "birthday", "지우님의 생일 펀드", "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", "/birthdays/bday-jiwoo", "/assets/characters/finmate-birthday.png",
+                section("fund", "birthday", fund.title(), "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", "/birthdays/" + fund.id(), "/assets/characters/finmate-birthday.png",
                         metrics(metric("모금 금액", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
                                 metric("남은 기간", "D-7", fund.dueDate().toString(), "purple", null)),
-                        null, actions(action("참여하기", "/birthday-funds/fund-jiwoo/contribute", "GET", "primary", null), action("내 생일 펀드 열기", "/birthday-funds/me/open", "GET", "secondary", null)), null)
+                        null, actions(action("참여하기", "/birthday-funds/" + fund.id() + "/contribute", "GET", "primary", null), action("내 생일 펀드 열기", "/birthday-funds/me/open", "GET", "secondary", null)), null)
         ), Map.of());
     }
 
     public AppScreenResponse getBirthdayFlow(String userId, String birthdayId) {
-        if (!"bday-jiwoo".equals(birthdayId)) {
-            throw validation("birthdayId", "Unsupported birthdayId.");
-        }
-        FundRow fund = hasBirthdayEvent(userId) ? findFund("fund-jiwoo") : null;
+        FundRow fund = availableBirthdayFund(userId, birthdayId);
         if (fund == null) {
             return screen("birthdays:" + birthdayId, "생일 펀드", "home", List.of(
                     emptyActionSection("birthday-empty", "이 생일 이벤트를 찾을 수 없어요", "아직 참여 가능한 생일 펀드가 없거나 종료된 상태입니다.", "홈에서 새 이벤트가 열렸는지 확인해주세요.", "/home")
             ), Map.of("birthdayId", birthdayId));
         }
-        return screen("birthdays:bday-jiwoo", "지우님의 생일", "home", List.of(
+        return screen("birthdays:" + fund.id(), fund.title(), "home", List.of(
                 section("fund", "birthday", "생일 축하 펀드란?", "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", null, "/assets/characters/finmate-birthday.png",
                         metrics(metric("모금 금액", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
                                 metric("남은 기간", "D-7", fund.dueDate().toString(), "purple", null)),
-                        null, actions(action("참여하기", "/birthday-funds/fund-jiwoo/contribute", "GET", "primary", null)), null),
+                        null, actions(action("참여하기", "/birthday-funds/" + fund.id() + "/contribute", "GET", "primary", null)), null),
                 section("participants", "list", "실시간 참여 현황", null, null, null, null,
-                        items(item("p1", "나", "참여 가능", won(10000), null, "profile", "purple", null),
-                                item("p2", "민수", "축하 메시지와 함께 참여", won(10000), null, "profile", "green", null),
-                                item("p3", "서연", "따뜻한 메시지", won(5000), null, "profile", "purple", null)),
+                        contributionItems(fund.id()).isEmpty()
+                                ? items(item("participants-empty", "아직 참여 기록이 없어요", "첫 축하 메시지를 남길 수 있어요.", null, null, "profile", "purple", null))
+                                : contributionItems(fund.id()),
                         null, null)
-        ), Map.of("birthdayId", birthdayId));
+        ), Map.of("birthdayId", fund.id()));
     }
 
     @Transactional
@@ -1042,42 +925,12 @@ public class ProductAppService implements FinancialDataProvider {
         );
     }
 
-    private void insertSeedFriend(String id, String email, String displayName) {
-        jdbc.update("""
-                INSERT INTO users (id, email, password_hash, display_name, onboarding_completed)
-                VALUES (?, ?, 'seed-user', ?, TRUE)
-                ON CONFLICT (id) DO NOTHING
-                """, id, email, displayName);
-        jdbc.update("INSERT INTO point_wallets (user_id, point_balance, virtual_money_balance) VALUES (?, 1800, 100000) ON CONFLICT (user_id) DO NOTHING", id);
-    }
-
-    private void upsertMission(String userId, String missionId, String title, String description, String status, String difficulty, int rewardPoints, int progress, String source) {
-        jdbc.update("""
-                INSERT INTO missions (id, user_id, title, description, status, difficulty, reward_points, progress, due_date, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, DATE '2026-06-30', ?)
-                ON CONFLICT (id) DO NOTHING
-                """, missionDbId(userId, missionId), userId, title, description, status, difficulty, rewardPoints, progress, source);
-    }
-
-    private void upsertFriendship(String userId, String friendId) {
-        jdbc.update("""
-                INSERT INTO friendships (id, follower_id, followee_id, status)
-                VALUES (?, ?, ?, 'ACTIVE')
-                ON CONFLICT (follower_id, followee_id) DO NOTHING
-                """, "friendship-" + userId + "-" + friendId, userId, friendId);
-    }
-
     private void upsertFeed(String userId, String id, String actorUserId, String kind, String title, String body, Integer amount) {
         jdbc.update("""
                 INSERT INTO feed_items (id, user_id, actor_user_id, kind, title, body, amount)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO NOTHING
                 """, id, userId, actorUserId, kind, title, body, amount);
-    }
-
-    private void addPoints(String userId, int points, String referenceType, String referenceId, String description) {
-        jdbc.update("UPDATE point_wallets SET point_balance = point_balance + ?, updated_at = now() WHERE user_id = ?", points, userId);
-        addPointTransaction(userId, "POINT", points, wallet(userId).pointBalance(), referenceType, referenceId, description);
     }
 
     private void addPointTransaction(String userId, String type, int amount, int balanceAfter, String referenceType, String referenceId, String description) {
@@ -1279,7 +1132,7 @@ public class ProductAppService implements FinancialDataProvider {
                     );
                 }, userId);
         if (transactions.isEmpty()) {
-            return List.of(item("points-empty", "아직 포인트 기록이 없어요", "미션을 완료하면 이곳에 기록돼요.", null, null, "wallet", "purple", null));
+            return List.of(item("points-empty", "아직 포인트 기록이 없어요", "행동 데이터로 미션이 검증되면 이곳에 기록돼요.", null, null, "wallet", "purple", null));
         }
         return transactions;
     }
@@ -1339,7 +1192,7 @@ public class ProductAppService implements FinancialDataProvider {
     private AppSection missionEventsSection(String id, String title, List<MissionEventRow> events) {
         if (events.isEmpty()) {
             return section(id, "list", title, null, null, null, null,
-                    items(item("mission-events-empty", "아직 미션 기록이 없어요", "미션을 추가하거나 완료하면 여기에 쌓입니다.", null, null, "target", "purple", "/missions")),
+                    items(item("mission-events-empty", "아직 미션 기록이 없어요", "미션을 추가하거나 행동 데이터가 검증되면 여기에 쌓입니다.", null, null, "target", "purple", "/missions")),
                     null, null);
         }
         List<AppItem> items = events.stream()
@@ -1394,6 +1247,7 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private MissionRow missionRow(ResultSet rs, String routeId) throws java.sql.SQLException {
+        OffsetDateTime evaluatedAt = rs.getObject("evaluated_at", OffsetDateTime.class);
         return new MissionRow(
                 rs.getString("id"),
                 routeId,
@@ -1402,7 +1256,10 @@ public class ProductAppService implements FinancialDataProvider {
                 rs.getString("status"),
                 rs.getString("difficulty"),
                 rs.getInt("reward_points"),
-                rs.getInt("progress")
+                rs.getInt("progress"),
+                rs.getString("evaluation_status"),
+                evaluatedAt == null ? "아직 평가 전" : evaluatedAt.toLocalDate().toString(),
+                evidenceSummary(rs.getString("evaluation_rule_json"))
         );
     }
 
@@ -1423,15 +1280,19 @@ public class ProductAppService implements FinancialDataProvider {
 
     private FundRow findFund(String fundId) {
         List<FundRow> rows = jdbc.query("SELECT * FROM birthday_funds WHERE id = ?",
-                (rs, rowNum) -> new FundRow(
-                        rs.getString("id"),
-                        rs.getString("title"),
-                        rs.getInt("target_amount"),
-                        rs.getInt("current_amount"),
-                        rs.getDate("due_date").toLocalDate(),
-                        rs.getString("status")
-                ), fundId);
+                (rs, rowNum) -> fundRow(rs), fundId);
         return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private FundRow fundRow(ResultSet rs) throws java.sql.SQLException {
+        return new FundRow(
+                rs.getString("id"),
+                rs.getString("title"),
+                rs.getInt("target_amount"),
+                rs.getInt("current_amount"),
+                rs.getDate("due_date").toLocalDate(),
+                rs.getString("status")
+        );
     }
 
     private PrivacyRow privacy(String userId) {
@@ -1445,13 +1306,29 @@ public class ProductAppService implements FinancialDataProvider {
         return count == null ? 0 : count;
     }
 
-    private boolean hasBirthdayEvent(String userId) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)
-                FROM feed_items
-                WHERE user_id = ? AND kind = 'BIRTHDAY'
-                """, Integer.class, userId);
-        return count != null && count > 0;
+    private FundRow availableBirthdayFund(String userId) {
+        List<FundRow> funds = jdbc.query("""
+                        SELECT b.*
+                        FROM birthday_funds b
+                        JOIN feed_items f ON f.user_id = ? AND f.actor_user_id = b.owner_user_id AND f.kind = 'BIRTHDAY'
+                        WHERE b.status = 'OPEN'
+                        ORDER BY b.due_date, b.created_at
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> fundRow(rs), userId);
+        return funds.isEmpty() ? null : funds.get(0);
+    }
+
+    private FundRow availableBirthdayFund(String userId, String fundId) {
+        List<FundRow> funds = jdbc.query("""
+                        SELECT b.*
+                        FROM birthday_funds b
+                        JOIN feed_items f ON f.user_id = ? AND f.actor_user_id = b.owner_user_id AND f.kind = 'BIRTHDAY'
+                        WHERE b.id = ? AND b.status = 'OPEN'
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> fundRow(rs), userId, fundId);
+        return funds.isEmpty() ? null : funds.get(0);
     }
 
     private List<AppItem> contributionItems(String fundId) {
@@ -1660,13 +1537,17 @@ public class ProductAppService implements FinancialDataProvider {
         return Math.max(0, Math.min(100, (int) Math.round(value * 100.0 / total)));
     }
 
-    private Map<String, Integer> demoCategorySpending() {
-        Map<String, Integer> categories = new LinkedHashMap<>();
-        categories.put("식비", 6200);
-        categories.put("교통비", 1200);
-        categories.put("카페/간식", 600);
-        categories.put("기타", 1800);
-        return categories;
+    private String evidenceSummary(String evidenceJson) {
+        if (evidenceJson == null || evidenceJson.isBlank() || "{}".equals(evidenceJson)) {
+            return "아직 평가할 행동 데이터가 충분하지 않아요.";
+        }
+        Map<String, Object> evidence = readJson(evidenceJson, OBJECT_MAP);
+        Object message = evidence.get("message");
+        if (message != null && !message.toString().isBlank()) {
+            return message.toString();
+        }
+        Object source = evidence.get("source");
+        return source == null ? "행동 데이터 기준으로 평가 중입니다." : "근거: " + source;
     }
 
     private double number(Object value) {
@@ -1723,7 +1604,7 @@ public class ProductAppService implements FinancialDataProvider {
     private record DailyRecordRow(LocalDate date, int budget, int spent, String categorySpendingJson, String missionStatus, int pointDelta) {
     }
 
-    private record MissionRow(String dbId, String routeId, String title, String description, String status, String difficulty, int rewardPoints, int progress) {
+    private record MissionRow(String dbId, String routeId, String title, String description, String status, String difficulty, int rewardPoints, int progress, String evaluationStatus, String evaluatedAt, String evidenceSummary) {
     }
 
     private record MissionEventRow(String id, String eventType, String title, String note, int rewardPoints, LocalDate eventDate) {

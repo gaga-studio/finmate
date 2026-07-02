@@ -61,6 +61,7 @@ def main() -> None:
         "selectedUsers": len(payload["users"]),
         "snapshots": len(payload["users"]),
         "dailyRecords": sum(len(user["dailyRecords"]) for user in payload["users"]),
+        "transactions": sum(len(user.get("transactions") or []) for user in payload["users"]),
         "missions": sum(len(user["missions"]) for user in payload["users"]),
         "friendships": sum(len(user.get("follows") or []) for user in payload["users"]),
         "feedItems": sum(len(user.get("feedItems") or []) for user in payload["users"]),
@@ -229,7 +230,7 @@ def build_payload(
                 "amount": 72000,
             })
             birthday_fund = {
-                "fundId": "fund-jiwoo",
+                "fundId": f"fund-{birthday_owner.lower()}-birthday",
                 "ownerPersonaId": birthday_owner,
                 "title": f"{owner_name}님의 생일 펀드",
                 "targetAmount": 100000,
@@ -256,6 +257,7 @@ def build_payload(
             "wallet": build_wallet(persona_id),
             "snapshot": build_snapshot(persona, feature, ledger),
             "dailyRecords": [build_daily_record(feature, ledger)],
+            "transactions": [build_transaction(row, persona_id, index) for index, row in enumerate(ledger, start=1)],
             "missions": build_missions(feature),
             "follows": follows,
             "feedItems": feed_items[:8],
@@ -347,6 +349,24 @@ def build_daily_record(feature: dict[str, str], ledger: list[dict[str, str]]) ->
         "categorySpending": categories,
         "missionStatus": "IN_PROGRESS",
         "pointDelta": 0,
+    }
+
+
+def build_transaction(row: dict[str, str], persona_id: str, index: int) -> dict[str, Any]:
+    amount = parse_int(row.get("금액"))
+    source_id = row.get("transaction_id") or f"{persona_id}-{row.get('날짜') or DEFAULT_MONTH}-{index:04d}"
+    return {
+        "transactionId": source_id,
+        "transactionDate": row.get("날짜") or TARGET_RECORD_DATE,
+        "transactionTime": row.get("시간") or None,
+        "transactionType": row.get("타입") or "기타",
+        "category": app_category(row.get("대분류") or ""),
+        "subcategory": row.get("소분류") or None,
+        "description": row.get("내용") or None,
+        "amountKrw": amount,
+        "cashflowBucket": row.get("cashflow_bucket") or None,
+        "accountRef": row.get("account_ref") or None,
+        "apiRef": row.get("api_ref") or None,
     }
 
 
@@ -453,7 +473,7 @@ def estimate_categories_from_features(feature: dict[str, str], total: int) -> di
 def app_category(raw: str) -> str:
     if raw == "식비":
         return "식비"
-    if raw == "교통":
+    if raw in {"교통", "교통비"}:
         return "교통비"
     if raw == "카페/간식":
         return "카페/간식"
@@ -509,6 +529,15 @@ def extract_amount(text: str) -> int | None:
     if value <= 100:
         return None
     return value
+
+
+def parse_int(value: str | None) -> int:
+    if value is None or value == "":
+        return 0
+    try:
+        return int(float(value))
+    except ValueError:
+        return 0
 
 
 def round_to_thousand(value: int) -> int:

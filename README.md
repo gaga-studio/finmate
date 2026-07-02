@@ -28,20 +28,19 @@ http://localhost:8080/health
 
 ## 테스트 계정
 
-API가 실행 중일 때 테스트 계정을 다시 만들 수 있습니다.
+API가 실행 중일 때 DB를 초기화하고, 아래 “합성 MyData import” 절차로 개발/QA용 계정을 만들 수 있습니다.
 
 ```bash
 tools/scripts/reset-product-db.sh
-tools/scripts/bootstrap-test-account.sh
 ```
 
-기본 계정:
+import 후 가장 먼저 확인할 계정:
 
 ```text
-qa-birthday@finmate.local / password123!
+p001@synthetic.finmate.local / password123!
 ```
 
-새로 회원가입한 사용자는 온보딩 설문과 동의가 끝나면 첫 예산, 미션, 기록, 자산 요약이 자동으로 만들어집니다. 위 bootstrap 계정은 발표/캡처/QA용으로 친구 피드와 생일 이벤트까지 포함합니다.
+새로 회원가입한 사용자는 온보딩 설문과 동의가 끝나면 첫 예산, 미션, 기록, 자산 요약이 자동으로 만들어집니다.
 
 ## 합성 MyData import
 
@@ -89,7 +88,7 @@ p199@synthetic.finmate.local / password123!
 
 ```text
 비교 -> AI 코치 -> 행동 계획 -> 미션
-미션 완료 -> 포인트 적립 -> 기록 반영
+행동 데이터 검증 -> 미션 성공 판정 -> 포인트 적립 -> 기록 반영
 친구 생일 알림 -> 생일펀드 참여 -> 포인트 원장 반영
 프로필 -> 공개 범위 확인 -> 로그아웃
 ```
@@ -102,7 +101,7 @@ p199@synthetic.finmate.local / password123!
 | 온보딩 | 30초 설문, 개인정보 공개 동의, 마이데이터 제공 동의, 스타터 루틴 생성 |
 | 앱 화면 | 홈, 비교, 미션, 기록, 프로필 5탭 |
 | 소셜 | 친구 피드, 팔로잉/팔로워 요약, 생일 이벤트 |
-| 포인트 | 미션 완료/생일펀드 참여 기반 가상 포인트 원장 |
+| 포인트 | 행동 데이터로 검증된 미션/생일펀드 참여 기반 가상 포인트 원장 |
 | AI 경계 | `FinancialSnapshotV1 -> CoachResultV1`, rule-based fallback |
 | 실행 | Docker Compose로 Postgres/API/Web 동시 실행 |
 
@@ -132,11 +131,11 @@ finmate/
     archive/              P0/P1 발표·기획 자료 보관
     assets/screenshots/   선별된 화면 캡처
   fixtures/
-    app-seed/             개발/데모 bootstrap seed
+    app-seed/             미션 템플릿과 legacy seed 보관
     mydata-samples/       합성 MyData 출처 연결용 최소 subset
     dataset-manifests/    외부 합성 데이터셋 source/version manifest
   tools/
-    scripts/              reset, bootstrap, validation scripts
+    scripts/              reset, synthetic import, validation scripts
 ```
 
 현재 제품 계약은 `contracts/openapi/current/finmate-v1.2-product-mvp.yaml`을 기준으로 봅니다. 과거 P0/P1 계약은 `contracts/openapi/legacy/`에 보관합니다.
@@ -159,7 +158,6 @@ npm run dev --prefix apps/web -- --host 0.0.0.0
 ## 검증 명령
 
 ```bash
-python3 tools/scripts/validate_contract.py
 python3 tools/scripts/validate_app_contract.py
 python3 tools/scripts/validate_product_mvp.py
 python3 tools/scripts/validate_synthetic_import.py

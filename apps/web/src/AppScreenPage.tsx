@@ -93,9 +93,9 @@ function loadScreen(route: Extract<Route, { name: 'screen' }>): Promise<AppScree
     case 'birthdays':
       return api.getAppBirthdays()
     case 'birthday-flow':
-      return api.getAppBirthdayFlow(route.param ?? 'bday-jiwoo')
+      return route.param ? api.getAppBirthdayFlow(route.param) : api.getAppBirthdays()
     case 'birthday-complete':
-      return api.getBirthdayContributionComplete(route.param ?? 'fund-jiwoo')
+      return route.param ? api.getBirthdayContributionComplete(route.param) : api.getAppHome()
     case 'birthday-open':
       return api.getMyBirthdayFundOpenScreen()
     case 'birthday-share':

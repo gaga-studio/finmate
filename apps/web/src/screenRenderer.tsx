@@ -676,10 +676,6 @@ function ActionButton({ action, navigate }: { action: AppAction; navigate: Navig
       navigate('/birthday-funds/me/status')
       return
     }
-    if (action.intent === 'mission-feedback') {
-      navigate(action.path)
-      return
-    }
     if (action.intent === 'mission-add') {
       const templateId = action.path.split('/').filter(Boolean).at(-1)
       if (templateId) {

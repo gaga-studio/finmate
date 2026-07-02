@@ -2,19 +2,8 @@ import type {
   AuthResponse,
   AppActionResultResponse,
   AppScreenResponse,
-  ComparisonResponse,
-  DemoSessionResponse,
   ErrorResponse,
-  HomeResponse,
-  MissionResponse,
-  MockConsentResponse,
-  OnboardingDiagnosisResponse,
-  PortfolioResponse,
   ProductOnboardingRequest,
-  PrivacyConsentsResponse,
-  PrivacySettingsResponse,
-  PrivacyWithdrawResponse,
-  SimulationResponse,
   UserMeResponse,
 } from './types'
 import { accessToken } from './session'
@@ -89,51 +78,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T
 }
 
-export const p0Payloads = {
-  diagnosis: {
-    occupationStatus: 'PART_TIME_STUDENT',
-    incomeBand: 'INCOME_150_250',
-    householdType: 'SINGLE',
-    goalType: 'EMERGENCY_FUND',
-    painPoint: 'SAVE_CONSISTENTLY',
-  },
-  mockConsent: (diagnosisId: string) => ({
-    diagnosisId,
-    consentVersion: 'mydata-mock-v1.0',
-    scopes: ['ACCOUNT_SUMMARY', 'CARD_SPENDING', 'INVESTMENT_SUMMARY'],
-  }),
-  privacyConsents: {
-    anonymousPortfolioOptIn: true,
-    friendShareDefault: 'NONE',
-    exposedFields: [
-      'ageBand',
-      'incomeBand',
-      'goalType',
-      'financialSummary',
-      'routineCards',
-    ],
-    consentVersion: 'privacy-v1.0',
-  },
-  demoSession: (diagnosisId: string, mydataConnectionId: string) => ({
-    mode: 'QUICK_DIAGNOSIS',
-    diagnosisId,
-    mydataConnectionId,
-  }),
-  simulation: (comparisonId: string) => ({
-    comparisonId,
-    scenarioType: 'FOLLOW_PEER_ROUTINE',
-    monthlyAdditionalSaving: 100000,
-    periodMonths: 3,
-  }),
-  mission: (simulationId: string, missionTemplateId: string) => ({
-    simulationId,
-    missionTemplateId,
-    triggerSource: 'SIMULATION',
-    recommendationSource: 'RULE_BASED',
-    difficulty: 'EASY',
-  }),
-}
-
 export const api = {
   health: () => request<{ status: string }>('/health'),
   signup: (email: string, password: string, displayName: string) =>
@@ -159,83 +103,6 @@ export const api = {
     request<UserMeResponse>('/api/users/me/onboarding', {
       method: 'POST',
       body,
-    }),
-  createDiagnosis: () =>
-    request<OnboardingDiagnosisResponse>('/api/onboarding/diagnosis', {
-      method: 'POST',
-      body: p0Payloads.diagnosis,
-    }),
-  createMockConsent: (token: string, diagnosisId: string) =>
-    request<MockConsentResponse>('/api/mydata/mock-consent', {
-      method: 'POST',
-      token,
-      idempotencyKey: 'mydata-mock-001',
-      body: p0Payloads.mockConsent(diagnosisId),
-    }),
-  createPrivacyConsents: (token: string) =>
-    request<PrivacyConsentsResponse>('/api/privacy/consents', {
-      method: 'POST',
-      token,
-      idempotencyKey: 'privacy-consents-001',
-      body: p0Payloads.privacyConsents,
-    }),
-  createDemoSession: (
-    token: string,
-    diagnosisId: string,
-    mydataConnectionId: string,
-  ) =>
-    request<DemoSessionResponse>('/api/demo/session', {
-      method: 'POST',
-      token,
-      idempotencyKey: 'demo-session-001',
-      body: p0Payloads.demoSession(diagnosisId, mydataConnectionId),
-    }),
-  getHome: (token: string) => request<HomeResponse>('/api/home', { token }),
-  getPortfolio: (token: string, portfolioId: string) =>
-    request<PortfolioResponse>(`/api/explore/portfolios/${portfolioId}`, { token }),
-  createComparison: (token: string, peerPortfolioId: string) =>
-    request<ComparisonResponse>('/api/comparisons', {
-      method: 'POST',
-      token,
-      body: { peerPortfolioId },
-    }),
-  createSimulation: (token: string, comparisonId: string) =>
-    request<SimulationResponse>('/api/simulations', {
-      method: 'POST',
-      token,
-      body: p0Payloads.simulation(comparisonId),
-    }),
-  createMission: (
-    token: string,
-    simulationId: string,
-    missionTemplateId: string,
-  ) =>
-    request<MissionResponse>('/api/missions', {
-      method: 'POST',
-      token,
-      idempotencyKey: 'mission-2026-06-30',
-      body: p0Payloads.mission(simulationId, missionTemplateId),
-    }),
-  getPrivacySettings: (token: string) =>
-    request<PrivacySettingsResponse>('/api/privacy/settings', { token }),
-  updatePrivacySettings: (token: string) =>
-    request<PrivacySettingsResponse>('/api/privacy/settings', {
-      method: 'PATCH',
-      token,
-      body: {
-        friendShareDefault: 'MISSION_ONLY',
-        exposedFields: ['ageBand', 'goalType', 'financialSummary'],
-      },
-    }),
-  withdrawAnonymousPortfolio: (token: string, portfolioId: string) =>
-    request<PrivacyWithdrawResponse>('/api/privacy/withdraw', {
-      method: 'POST',
-      token,
-      body: {
-        scope: 'ANONYMOUS_PORTFOLIO',
-        portfolioId,
-        reason: 'WEB_DEMO_PRIVACY_CHECK',
-      },
     }),
   getAppHome: (token?: string) =>
     request<AppScreenResponse>('/api/app/home', { token }),
@@ -275,12 +142,6 @@ export const api = {
     request<AppActionResultResponse>(`/api/app/missions/add/${templateId}`, {
       method: 'POST',
       token,
-    }),
-  submitAppMissionFeedback: (missionId: string, token?: string) =>
-    request<AppActionResultResponse>(`/api/app/missions/${missionId}/feedback`, {
-      method: 'POST',
-      token,
-      body: { status: 'DONE', note: '오늘 목표를 완료했어요.' },
     }),
   getAppRecords: (month = '2026-06', token?: string) =>
     request<AppScreenResponse>(`/api/app/records?month=${month}`, { token }),

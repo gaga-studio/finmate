@@ -5,7 +5,6 @@ import com.gagastudio.finmate.api.dto.ApiDtos.*;
 import com.gagastudio.finmate.api.error.ApiException;
 import com.gagastudio.finmate.api.product.ProductAppService;
 import com.gagastudio.finmate.api.product.SyntheticDatasetImportService;
-import com.gagastudio.finmate.api.service.FinmateService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -14,7 +13,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,20 +26,17 @@ import java.util.Map;
 
 @RestController
 public class FinmateController {
-    private final FinmateService service;
     private final AuthService authService;
     private final ProductAppService productAppService;
     private final SyntheticDatasetImportService syntheticDatasetImportService;
     private final boolean devToolsEnabled;
 
     public FinmateController(
-            FinmateService service,
             AuthService authService,
             ProductAppService productAppService,
             SyntheticDatasetImportService syntheticDatasetImportService,
             @Value("${finmate.dev-tools.enabled:false}") boolean devToolsEnabled
     ) {
-        this.service = service;
         this.authService = authService;
         this.productAppService = productAppService;
         this.syntheticDatasetImportService = syntheticDatasetImportService;
@@ -50,7 +45,7 @@ public class FinmateController {
 
     @GetMapping("/health")
     public Map<String, String> health() {
-        return service.health();
+        return Map.of("status", "ok");
     }
 
     @PostMapping("/api/dev/reset")
@@ -60,15 +55,6 @@ public class FinmateController {
         }
         productAppService.resetDevelopmentState();
         return Map.of("status", "RESET");
-    }
-
-    @PostMapping("/api/dev/bootstrap-test-account")
-    public ResponseEntity<AuthResponse> bootstrapTestAccount(@Valid @RequestBody DevBootstrapTestAccountRequest request) {
-        if (!devToolsEnabled) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Not found.");
-        }
-        AuthService.AuthResult result = authService.bootstrapTestAccount(request);
-        return authResponse(result);
     }
 
     @PostMapping("/api/dev/import-synthetic-dataset")
@@ -145,106 +131,6 @@ public class FinmateController {
         return productAppService.storeCoachResult(authService.requireUserId(authorization), request);
     }
 
-    @PostMapping("/api/onboarding/diagnosis")
-    public OnboardingDiagnosisResponse createDiagnosis(@Valid @RequestBody OnboardingDiagnosisRequest request) {
-        return service.createDiagnosis(request);
-    }
-
-    @PostMapping("/api/mydata/mock-consent")
-    public MockConsentResponse createMockConsent(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody MockConsentRequest request
-    ) {
-        service.requireOnboardingToken(authorization);
-        return service.createMockConsent(request);
-    }
-
-    @PostMapping("/api/privacy/consents")
-    public PrivacyConsentsResponse createPrivacyConsents(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody PrivacyConsentsRequest request
-    ) {
-        service.requireOnboardingToken(authorization);
-        return service.createPrivacyConsents(request);
-    }
-
-    @PostMapping("/api/demo/session")
-    public DemoSessionResponse createDemoSession(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody DemoSessionRequest request
-    ) {
-        service.requireOnboardingToken(authorization);
-        return service.createDemoSession(request);
-    }
-
-    @GetMapping("/api/home")
-    public HomeResponse getHome(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        service.requireAccessToken(authorization);
-        return service.getHome();
-    }
-
-    @GetMapping("/api/explore/portfolios/{id}")
-    public PortfolioResponse getPortfolio(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @PathVariable String id
-    ) {
-        service.requireAccessToken(authorization);
-        return service.getPortfolio(id);
-    }
-
-    @PostMapping("/api/comparisons")
-    public ComparisonResponse createComparison(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody ComparisonRequest request
-    ) {
-        service.requireAccessToken(authorization);
-        return service.createComparison(request);
-    }
-
-    @PostMapping("/api/simulations")
-    public SimulationResponse createSimulation(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody SimulationRequest request
-    ) {
-        service.requireAccessToken(authorization);
-        return service.createSimulation(request);
-    }
-
-    @PostMapping("/api/missions")
-    public MissionResponse createMission(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody MissionRequest request
-    ) {
-        service.requireAccessToken(authorization);
-        return service.createMission(request);
-    }
-
-    @GetMapping("/api/privacy/settings")
-    public PrivacySettingsResponse getPrivacySettings(
-            @RequestHeader(value = "Authorization", required = false) String authorization
-    ) {
-        service.requireAccessToken(authorization);
-        return service.getPrivacySettings();
-    }
-
-    @PatchMapping("/api/privacy/settings")
-    public PrivacySettingsResponse updatePrivacySettings(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestBody PrivacySettingsPatchRequest request
-    ) {
-        service.requireAccessToken(authorization);
-        return service.updatePrivacySettings(request);
-    }
-
-    @PostMapping("/api/privacy/withdraw")
-    public PrivacyWithdrawResponse withdrawPrivacy(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody PrivacyWithdrawRequest request
-    ) {
-        service.requireAccessToken(authorization);
-        return service.withdrawPrivacy(request);
-    }
-
     @GetMapping("/api/app/home")
     public AppScreenResponse getAppHome(@RequestHeader(value = "Authorization", required = false) String authorization) {
         return productAppService.getHome(authService.requireUserId(authorization));
@@ -316,15 +202,6 @@ public class FinmateController {
             @PathVariable String templateId
     ) {
         return productAppService.addMissionFromTemplate(authService.requireUserId(authorization), templateId);
-    }
-
-    @PostMapping("/api/app/missions/{missionId}/feedback")
-    public AppActionResultResponse submitAppMissionFeedback(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @PathVariable String missionId,
-            @Valid @RequestBody AppMissionFeedbackRequest request
-    ) {
-        return productAppService.submitMissionFeedback(authService.requireUserId(authorization), missionId, request);
     }
 
     @GetMapping("/api/app/records")

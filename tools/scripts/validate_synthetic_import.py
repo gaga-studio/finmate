@@ -45,6 +45,7 @@ def main() -> None:
         "DevSyntheticImportResponse",
         "DevSyntheticUserPayload",
         "DevSyntheticSnapshotPayload",
+        "DevSyntheticTransactionPayload",
         "DevSyntheticBirthdayFundPayload",
     ]:
         if snippet not in dtos:
@@ -55,6 +56,7 @@ def main() -> None:
         "synthetic-",
         "financial_snapshots",
         "daily_records",
+        "financial_transactions",
         "friendships",
         "birthday_funds",
         "SYNTHETIC_MYDATA",
@@ -87,6 +89,8 @@ def main() -> None:
         fail("Importer dry-run should select 2 mini fixture users")
     if dry_run_summary["missions"] < 2 or dry_run_summary["dailyRecords"] != 2:
         fail("Importer dry-run did not synthesize required missions/daily records")
+    if dry_run_summary.get("transactions") != 4:
+        fail("Importer dry-run did not synthesize required transaction records")
 
     print("FinMate synthetic MyData import validation passed")
 

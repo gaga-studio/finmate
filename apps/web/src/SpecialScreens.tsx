@@ -1,21 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { api } from './api'
-import { describeError } from './errors'
 import type { Navigate } from './navigation'
-import type { AppScreenResponse } from './types'
-import { ErrorScreen, LoadingScreen, ScreenRenderer } from './screenRenderer'
 import { IconButton, StatusBar } from './uiPrimitives'
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'success'; screen: AppScreenResponse }
-  | { status: 'error'; message: string }
-
-const missionFeedbackRequests = new Map<string, Promise<AppScreenResponse>>()
 
 export function BirthdayContributionPage({ fundId, navigate }: { fundId: string; navigate: Navigate }) {
   const [amount, setAmount] = useState(10000)
-  const [message, setMessage] = useState('지우야 생일 축하해!')
+  const [message, setMessage] = useState('생일 축하해!')
   const [anonymous, setAnonymous] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -33,7 +23,7 @@ export function BirthdayContributionPage({ fundId, navigate }: { fundId: string;
     <div className="screen contribution-screen">
       <StatusBar time="9:41" />
       <header className="app-header">
-        <div className="header-side"><IconButton icon="back" label="뒤로" onClick={() => navigate('/birthdays/bday-jiwoo')} /></div>
+        <div className="header-side"><IconButton icon="back" label="뒤로" onClick={() => navigate('/birthdays')} /></div>
         <h1>참여하기</h1>
         <div className="header-side right"><IconButton icon="bell" label="알림" /></div>
       </header>
@@ -66,80 +56,4 @@ export function BirthdayContributionPage({ fundId, navigate }: { fundId: string;
       </section>
     </div>
   )
-}
-
-export function MissionFeedbackPage({ missionId, navigate, userId }: { missionId: string; navigate: Navigate; userId: string }) {
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-  const requestKey = `${userId}:${missionId}`
-
-  useEffect(() => {
-    let active = true
-    async function submit() {
-      try {
-        const screen = await missionFeedbackScreen(requestKey, missionId)
-        if (active) {
-          setState({ status: 'success', screen })
-        }
-      } catch (error) {
-        missionFeedbackRequests.delete(requestKey)
-        if (active) {
-          setState({ status: 'error', message: describeError(error) })
-        }
-      }
-    }
-    void submit()
-    return () => {
-      active = false
-    }
-  }, [missionId, requestKey])
-
-  if (state.status === 'loading') {
-    return <LoadingScreen />
-  }
-  if (state.status === 'error') {
-    return <ErrorScreen message={state.message} navigate={navigate} />
-  }
-  return <ScreenRenderer screen={state.screen} navigate={navigate} />
-}
-
-function missionFeedbackScreen(requestKey: string, missionId: string): Promise<AppScreenResponse> {
-  const cached = missionFeedbackRequests.get(requestKey)
-  if (cached) {
-    return cached
-  }
-  const request = api.submitAppMissionFeedback(missionId).then((result) => {
-    const screen: AppScreenResponse = {
-      screenId: 'missions:feedback',
-      title: '오늘 실천 피드백',
-      tab: 'mission',
-      statusBarTime: '9:41',
-      heroAsset: '/assets/characters/finmate-growth.png',
-      sections: [
-        {
-          id: 'feedback',
-          kind: 'coach',
-          title: result.title,
-          subtitle: result.message,
-          heroAsset: '/assets/characters/finmate-growth.png',
-          metrics: [
-            {
-              label: '오늘의 포인트',
-              value: `+${String(result.data.rewardPoints ?? 0)}P`,
-              caption: '포인트 지갑에 저장됨',
-              tone: 'purple',
-              progress: 100,
-            },
-          ],
-          actions: [
-            { label: '기록 완료', path: '/records/history', method: 'GET', tone: 'primary' },
-            { label: '다음 목표 보기', path: '/missions/next-goals', method: 'GET', tone: 'secondary' },
-          ],
-        },
-      ],
-      meta: result.data,
-    }
-    return screen
-  })
-  missionFeedbackRequests.set(requestKey, request)
-  return request
 }

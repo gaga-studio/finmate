@@ -30,7 +30,6 @@ export type Route =
   | { name: 'onboarding' }
   | { name: 'screen'; screen: ScreenKey; param?: string }
   | { name: 'birthday-contribution'; fundId: string }
-  | { name: 'mission-feedback'; missionId: string }
   | { name: 'not-found' }
 
 export function parseRoute(pathname: string): Route {
@@ -71,9 +70,6 @@ export function parseRoute(pathname: string): Route {
   if (parts[0] === 'missions') {
     if (parts[1] === 'new' || parts[1] === 'add') {
       return { name: 'screen', screen: 'mission-add', param: parts[2] }
-    }
-    if (parts[1] && parts[2] === 'feedback') {
-      return { name: 'mission-feedback', missionId: parts[1] }
     }
     return parts[1]
       ? { name: 'screen', screen: 'mission-detail', param: parts[1] }
@@ -131,9 +127,6 @@ export function parseRoute(pathname: string): Route {
 export function getActiveTab(route: Route): TabKey {
   if (route.name === 'birthday-contribution') {
     return 'home'
-  }
-  if (route.name === 'mission-feedback') {
-    return 'mission'
   }
   if (route.name !== 'screen') {
     return 'home'

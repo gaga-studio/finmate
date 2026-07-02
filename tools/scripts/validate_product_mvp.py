@@ -34,6 +34,7 @@ EXPECTED_TABLES = {
     "point_transactions",
     "birthday_funds",
     "birthday_fund_contributions",
+    "financial_transactions",
 }
 
 
@@ -112,7 +113,7 @@ def main() -> None:
         "apps/web/nginx.conf",
         ".dockerignore",
         "tools/scripts/reset-product-db.sh",
-        "tools/scripts/bootstrap-test-account.sh",
+        "tools/scripts/import-synthetic-mydata.py",
     ]:
         if not (ROOT / path).exists():
             fail(f"Missing product runtime file: {path}")
@@ -121,9 +122,22 @@ def main() -> None:
         if snippet not in compose:
             fail(f"docker-compose.yml missing product runtime snippet: {snippet}")
 
-    for snippet in ["PostMapping(\"/api/dev/reset\")", "PostMapping(\"/api/dev/bootstrap-test-account\")", "resetDevelopmentState", "bootstrapTestAccount", "devToolsEnabled"]:
+    for snippet in ["PostMapping(\"/api/dev/reset\")", "PostMapping(\"/api/dev/import-synthetic-dataset\")", "resetDevelopmentState", "importSyntheticDataset", "devToolsEnabled"]:
         if snippet not in controller + read("apps/api/src/main/java/com/gagastudio/finmate/api/product/ProductAppService.java"):
             fail(f"Missing development reset snippet: {snippet}")
+
+    forbidden_runtime = [
+        "/api/dev/bootstrap-test-account",
+        "bootstrapTestAccount",
+        "submitAppMissionFeedback",
+        "/api/app/missions/${missionId}/feedback",
+        "mission-feedback",
+        "demo-token",
+    ]
+    runtime_text = "\n".join([controller, api_client, app_sources])
+    for snippet in forbidden_runtime:
+        if snippet in runtime_text:
+            fail(f"Product runtime still contains demo/feedback snippet: {snippet}")
 
     if '"e2e": "playwright test"' not in web_package or "@playwright/test" not in web_package:
         fail("apps/web/package.json must expose Playwright E2E")
@@ -134,12 +148,11 @@ def main() -> None:
 
     for snippet in [
         "/api/dev/reset",
-        "/api/dev/bootstrap-test-account",
+        "p001@synthetic.finmate.local",
         "회원가입",
         "시작하기",
         "오늘의 지출 요약",
         "미션 추가하기",
-        "축하 펀드 참여하기",
         "로그아웃",
         "expectNoTechnicalCopy",
     ]:

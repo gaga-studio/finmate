@@ -36,14 +36,15 @@ VITE_API_BASE_URL=http://localhost:8080 npm run dev --prefix apps/web
 ## 테스트 계정
 
 ```text
-qa-birthday@finmate.local / password123!
+p001@synthetic.finmate.local / password123!
 ```
 
-API가 실행 중일 때 아래 명령으로 DB 상태를 초기화하고 테스트 계정을 다시 만들 수 있습니다.
+API가 실행 중일 때 아래 명령으로 DB 상태를 초기화하고 외부 합성 MyData 데이터셋을 import합니다.
 
 ```bash
 tools/scripts/reset-product-db.sh
-tools/scripts/bootstrap-test-account.sh
+FINMATE_SYNTHETIC_DATASET_DIR=../financial-sns-mydata-202606/outputs/financial_sns_mydata_202606 \
+  tools/scripts/import-synthetic-mydata.py --reset-synthetic
 ```
 
 ## 주요 흐름
@@ -59,7 +60,7 @@ tools/scripts/bootstrap-test-account.sh
 /compare/coach
 /missions
 /missions/:missionId
-/missions/:missionId/feedback
+/missions/add
 /records
 /records/:date
 /profile

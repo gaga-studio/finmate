@@ -3,7 +3,7 @@ import { api } from './api'
 import { AuthPage } from './AuthPage'
 import { AppScreenPage } from './AppScreenPage'
 import { OnboardingPage } from './OnboardingPage'
-import { BirthdayContributionPage, MissionFeedbackPage } from './SpecialScreens'
+import { BirthdayContributionPage } from './SpecialScreens'
 import { getActiveTab, parseRoute, type Navigate, type Route } from './navigation'
 import { clearSession, getSession, saveSession, type FinMateSession } from './session'
 import { BottomNav } from './uiPrimitives'
@@ -120,9 +120,6 @@ function renderRoute(route: Route, pathname: string, navigate: Navigate, session
   }
   if (route.name === 'birthday-contribution') {
     return <BirthdayContributionPage fundId={route.fundId} navigate={navigate} />
-  }
-  if (route.name === 'mission-feedback') {
-    return <MissionFeedbackPage missionId={route.missionId} navigate={navigate} userId={session.user?.userId ?? 'anonymous'} />
   }
   if (route.name === 'screen') {
     return <AppScreenPage pathname={pathname} route={route} navigate={navigate} />

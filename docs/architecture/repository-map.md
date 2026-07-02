@@ -20,14 +20,14 @@ docs
 - `contracts/openapi/current`: 현재 제품형 MVP 계약
 - `contracts/openapi/legacy`: P0/P1 발표용 계약 보관
 - `contracts/http/legacy`: 과거 P0 수동 요청 파일
-- `fixtures/app-seed`: 로컬 개발과 테스트 계정 bootstrap에 쓰는 seed
+- `fixtures/app-seed`: 미션 템플릿과 legacy seed 보관
 - `fixtures/mydata-samples`: 합성 MyData 원본 레포와 FinMate seed의 연결 자료
 - `fixtures/dataset-manifests`: 외부 합성 MyData dataset source/version manifest
-- `tools/scripts`: reset, bootstrap, synthetic import, contract validation
+- `tools/scripts`: reset, synthetic import, contract validation
 
 ## Runtime Data
 
-일반 사용자의 런타임 상태는 Postgres에 저장합니다. `fixtures/app-seed`는 새 사용자에게 자동으로 fake 데이터를 넣는 용도가 아니라, 개발/QA 계정과 legacy P0/P1 호환 흐름을 재현하기 위한 기준본입니다.
+일반 사용자의 런타임 상태는 Postgres에 저장합니다. `fixtures/app-seed`는 새 사용자에게 자동으로 fake 데이터를 넣는 용도가 아니라, 제품 미션 템플릿과 legacy P0/P1 자료를 보관하는 기준본입니다.
 
 Docker API 이미지는 `fixtures/app-seed`를 `/app/fixtures/app-seed`로 복사하고, `FINMATE_SEED_DIR`로 위치를 지정합니다.
 

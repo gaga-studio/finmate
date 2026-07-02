@@ -3,7 +3,6 @@ package com.gagastudio.finmate.api.auth;
 import com.gagastudio.finmate.api.dto.ApiDtos.AuthLoginRequest;
 import com.gagastudio.finmate.api.dto.ApiDtos.AuthResponse;
 import com.gagastudio.finmate.api.dto.ApiDtos.AuthSignupRequest;
-import com.gagastudio.finmate.api.dto.ApiDtos.DevBootstrapTestAccountRequest;
 import com.gagastudio.finmate.api.dto.ApiDtos.UserMeResponse;
 import com.gagastudio.finmate.api.error.ApiException;
 import com.gagastudio.finmate.api.error.FieldErrorDetail;
@@ -27,8 +26,6 @@ import java.util.UUID;
 @Service
 public class AuthService {
     public static final String REFRESH_COOKIE = "finmate_refresh";
-    private static final String DEMO_ACCESS_TOKEN = "demo-token";
-    private static final String DEMO_USER_ID = "demo-user-001";
 
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
@@ -98,10 +95,6 @@ public class AuthService {
     }
 
     public String requireUserId(String authorization) {
-        if (authorization != null && authorization.equals("Bearer " + DEMO_ACCESS_TOKEN)) {
-            productAppService.ensureDemoUserData(DEMO_USER_ID, "jinn", true);
-            return DEMO_USER_ID;
-        }
         String userId = jwtService.requireSubject(authorization);
         String displayName = displayName(userId);
         if (displayName == null) {
@@ -113,34 +106,6 @@ public class AuthService {
 
     public UserMeResponse me(String authorization) {
         return productAppService.userMe(requireUserId(authorization));
-    }
-
-    @Transactional
-    public AuthResult bootstrapTestAccount(DevBootstrapTestAccountRequest request) {
-        String email = normalizeEmail(request.email());
-        String displayName = request.displayName().trim();
-        UserPassword existing = userPassword(email);
-        String userId;
-        if (existing == null) {
-            userId = "user-" + UUID.randomUUID();
-            jdbc.update("""
-                    INSERT INTO users (id, email, password_hash, display_name, onboarding_completed)
-                    VALUES (?, ?, ?, ?, TRUE)
-                    """, userId, email, passwordEncoder.encode(request.password()), displayName);
-        } else {
-            userId = existing.userId();
-            jdbc.update("""
-                    UPDATE users
-                    SET password_hash = ?,
-                        display_name = ?,
-                        onboarding_completed = TRUE,
-                        updated_at = now()
-                    WHERE id = ?
-                    """, passwordEncoder.encode(request.password()), displayName, userId);
-        }
-        boolean includeBirthdayEvent = request.includeBirthdayEvent() == null || request.includeBirthdayEvent();
-        productAppService.bootstrapDemoUserData(userId, displayName, includeBirthdayEvent);
-        return issue(userId);
     }
 
     private AuthResult issue(String userId) {

@@ -36,11 +36,17 @@ jobs:
           pip install pyyaml
           npm ci --prefix apps/web
 
-      - name: Validate FinMate P0 contract
-        run: python3 tools/scripts/validate_contract.py
+      - name: Validate current app contract
+        run: python3 tools/scripts/validate_app_contract.py
 
-      - name: Test Spring Boot mock API
+      - name: Validate product MVP baseline
+        run: python3 tools/scripts/validate_product_mvp.py
+
+      - name: Validate synthetic importer
+        run: python3 tools/scripts/validate_synthetic_import.py
+
+      - name: Test Spring Boot API
         run: ./gradlew :apps:api:test
 
-      - name: Build Vite web skeleton
+      - name: Build Vite web app
         run: npm run build --prefix apps/web
