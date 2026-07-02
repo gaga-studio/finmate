@@ -1555,7 +1555,7 @@ public class ProductAppService implements FinancialDataProvider {
     private AppSection missionHero(MissionRow mission) {
         return section("mission-hero", "missionHero", mission.title(), "오늘의 미션", "/missions/" + mission.routeId(), "/assets/characters/finmate-main.png",
                 metrics(metric("진행률", mission.progress() + "%", mission.rewardPoints() + "P 보상", "purple", mission.progress())),
-                null, actions(action("오늘 실천 기록하기", "/missions/" + mission.routeId() + "/feedback", "POST", "primary", "mission-feedback")), null);
+                null, null, null);
     }
 
     private AppItem missionItem(MissionRow mission) {

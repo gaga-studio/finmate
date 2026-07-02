@@ -75,12 +75,10 @@ test('starter signup state and seeded birthday fund product flow work end to end
   await expect(page.getByRole('heading', { name: '이번 달 비상금 자동이체 10만 원 설정하기' })).toBeVisible()
   await page.getByRole('button', { name: '미션', exact: true }).click()
   await expect(page).toHaveURL(/\/missions/)
-  await page.getByRole('button', { name: /오늘 실천 기록하기/ }).click()
-  await expect(page).toHaveURL(/\/missions\/.+\/feedback/)
-  await expect(page.locator('body')).toContainText(/\+\d+P/)
-  await page.getByRole('button', { name: '기록 완료' }).click()
-  await expect(page).toHaveURL(/\/records\/history/)
-  await expect(page.getByRole('heading', { name: '월간 히스토리' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /오늘 실천 기록하기/ })).toHaveCount(0)
+  await page.getByRole('button', { name: '기록', exact: true }).click()
+  await expect(page).toHaveURL(/\/records/)
+  await expect(page.getByRole('heading', { name: '기록', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: '프로필' }).click()
   await expect(page).toHaveURL(/\/profile/)
@@ -106,14 +104,8 @@ test('starter signup state and seeded birthday fund product flow work end to end
 
   await page.getByRole('button', { name: '미션', exact: true }).click()
   await expect(page).toHaveURL(/\/missions/)
-  await page.getByRole('button', { name: /오늘 실천 기록하기/ }).click()
-  await expect(page).toHaveURL(/\/missions\/.+\/feedback/)
-  await expect(page.locator('body')).toContainText(/\+\d+P/)
+  await expect(page.getByRole('button', { name: /오늘 실천 기록하기/ })).toHaveCount(0)
   await expectNoTechnicalCopy(page)
-
-  await page.getByRole('button', { name: '다음 목표 보기' }).click()
-  await expect(page).toHaveURL(/\/missions\/next-goals/)
-  await expect(page.getByRole('heading', { name: '다음 목표 제안' })).toBeVisible()
 
   await page.goto('/records/history')
   await expect(page).toHaveURL(/\/records\/history/)
@@ -134,7 +126,7 @@ test('starter signup state and seeded birthday fund product flow work end to end
   await page.getByRole('button', { name: '프로필' }).click()
   await expect(page).toHaveURL(/\/profile/)
   const profileSummary = page.locator('article').filter({ hasText: '테스트 사용자님의 금융 생활' })
-  await expect(profileSummary).toContainText('2570P')
+  await expect(profileSummary).toContainText('2450P')
   await expect(profileSummary).toContainText('₩90,000')
   await expectNoTechnicalCopy(page)
 
