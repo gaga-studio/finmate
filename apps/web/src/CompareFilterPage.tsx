@@ -33,6 +33,7 @@ const fallbackFilters: AppCompareSearchRequest = {
 
 export function CompareFilterPage({ navigate }: { navigate: Navigate }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null)
 
   useEffect(() => {
     let active = true
@@ -58,6 +59,19 @@ export function CompareFilterPage({ navigate }: { navigate: Navigate }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (!activeFilter) {
+      return undefined
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setActiveFilter(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeFilter])
+
   if (state.status === 'loading') {
     return <LoadingScreen />
   }
@@ -67,12 +81,11 @@ export function CompareFilterPage({ navigate }: { navigate: Navigate }) {
 
   const resultCount = numberFromMeta(state.screen.meta.resultCount)
   const profiles = state.screen.sections.find((section) => section.id === 'profiles')?.items ?? []
+  const activeFilterConfig = activeFilter ? filterOrder.find((filter) => filter.key === activeFilter) : undefined
 
-  const updateFilter = async (key: FilterKey) => {
-    const values = state.options[key] ?? ['전체']
-    const current = state.filters[key]
-    const index = Math.max(0, values.indexOf(current))
-    const nextFilters = { ...state.filters, [key]: values[(index + 1) % values.length] }
+  const selectFilterValue = async (key: FilterKey, value: string) => {
+    const nextFilters = { ...state.filters, [key]: value }
+    setActiveFilter(null)
     setState({ ...state, filters: nextFilters, notice: undefined })
     try {
       const screen = await api.searchAppCompareFilter(nextFilters)
@@ -110,7 +123,14 @@ export function CompareFilterPage({ navigate }: { navigate: Navigate }) {
 
       <section className="compare-filter-chips" aria-label="비교 필터">
         {filterOrder.map((filter) => (
-          <button type="button" onClick={() => { void updateFilter(filter.key) }} key={filter.key}>
+          <button
+            className={activeFilter === filter.key ? 'is-open' : ''}
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={activeFilter === filter.key}
+            onClick={() => setActiveFilter(filter.key)}
+            key={filter.key}
+          >
             <span>{filter.label}</span>
             <strong>{state.filters[filter.key]}</strong>
             <Chevron />
@@ -133,6 +153,62 @@ export function CompareFilterPage({ navigate }: { navigate: Navigate }) {
           이 조건으로 비교하기 ({resultCount}명)
         </button>
       </div>
+
+      {activeFilterConfig ? (
+        <FilterBottomSheet
+          filter={activeFilterConfig}
+          currentValue={state.filters[activeFilterConfig.key]}
+          values={filterOptionsFor(state.options, activeFilterConfig.key)}
+          onClose={() => setActiveFilter(null)}
+          onSelect={(value) => { void selectFilterValue(activeFilterConfig.key, value) }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function FilterBottomSheet({
+  filter,
+  currentValue,
+  values,
+  onClose,
+  onSelect,
+}: {
+  filter: { key: FilterKey; label: string }
+  currentValue: string
+  values: string[]
+  onClose: () => void
+  onSelect: (value: string) => void
+}) {
+  const titleId = `filter-sheet-title-${filter.key}`
+
+  return (
+    <div className="filter-sheet" role="presentation">
+      <button className="filter-sheet-backdrop" type="button" aria-label="필터 선택 닫기" onClick={onClose} />
+      <section className="filter-sheet-panel" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <div className="filter-sheet-handle" aria-hidden="true" />
+        <header className="filter-sheet-header">
+          <h2 id={titleId}>{filter.label} 선택</h2>
+          <button className="filter-sheet-close" type="button" onClick={onClose}>닫기</button>
+        </header>
+        <div className="filter-sheet-options">
+          {values.map((value) => {
+            const selected = value === currentValue
+            return (
+              <button
+                className={selected ? 'filter-sheet-option is-active' : 'filter-sheet-option'}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onSelect(value)}
+                key={value}
+              >
+                <span>{value}</span>
+                {selected ? <IconBadge icon="check" tone="purple" /> : null}
+              </button>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }
@@ -141,14 +217,35 @@ function CompareProfileCard({ item }: { item: AppItem }) {
   const stock = item.data?.stockSignal === true
   const saving = item.data?.savingSignal === true
   const pension = item.data?.pensionSignal === true
+  const ageBand = dataText(item, 'ageBand', '나이 미공개')
+  const jobCategory = dataText(item, 'jobCategory', '직업 미공개')
+  const incomeBand = dataText(item, 'incomeBand', '미공개')
+  const area = dataText(item, 'area', '지역 미공개')
+  const moneyStyle = dataText(item, 'moneyStyle', '성향 미공개')
+  const tags = [
+    moneyStyle !== '성향 미공개' ? moneyStyle : '',
+    stock ? '투자중' : '',
+    saving ? '저축중' : '',
+    pension ? '연금준비' : '',
+  ].filter(Boolean).slice(0, 2)
 
   return (
-    <article className="compare-profile-card">
-      <IconBadge icon="profile" tone="purple" />
-      <div className="compare-profile-copy">
-        <strong>{item.title}</strong>
-        {item.subtitle ? <span>{item.subtitle}</span> : null}
-        {item.caption ? <small>{item.caption}</small> : null}
+    <article className="compare-profile-card compare-filter-profile-card">
+      <div className="compare-profile-avatar" aria-hidden="true">
+        <IconBadge icon="profile" tone="purple" />
+      </div>
+      <div className="compare-profile-main">
+        <div className="compare-profile-name">
+          <strong>{item.title}</strong>
+          <span>{ageBand}</span>
+        </div>
+        <p>{jobCategory} · 연소득 {incomeBand}</p>
+        <p>{area} · {moneyStyle}</p>
+        {tags.length > 0 ? (
+          <div className="compare-profile-tags" aria-label="프로필 태그">
+            {tags.map((tag) => <span key={tag}>#{tag}</span>)}
+          </div>
+        ) : null}
       </div>
       <div className="compare-profile-signals" aria-label="금융 신호">
         <Signal active={stock} label="주식" icon="stocks" />
@@ -163,9 +260,15 @@ function Signal({ active, label, icon }: { active: boolean; label: string; icon:
   return (
     <span className={active ? 'active' : ''}>
       <IconBadge icon={icon} tone={active ? 'purple' : 'muted'} />
-      {label}
+      <b>{label}</b>
+      <i aria-hidden="true" />
     </span>
   )
+}
+
+function dataText(item: AppItem, key: string, fallback: string): string {
+  const value = item.data?.[key]
+  return typeof value === 'string' && value.length > 0 ? value : fallback
 }
 
 function filtersFromMeta(screen: AppScreenResponse): AppCompareSearchRequest {
@@ -196,6 +299,12 @@ function optionsFromMeta(screen: AppScreenResponse): Record<string, string[]> {
       Array.isArray(value) ? value.map((item) => String(item)) : ['전체'],
     ]),
   )
+}
+
+function filterOptionsFor(options: Record<string, string[]>, key: FilterKey): string[] {
+  const values = options[key] ?? []
+  const uniqueValues = Array.from(new Set(['전체', ...values.filter((value) => value.length > 0)]))
+  return uniqueValues.length > 0 ? uniqueValues : ['전체']
 }
 
 function stringValue(value: unknown): string {

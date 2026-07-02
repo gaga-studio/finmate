@@ -1812,10 +1812,15 @@ public class ProductAppService implements FinancialDataProvider {
 
     private List<CandidateRow> compareCandidates(String userId, AppCompareSearchRequest request, int limit) {
         AppCompareSearchRequest normalized = normalizeCompareRequest(userId, request);
+        ProfileRow viewerProfile = profileRow(userId);
+        Comparator<CandidateRow> candidateOrder = Comparator
+                .comparingInt((CandidateRow candidate) -> similarityScore(viewerProfile, candidate)).reversed()
+                .thenComparing(Comparator.comparingInt(CandidateRow::score).reversed())
+                .thenComparing(CandidateRow::displayName)
+                .thenComparing(CandidateRow::userId);
         return allCompareCandidates(userId).stream()
                 .filter(candidate -> matchesFilter(candidate, normalized))
-                .sorted(Comparator.comparingInt((CandidateRow candidate) -> similarityScore(profileRow(userId), candidate)).reversed()
-                        .thenComparing(CandidateRow::displayName))
+                .sorted(candidateOrder)
                 .limit(limit)
                 .toList();
     }
@@ -1921,20 +1926,23 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private AppCompareSearchRequest defaultCompareRequest(String userId) {
-        ProfileRow profile = profileRow(userId);
+        return allCompareRequest();
+    }
+
+    private AppCompareSearchRequest allCompareRequest() {
         return new AppCompareSearchRequest(
-                decade(profile.ageBand()),
-                valueOr(profile.incomeBand(), "전체"),
-                valueOr(profile.jobCategory(), "전체"),
-                valueOr(profile.moneyStyle(), "전체"),
-                valueOr(profile.area(), "전체"),
-                valueOr(profile.householdType(), "전체"),
+                "전체",
+                "전체",
+                "전체",
+                "전체",
+                "전체",
+                "전체",
                 "전체"
         );
     }
 
     private AppCompareSearchRequest normalizeCompareRequest(String userId, AppCompareSearchRequest request) {
-        AppCompareSearchRequest defaults = defaultCompareRequest(userId);
+        AppCompareSearchRequest defaults = allCompareRequest();
         if (request == null) {
             return defaults;
         }
@@ -1994,13 +2002,71 @@ public class ProductAppService implements FinancialDataProvider {
                         SELECT DISTINCT %s AS value
                         FROM user_profiles
                         WHERE %s IS NOT NULL AND %s <> ''
-                        ORDER BY %s
                         """.formatted(safeColumn, safeColumn, safeColumn, safeColumn),
                 (rs, rowNum) -> rs.getString("value"));
+        List<String> orderedValues = values.stream()
+                .map(value -> normalizeFilterOption(safeColumn, value))
+                .filter(value -> value != null && !value.isBlank() && !"전체".equals(value))
+                .distinct()
+                .sorted(filterOptionComparator(safeColumn))
+                .toList();
         List<String> result = new ArrayList<>();
         result.add("전체");
-        result.addAll(values);
+        result.addAll(orderedValues);
         return result;
+    }
+
+    private String normalizeFilterOption(String column, String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if ("money_style".equals(column)) {
+            return trimmed.replaceAll("\\s+", "");
+        }
+        return trimmed;
+    }
+
+    private Comparator<String> filterOptionComparator(String column) {
+        return switch (column) {
+            case "income_band" -> Comparator.comparingInt(this::incomeBandRank).thenComparing(value -> value);
+            case "money_style" -> Comparator.comparingInt(this::moneyStyleRank).thenComparing(value -> value);
+            case "age_band" -> Comparator.comparingInt(this::ageBandRank).thenComparing(value -> value);
+            default -> Comparator.naturalOrder();
+        };
+    }
+
+    private int incomeBandRank(String value) {
+        String normalized = value == null ? "" : value.replace(",", "");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(normalized);
+        if (!matcher.find()) {
+            return Integer.MAX_VALUE;
+        }
+        int firstNumber = Integer.parseInt(matcher.group());
+        if (normalized.contains("미만")) {
+            return Math.max(0, firstNumber - 1);
+        }
+        return firstNumber;
+    }
+
+    private int moneyStyleRank(String value) {
+        String normalized = value == null ? "" : value.replaceAll("\\s+", "");
+        return switch (normalized) {
+            case "원금보전형" -> 10;
+            case "안정추구형" -> 20;
+            case "중립형" -> 30;
+            case "성장추구형" -> 40;
+            case "공격투자형" -> 50;
+            default -> 100;
+        };
+    }
+
+    private int ageBandRank(String value) {
+        String normalized = value == null ? "" : value;
+        if (normalized.contains("20대")) {
+            return 20;
+        }
+        if (normalized.contains("30대")) {
+            return 30;
+        }
+        return 100;
     }
 
     private String compareGroupTitle(AppCompareSearchRequest request) {

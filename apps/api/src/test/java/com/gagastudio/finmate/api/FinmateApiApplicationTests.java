@@ -178,6 +178,15 @@ class FinmateApiApplicationTests {
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("1,246"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("68점"))));
 
+        mockMvc.perform(get("/api/app/compare/filter").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.filters.ageBand").value("전체"))
+                .andExpect(jsonPath("$.meta.filters.incomeBand").value("전체"))
+                .andExpect(jsonPath("$.meta.filters.jobCategory").value("전체"))
+                .andExpect(jsonPath("$.meta.filters.moneyStyle").value("전체"))
+                .andExpect(jsonPath("$.meta.filters.area").value("전체"))
+                .andExpect(jsonPath("$.meta.resultCount").value(1));
+
         mockMvc.perform(post("/api/app/compare/filter/search")
                         .header("Authorization", "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
