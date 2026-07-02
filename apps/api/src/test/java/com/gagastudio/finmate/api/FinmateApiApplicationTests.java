@@ -18,6 +18,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.Set;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -138,6 +139,7 @@ class FinmateApiApplicationTests {
                 .andExpect(jsonPath("$.birthdayFunds").value(1));
 
         String accessToken = login("p001@synthetic.finmate.local", "password123!");
+        String userId = "synthetic-P001";
         MvcResult homeResult = mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("fund-p002-birthday")))
@@ -206,12 +208,45 @@ class FinmateApiApplicationTests {
         String comparePath = objectMapper.readTree(compareGroupResult.getResponse().getContentAsString()).get("nextPath").asText();
         String comparisonId = comparePath.substring(comparePath.lastIndexOf('/') + 1);
 
-        mockMvc.perform(get("/api/app/compare/results/" + comparisonId).header("Authorization", "Bearer " + accessToken))
+        MvcResult duplicateCompareGroupResult = mockMvc.perform(post("/api/app/compare/groups")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(compareRequestPayload()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.memberCount").value(1))
+                .andExpect(jsonPath("$.data.reused").value(true))
+                .andReturn();
+        String duplicateComparePath = objectMapper.readTree(duplicateCompareGroupResult.getResponse().getContentAsString()).get("nextPath").asText();
+        assertEquals(comparePath, duplicateComparePath);
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM compare_groups WHERE user_id = ?", Integer.class, userId));
+
+        MvcResult compareResult = mockMvc.perform(get("/api/app/compare/results/" + comparisonId).header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sections[?(@.id == 'score')]").exists())
+                .andExpect(jsonPath("$.sections[?(@.id == 'compare-members')]").exists())
+                .andExpect(jsonPath("$.sections[?(@.id == 'cta')]").doesNotExist())
                 .andExpect(content().string(containsString("나의 금융 점수")))
                 .andExpect(content().string(containsString("비교 그룹 평균")))
-                .andExpect(content().string(containsString("1명의 평균")));
+                .andExpect(content().string(containsString("1명의 평균")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("비교 그룹을 바꿔볼까요?"))))
+                .andReturn();
+        JsonNode compareScreen = objectMapper.readTree(compareResult.getResponse().getContentAsString());
+        JsonNode comparisonBars = section(compareScreen, "comparison-bars");
+        assertEquals("가운데는 그룹 평균, 보라색 위치가 나의 현재 수준입니다.", comparisonBars.get("subtitle").asText());
+        for (JsonNode item : comparisonBars.get("items")) {
+            JsonNode data = item.get("data");
+            assertEquals(50, data.get("groupPosition").asInt());
+            int minePosition = data.get("minePosition").asInt();
+            assertTrue(minePosition >= 8 && minePosition <= 92, "minePosition should stay inside the visible gauge range");
+            assertTrue(data.get("deltaLabel").asText().startsWith("그룹"));
+            assertTrue(Set.of("above", "below", "same").contains(data.get("deltaDirection").asText()));
+        }
+        JsonNode compareMembers = section(compareScreen, "compare-members");
+        assertEquals("compareGroupMembers", compareMembers.get("kind").asText());
+        assertEquals(1, compareMembers.get("items").size());
+        assertEquals(5, compareMembers.path("data").path("pageSize").asInt());
+        assertEquals(1, compareMembers.path("data").path("total").asInt());
 
         mockMvc.perform(get("/api/app/compare").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -229,7 +264,6 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.screenId").value("missions"));
 
-        String userId = "synthetic-P001";
         assertEquals(2, jdbc.queryForObject("""
                 SELECT count(*) FROM missions
                 WHERE user_id = ? AND status = 'COMPLETED'

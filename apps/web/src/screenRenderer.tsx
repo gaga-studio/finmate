@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { api } from './api'
 import { clearSession } from './session'
-import type { AppAction, AppItem, AppMetric, AppScreenResponse, AppSection } from './types'
+import type { AppAction, AppCompareSearchRequest, AppItem, AppMetric, AppScreenResponse, AppSection } from './types'
 import type { Navigate } from './navigation'
 import {
   Chevron,
@@ -308,6 +308,9 @@ function SectionRenderer({ section, navigate }: { section: AppSection; navigate:
   if (section.kind === 'compareProfileList') {
     return <CompareProfileListSection section={section} navigate={navigate} />
   }
+  if (section.kind === 'compareGroupMembers') {
+    return <CompareGroupMembersSection section={section} navigate={navigate} />
+  }
   if (section.kind === 'profileSegmented') {
     return <ProfileSegmentedSection section={section} navigate={navigate} />
   }
@@ -542,20 +545,56 @@ function ComparePromptSection({ section, navigate }: SectionProps) {
 }
 
 function CompareGroupRailSection({ section, navigate }: SectionProps) {
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const handleRecommendedGroupClick = async (item: AppItem) => {
+    const filters = compareFiltersFromItem(item)
+    if (!filters) {
+      if (item.detailPath) {
+        navigate(item.detailPath)
+      }
+      return
+    }
+
+    setPendingId(item.id)
+    setNotice(null)
+    try {
+      const result = await api.createAppCompareGroup(filters)
+      if (result.nextPath) {
+        navigate(result.nextPath)
+        return
+      }
+      setNotice(result.message)
+    } catch {
+      setNotice('추천 그룹을 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setPendingId(null)
+    }
+  }
+
   return (
     <article className="card compare-group-section">
       <SectionHeader section={section} navigate={navigate} />
       {section.subtitle ? <p className="card-subtitle">{section.subtitle}</p> : null}
       <div className="compare-group-rail">
         {section.items?.map((item) => (
-          <button className="compare-group-card" type="button" onClick={() => item.detailPath && navigate(item.detailPath)} key={item.id}>
+          <button
+            className="compare-group-card"
+            type="button"
+            disabled={pendingId !== null}
+            aria-busy={pendingId === item.id}
+            onClick={() => { void handleRecommendedGroupClick(item) }}
+            key={item.id}
+          >
             <IconBadge icon={item.icon ?? 'profile'} tone={item.tone ?? 'purple'} />
             <strong>{item.title}</strong>
             {item.subtitle ? <span>{item.subtitle}</span> : null}
-            {item.caption ? <small>{item.caption}</small> : null}
+            {pendingId === item.id ? <small>비교 준비 중</small> : item.caption ? <small>{item.caption}</small> : null}
           </button>
         ))}
       </div>
+      {notice ? <p className="inline-notice compare-group-notice">{notice}</p> : null}
     </article>
   )
 }
@@ -602,6 +641,89 @@ function CompareProfileListSection({ section, navigate }: SectionProps) {
         ))}
       </div>
     </article>
+  )
+}
+
+function CompareGroupMembersSection({ section, navigate }: SectionProps) {
+  const items = section.items ?? []
+  const pageSize = numberFromData(section.data, 'pageSize') ?? 5
+  const initialVisible = numberFromData(section.data, 'initialVisible') ?? pageSize
+  const [visibleCount, setVisibleCount] = useState(Math.min(items.length, initialVisible))
+  const visibleItems = items.slice(0, visibleCount)
+  const hasMore = visibleCount < items.length
+
+  return (
+    <article className="card compare-profile-list-section compare-group-members-section">
+      <SectionHeader section={section} navigate={navigate} />
+      {section.subtitle ? <p className="card-subtitle">{section.subtitle}</p> : null}
+      <div className="compare-profile-list">
+        {visibleItems.map((item) => (
+          <CompareMemberCard item={item} key={item.id} />
+        ))}
+      </div>
+      {hasMore ? (
+        <button
+          className="app-button secondary compare-members-more"
+          type="button"
+          onClick={() => setVisibleCount((count) => Math.min(items.length, count + pageSize))}
+        >
+          더보기 ({visibleCount}/{items.length})
+        </button>
+      ) : null}
+    </article>
+  )
+}
+
+function CompareMemberCard({ item }: { item: AppItem }) {
+  const stock = item.data?.stockSignal === true
+  const saving = item.data?.savingSignal === true
+  const pension = item.data?.pensionSignal === true
+  const ageBand = stringFromData(item.data, 'ageBand') ?? '나이 미공개'
+  const jobCategory = stringFromData(item.data, 'jobCategory') ?? '직업 미공개'
+  const incomeBand = stringFromData(item.data, 'incomeBand') ?? '미공개'
+  const area = stringFromData(item.data, 'area') ?? '지역 미공개'
+  const moneyStyle = stringFromData(item.data, 'moneyStyle') ?? '성향 미공개'
+  const tags = [
+    moneyStyle !== '성향 미공개' ? moneyStyle : '',
+    stock ? '투자중' : '',
+    saving ? '저축중' : '',
+    pension ? '연금준비' : '',
+  ].filter(Boolean).slice(0, 2)
+
+  return (
+    <article className="compare-profile-card compare-filter-profile-card compare-member-card">
+      <div className="compare-profile-avatar" aria-hidden="true">
+        <IconBadge icon="profile" tone="purple" />
+      </div>
+      <div className="compare-profile-main">
+        <div className="compare-profile-name">
+          <strong>{item.title}</strong>
+          <span>{ageBand}</span>
+        </div>
+        <p>{jobCategory} · 연소득 {incomeBand}</p>
+        <p>{area} · {moneyStyle}</p>
+        {tags.length > 0 ? (
+          <div className="compare-profile-tags" aria-label="프로필 태그">
+            {tags.map((tag) => <span key={tag}>#{tag}</span>)}
+          </div>
+        ) : null}
+      </div>
+      <div className="compare-profile-signals" aria-label="금융 신호">
+        <MemberSignal active={stock} label="주식" icon="stocks" />
+        <MemberSignal active={saving} label="적금" icon="saving" />
+        <MemberSignal active={pension} label="연금" icon="pension" />
+      </div>
+    </article>
+  )
+}
+
+function MemberSignal({ active, label, icon }: { active: boolean; label: string; icon: string }) {
+  return (
+    <span className={active ? 'active' : ''}>
+      <IconBadge icon={icon} tone={active ? 'purple' : 'muted'} />
+      <b>{label}</b>
+      <i aria-hidden="true" />
+    </span>
   )
 }
 
@@ -734,23 +856,63 @@ function Tile({ item, navigate }: { item: AppItem; navigate: Navigate }) {
 function BarRow({ item, navigate }: { item: AppItem; navigate: Navigate }) {
   const mine = numberFromData(item.data, 'mine') ?? numberFromData(item.data, 'progress') ?? 50
   const group = numberFromData(item.data, 'group') ?? 0
+  const minePosition = clampPercent(numberFromData(item.data, 'minePosition') ?? mine)
+  const rawGroupPosition = numberFromData(item.data, 'groupPosition') ?? group
+  const groupPosition = clampPercent(rawGroupPosition === 0 ? 50 : rawGroupPosition)
+  const deltaLabel = stringFromData(item.data, 'deltaLabel') ?? '그룹과 비교 중이에요'
+  const deltaDirection = stringFromData(item.data, 'deltaDirection') ?? 'same'
 
   return (
-    <button className="bar-row" type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
+    <button className="bar-row compare-diff-row" type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
       <IconBadge icon={item.icon ?? 'saving'} tone={item.tone ?? 'purple'} />
-      <div className="bar-copy">
-        <strong>{item.title}</strong>
-        {item.subtitle ? <span>{cleanCaption(item.subtitle)}</span> : null}
-        <div className="dual-bars">
-          <ProgressLine value={mine} tone="purple" />
-          {group ? <ProgressLine value={group} tone="gray" /> : null}
+      <div className="bar-copy compare-diff-copy">
+        <div className="compare-diff-heading">
+          <div>
+            <strong>{item.title}</strong>
+            {item.subtitle ? <span>{cleanCaption(item.subtitle)}</span> : null}
+          </div>
+          <div className="bar-value">
+            {item.value ? <b>{cleanCaption(item.value)}</b> : null}
+            {item.caption ? <small>{cleanCaption(item.caption)}</small> : null}
+          </div>
         </div>
-      </div>
-      <div className="bar-value">
-        {item.value ? <b>{cleanCaption(item.value)}</b> : null}
-        {item.caption ? <small>{cleanCaption(item.caption)}</small> : null}
+        <CompareDiffGauge minePosition={minePosition} groupPosition={groupPosition} direction={deltaDirection} />
+        <span className={`compare-diff-pill ${deltaDirection}`}>{deltaLabel}</span>
       </div>
     </button>
+  )
+}
+
+function CompareDiffGauge({
+  minePosition,
+  groupPosition,
+  direction,
+}: {
+  minePosition: number
+  groupPosition: number
+  direction: string
+}) {
+  const diffStart = Math.min(minePosition, groupPosition)
+  const diffWidth = Math.abs(minePosition - groupPosition)
+  const style = {
+    '--mine-position': `${minePosition}%`,
+    '--group-position': `${groupPosition}%`,
+    '--diff-start': `${diffStart}%`,
+    '--diff-width': `${diffWidth}%`,
+  } as CSSProperties
+
+  return (
+    <div className={`compare-diff-gauge ${direction}`} style={style}>
+      <div className="compare-diff-track" aria-label="그룹 평균 대비 내 위치">
+        <span className="compare-diff-fill" />
+        <span className="compare-diff-baseline"><b>그룹 평균</b></span>
+        <span className="compare-diff-marker"><b>나</b></span>
+      </div>
+      <div className="compare-diff-scale" aria-hidden="true">
+        <span>낮음</span>
+        <span>높음</span>
+      </div>
+    </div>
   )
 }
 
@@ -813,6 +975,32 @@ async function handleListItemClick(item: AppItem, navigate: Navigate, templateId
 function templateIdFromItem(item: AppItem): string | null {
   const value = item.data?.templateId
   return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function compareFiltersFromItem(item: AppItem): AppCompareSearchRequest | null {
+  if (!item.data) {
+    return null
+  }
+  const hasCompareFilter =
+    'ageBand' in item.data ||
+    'incomeBand' in item.data ||
+    'jobCategory' in item.data ||
+    'moneyStyle' in item.data ||
+    'area' in item.data ||
+    'householdType' in item.data ||
+    'assetRange' in item.data
+  if (!hasCompareFilter) {
+    return null
+  }
+  return {
+    ageBand: stringFromData(item.data, 'ageBand') ?? '전체',
+    incomeBand: stringFromData(item.data, 'incomeBand') ?? '전체',
+    jobCategory: stringFromData(item.data, 'jobCategory') ?? '전체',
+    moneyStyle: stringFromData(item.data, 'moneyStyle') ?? '전체',
+    area: stringFromData(item.data, 'area') ?? '전체',
+    householdType: stringFromData(item.data, 'householdType') ?? '전체',
+    assetRange: stringFromData(item.data, 'assetRange') ?? '전체',
+  }
 }
 
 function ActionButtons({ actions, navigate }: { actions?: AppAction[] | null; navigate: Navigate }) {
@@ -883,6 +1071,15 @@ function cleanCaption(caption: string) {
     return '코치 분석'
   }
   return caption
+}
+
+function stringFromData(data: Record<string, unknown> | null | undefined, key: string): string | null {
+  const value = data?.[key]
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, value))
 }
 
 function inferItemPresentation(item: AppItem, variant?: string): { icon: string; tone: string } {

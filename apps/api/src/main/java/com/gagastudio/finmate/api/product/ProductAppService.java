@@ -520,12 +520,24 @@ public class ProductAppService implements FinancialDataProvider {
         if (members.isEmpty()) {
             return new AppActionResultResponse("NO_MATCH", "조건에 맞는 그룹이 없어요", "필터를 조금 넓히면 비교할 수 있는 사람이 늘어납니다.", "/compare/filter", Map.of("resultCount", 0));
         }
-        String comparisonId = "cmp-" + UUID.randomUUID();
         String title = compareGroupTitle(normalized);
-        jdbc.update("""
-                INSERT INTO compare_groups (id, user_id, title, filters_json, member_count)
-                VALUES (?, ?, ?, ?, ?)
-                """, comparisonId, userId, title, json(compareRequestMap(normalized)), members.size());
+        String filtersJson = json(compareRequestMap(normalized));
+        String existingGroupId = findCompareGroupIdByFilters(userId, filtersJson);
+        boolean reused = existingGroupId != null;
+        String comparisonId = reused ? existingGroupId : "cmp-" + UUID.randomUUID();
+        if (reused) {
+            jdbc.update("""
+                    UPDATE compare_groups
+                    SET title = ?, filters_json = ?, member_count = ?, updated_at = now()
+                    WHERE id = ? AND user_id = ?
+                    """, title, filtersJson, members.size(), comparisonId, userId);
+            jdbc.update("DELETE FROM compare_group_members WHERE group_id = ?", comparisonId);
+        } else {
+            jdbc.update("""
+                    INSERT INTO compare_groups (id, user_id, title, filters_json, member_count)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, comparisonId, userId, title, filtersJson, members.size());
+        }
         int order = 1;
         for (CandidateRow member : members) {
             jdbc.update("""
@@ -533,7 +545,7 @@ public class ProductAppService implements FinancialDataProvider {
                     VALUES (?, ?, ?)
                     """, comparisonId, member.userId(), order++);
         }
-        return new AppActionResultResponse("CREATED", "비교 그룹을 만들었어요", members.size() + "명의 공개 금융 데이터 평균과 비교합니다.", "/compare/results/" + comparisonId, Map.of("comparisonId", comparisonId, "memberCount", members.size()));
+        return new AppActionResultResponse("CREATED", reused ? "비교 그룹을 갱신했어요" : "비교 그룹을 만들었어요", members.size() + "명의 공개 금융 데이터 평균과 비교합니다.", "/compare/results/" + comparisonId, Map.of("comparisonId", comparisonId, "memberCount", members.size(), "reused", reused));
     }
 
     public AppScreenResponse getCompareResult(String userId, String comparisonId) {
@@ -562,8 +574,9 @@ public class ProductAppService implements FinancialDataProvider {
                                 metric("비교 그룹 평균", groupStats.score() + "점", members.size() + "명 평균", "green", groupStats.score())),
                         null, null, null),
                 compareBarsSection(mine, groupStats),
-                section("cta", "actionCard", "비교 그룹을 바꿔볼까요?", "필터를 다시 선택하면 새 그룹으로 저장할 수 있어요.", "/compare/filter", null, null, null,
-                        actions(action("비교 그룹 변경하기", "/compare/filter", "GET", "primary", null)), null)
+                section("compare-members", "compareGroupMembers", "그룹에 포함된 사용자", members.size() + "명의 공개 금융 프로필입니다.", null, null, null,
+                        members.stream().map(member -> candidateItem(userId, member)).toList(), null,
+                        Map.of("initialVisible", 5, "pageSize", 5, "total", members.size()))
         ), Map.of("comparisonId", comparisonId, "memberCount", members.size()));
     }
 
@@ -1791,6 +1804,17 @@ public class ProductAppService implements FinancialDataProvider {
                 ), userId);
     }
 
+    private String findCompareGroupIdByFilters(String userId, String filtersJson) {
+        List<String> ids = jdbc.queryForList("""
+                        SELECT id
+                        FROM compare_groups
+                        WHERE user_id = ? AND filters_json = ?
+                        ORDER BY updated_at DESC, created_at DESC
+                        LIMIT 1
+                        """, String.class, userId, filtersJson);
+        return ids.isEmpty() ? null : ids.get(0);
+    }
+
     private AppItem candidateItem(String viewerId, CandidateRow candidate) {
         String subtitle = String.join(" · ",
                 compact(valueOr(candidate.ageBand(), "나이 미공개"), shortJob(candidate.jobCategory()), "연소득 " + valueOr(candidate.incomeBand(), "미공개")));
@@ -2169,12 +2193,57 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private AppSection compareBarsSection(CompareStats mine, CompareStats group) {
-        return section("comparison-bars", "compareBars", "항목별 비교", "보라색은 나, 회색은 비교 그룹 평균입니다.", null, null, null,
-                items(item("saving", "저축", "월 평균 저축액", won(mine.monthlySaving()), "그룹 " + won(group.monthlySaving()), "saving", "purple", null, Map.of("mine", mine.savingRate(), "group", group.savingRate())),
-                        item("spending", "소비", "월 평균 소비액", won(mine.monthlySpending()), "그룹 " + won(group.monthlySpending()), "spend", "green", null, Map.of("mine", mine.spendingRate(), "group", group.spendingRate())),
-                        item("investment", "투자", "총자산 대비 투자 비율", mine.investmentRatio() + "%", "그룹 " + group.investmentRatio() + "%", "stocks", "purple", null, Map.of("mine", mine.investmentRatio(), "group", group.investmentRatio())),
-                        item("debt", "부채", "거래 내역의 대출/부채 신호", mine.debtRatio() + "%", "그룹 " + group.debtRatio() + "%", "debt", "orange", null, Map.of("mine", mine.debtRatio(), "group", group.debtRatio()))),
+        return section("comparison-bars", "compareBars", "항목별 비교", "가운데는 그룹 평균, 보라색 위치가 나의 현재 수준입니다.", null, null, null,
+                items(item("saving", "저축", "월 평균 저축액", won(mine.monthlySaving()), "그룹 " + won(group.monthlySaving()), "saving", "purple", null,
+                                compareGaugeData(mine.savingRate(), group.savingRate(), mine.monthlySaving(), group.monthlySaving(), "amount", "lowerHigher")),
+                        item("spending", "소비", "월 평균 소비액", won(mine.monthlySpending()), "그룹 " + won(group.monthlySpending()), "spend", "green", null,
+                                compareGaugeData(mine.spendingRate(), group.spendingRate(), mine.monthlySpending(), group.monthlySpending(), "amount", "spending")),
+                        item("investment", "투자", "총자산 대비 투자 비율", mine.investmentRatio() + "%", "그룹 " + group.investmentRatio() + "%", "stocks", "purple", null,
+                                compareGaugeData(mine.investmentRatio(), group.investmentRatio(), mine.investmentRatio(), group.investmentRatio(), "percentPoint", "lowerHigher")),
+                        item("debt", "부채", "거래 내역의 대출/부채 신호", mine.debtRatio() + "%", "그룹 " + group.debtRatio() + "%", "debt", "orange", null,
+                                compareGaugeData(mine.debtRatio(), group.debtRatio(), mine.debtRatio(), group.debtRatio(), "percentPoint", "lowerHigher"))),
                 null, null);
+    }
+
+    private Map<String, Object> compareGaugeData(int mineRate, int groupRate, int mineRaw, int groupRaw, String unit, String mode) {
+        int diff = mineRaw - groupRaw;
+        return Map.of(
+                "mine", mineRate,
+                "group", groupRate,
+                "groupPosition", 50,
+                "minePosition", compareGaugePosition(mineRate, groupRate, mineRaw, groupRaw, unit),
+                "deltaLabel", compareDeltaLabel(diff, unit, mode),
+                "deltaDirection", compareDeltaDirection(diff)
+        );
+    }
+
+    private int compareGaugePosition(int mineRate, int groupRate, int mineRaw, int groupRaw, String unit) {
+        if ("amount".equals(unit)) {
+            if (groupRaw == 0) {
+                return mineRaw == 0 ? 50 : 92;
+            }
+            double relativeDiff = (mineRaw - groupRaw) * 100.0 / Math.abs(groupRaw);
+            return clamp(50 + (int) Math.round(relativeDiff * 0.5), 8, 92);
+        }
+        return clamp(50 + (mineRate - groupRate) * 2, 8, 92);
+    }
+
+    private String compareDeltaLabel(int diff, String unit, String mode) {
+        if (diff == 0) {
+            return "그룹과 비슷해요";
+        }
+        if ("spending".equals(mode)) {
+            return "그룹보다 월 " + won(Math.abs(diff)) + (diff > 0 ? " 더 써요" : " 적게 써요");
+        }
+        String formatted = "percentPoint".equals(unit) ? Math.abs(diff) + "%p" : "월 " + won(Math.abs(diff));
+        return "그룹보다 " + formatted + (diff > 0 ? " 높아요" : " 낮아요");
+    }
+
+    private String compareDeltaDirection(int diff) {
+        if (diff == 0) {
+            return "same";
+        }
+        return diff > 0 ? "above" : "below";
     }
 
     private int financialScore(int income, int spending, int saving, int investment, int cashLikeAssets, double emergencyFundMonths) {
@@ -2415,6 +2484,10 @@ public class ProductAppService implements FinancialDataProvider {
             return 0;
         }
         return Math.max(0, Math.min(100, (int) Math.round(value * 100.0 / total)));
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private String evidenceSummary(String evidenceJson) {
