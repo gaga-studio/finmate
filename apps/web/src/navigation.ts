@@ -53,6 +53,9 @@ export function parseRoute(pathname: string): Route {
       : { name: 'screen', screen: 'home' }
   }
   if (parts[0] === 'compare') {
+    if (parts[1] === 'results' && parts[2]) {
+      return { name: 'screen', screen: 'compare-result', param: parts[2] }
+    }
     if (parts[1] === 'filter' && parts[2] === 'results') {
       return { name: 'screen', screen: 'compare-results' }
     }

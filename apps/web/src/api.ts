@@ -1,6 +1,7 @@
 import type {
   AuthResponse,
   AppActionResultResponse,
+  AppCompareSearchRequest,
   AppScreenResponse,
   ErrorResponse,
   ProductOnboardingRequest,
@@ -112,17 +113,17 @@ export const api = {
     request<AppScreenResponse>('/api/app/compare', { token }),
   getAppCompareFilter: (token?: string) =>
     request<AppScreenResponse>('/api/app/compare/filter', { token }),
-  searchAppCompareFilter: (token?: string) =>
+  searchAppCompareFilter: (body: AppCompareSearchRequest, token?: string) =>
     request<AppScreenResponse>('/api/app/compare/filter/search', {
       method: 'POST',
       token,
-      body: {
-        ageBand: '20대',
-        incomeBand: '3,000만원 ~ 4,000만원',
-        jobCategory: 'IT/개발',
-        moneyStyle: '안정 추구형',
-        area: '서울 강남권',
-      },
+      body,
+    }),
+  createAppCompareGroup: (body: AppCompareSearchRequest, token?: string) =>
+    request<AppActionResultResponse>('/api/app/compare/groups', {
+      method: 'POST',
+      token,
+      body,
     }),
   getAppCompareResult: (comparisonId = 'cmp-001', token?: string) =>
     request<AppScreenResponse>(`/api/app/compare/results/${comparisonId}`, {

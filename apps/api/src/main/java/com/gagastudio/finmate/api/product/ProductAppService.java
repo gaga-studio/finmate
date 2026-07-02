@@ -79,6 +79,9 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private void clearUserRuntimeData(String userId) {
+        jdbc.update("DELETE FROM compare_group_members WHERE group_id IN (SELECT id FROM compare_groups WHERE user_id = ?)", userId);
+        jdbc.update("DELETE FROM compare_groups WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM compare_group_members WHERE member_user_id = ?", userId);
         jdbc.update("DELETE FROM birthday_fund_contributions WHERE contributor_user_id = ?", userId);
         jdbc.update("DELETE FROM point_transactions WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM feed_items WHERE user_id = ?", userId);
@@ -96,6 +99,8 @@ public class ProductAppService implements FinancialDataProvider {
     public void resetDevelopmentState() {
         jdbc.execute("""
                 TRUNCATE TABLE
+                  compare_group_members,
+                  compare_groups,
                   birthday_fund_contributions,
                   birthday_funds,
                   point_transactions,
@@ -477,62 +482,89 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     public AppScreenResponse getCompare(String userId) {
+        bootstrapUser(userId, displayName(userId));
         if (findSnapshot(userId) == null) {
             return screen("compare", "그룹 비교", "compare", List.of(
                     section("lead", "lead", "비교할 금융 데이터가 아직 없어요", "가계부나 마이데이터 요약이 준비되면 비슷한 또래와 비교할 수 있어요.", null, null, null, null, null, null),
                     emptyActionSection("compare-empty", "또래 비교 준비 중", "아직 비교 기준이 부족해요.", "기록과 자산 요약이 쌓이면 금융 점수와 항목별 차이를 보여드릴게요.", "/home")
             ), Map.of("comparisonId", "empty"));
         }
-        CoachResultV1 coach = latestOrFallbackCoach(userId);
+        List<AppItem> savedGroups = savedCompareGroupItems(userId);
         return screen("compare", "그룹 비교", "compare", List.of(
-                section("lead", "lead", "비슷한 사람들과 비교해보세요", "나와 비슷한 금융 생활을 가진 사람들의 평균과 비교할 수 있어요.", null, null, null, null, null, null),
-                section("score", "scoreGrid", "금융 점수", null, null, null,
-                        metrics(metric("나의 금융 점수", coach.score() + "점", "상위 62%", "purple", coach.score()),
-                                metric("비교 그룹 평균", "68점", "상위 48%", "green", 68)),
-                        null, null, null),
-                compareBarsSection(coach),
-                section("cta", "actionCard", "비교 그룹을 바꿔볼까요?", "업종, 소득, 생활권 기준으로 더 가까운 그룹을 찾아요.", "/compare/filter", null, null, null,
-                        actions(action("비교 그룹 변경하기", "/compare/filter", "GET", "primary", null)), null)
-        ), Map.of("comparisonId", "cmp-001"));
+                section("compare-prompt", "comparePrompt", "비교하고 싶은 그룹을 선택해보세요", "나와 비슷한 사람들의 공개 금융 데이터를 기준으로 평균을 계산해요.", "/compare/filter", null, null, null, null, null),
+                section("recommended", "compareGroupRail", "AI 추천 그룹", "나이, 직업, 소득, 생활권이 가까운 합성 사용자를 묶었어요.", null, null, null,
+                        recommendedGroupItems(userId), null, null),
+                section("my-groups", "savedCompareGroups", "내 그룹 비교", savedGroups.isEmpty() ? "직접 만든 비교 그룹이 아직 없어요." : "저장한 그룹은 다시 비교할 수 있어요.", null, null, null,
+                        savedGroups.isEmpty()
+                                ? items(item("compare-create-empty", "직접 만들기", "필터를 골라 나만의 비교 그룹을 저장해보세요.", null, null, "spark", "purple", "/compare/filter"))
+                                : savedGroups,
+                        actions(action("+ 직접 만들기", "/compare/filter", "GET", "secondary", null)), Map.of("empty", savedGroups.isEmpty()))
+        ), Map.of("savedGroupCount", savedGroups.size()));
     }
 
     public AppScreenResponse getCompareFilter(String userId) {
         bootstrapUser(userId, displayName(userId));
-        return screen("compare:filter", "비교 그룹 선택", "compare", List.of(
-                section("filters", "list", "필터 선택", null, null, null, null,
-                        items(item("age", "나이", "20대", null, null, "profile", "purple", null),
-                                item("income", "연 소득", "3,000만원 ~ 4,000만원", null, null, "wallet", "green", null),
-                                item("job", "업종", "IT/개발", null, null, "work", "purple", null),
-                                item("style", "금융 성향", "안정 추구형", null, null, "saving", "green", null),
-                                item("area", "생활권", "서울 강남권", null, null, "home", "purple", null)),
-                        actions(action("이 조건으로 비교하기", "/compare/filter/results", "POST", "primary", "compare-search")), null)
-        ), Map.of());
+        AppCompareSearchRequest request = defaultCompareRequest(userId);
+        return compareSearchScreen(userId, request, "compare:filter", "필터링 조회");
     }
 
     public AppScreenResponse searchCompareFilter(String userId, AppCompareSearchRequest request) {
-        return screen("compare:filter-results", "필터링 조회", "compare", List.of(
-                section("summary", "lead", "이 조건에 맞는 사용자 1,246명", "선택한 조건과 가까운 익명 프로필을 골랐어요.", null, null, null, null, null, null),
-                section("profiles", "list", "프로필 리스트", null, null, null, null,
-                        items(item("p1", "코딩하는 제이", "27세 · IT 개발자 · 금융 점수 74점", null, "적금·연금", "profile", "purple", "/compare/result"),
-                                item("p2", "미니멀 라이프", "29세 · 디자이너 · 금융 점수 70점", null, "저축·소비절제", "profile", "green", "/compare/result"),
-                                item("p3", "퇴근 후 투자", "26세 · 마케터 · 금융 점수 76점", null, "주식·펀드", "profile", "orange", "/compare/result")),
-                        actions(action("이 그룹으로 비교하기", "/compare/result", "GET", "primary", null)), null)
-        ), Map.of("filters", request));
+        return compareSearchScreen(userId, normalizeCompareRequest(userId, request), "compare:filter-results", "필터링 조회");
+    }
+
+    @Transactional
+    public AppActionResultResponse createCompareGroup(String userId, AppCompareSearchRequest request) {
+        bootstrapUser(userId, displayName(userId));
+        AppCompareSearchRequest normalized = normalizeCompareRequest(userId, request);
+        List<CandidateRow> members = compareCandidates(userId, normalized, 50);
+        if (members.isEmpty()) {
+            return new AppActionResultResponse("NO_MATCH", "조건에 맞는 그룹이 없어요", "필터를 조금 넓히면 비교할 수 있는 사람이 늘어납니다.", "/compare/filter", Map.of("resultCount", 0));
+        }
+        String comparisonId = "cmp-" + UUID.randomUUID();
+        String title = compareGroupTitle(normalized);
+        jdbc.update("""
+                INSERT INTO compare_groups (id, user_id, title, filters_json, member_count)
+                VALUES (?, ?, ?, ?, ?)
+                """, comparisonId, userId, title, json(compareRequestMap(normalized)), members.size());
+        int order = 1;
+        for (CandidateRow member : members) {
+            jdbc.update("""
+                    INSERT INTO compare_group_members (group_id, member_user_id, rank_order)
+                    VALUES (?, ?, ?)
+                    """, comparisonId, member.userId(), order++);
+        }
+        return new AppActionResultResponse("CREATED", "비교 그룹을 만들었어요", members.size() + "명의 공개 금융 데이터 평균과 비교합니다.", "/compare/results/" + comparisonId, Map.of("comparisonId", comparisonId, "memberCount", members.size()));
     }
 
     public AppScreenResponse getCompareResult(String userId, String comparisonId) {
-        if (findSnapshot(userId) == null) {
+        SnapshotRow mySnapshot = findSnapshot(userId);
+        if (mySnapshot == null) {
             return screen("compare:" + comparisonId, "비교 결과", "compare", List.of(
                     emptyActionSection("compare-result-empty", "비교 결과가 아직 없어요", "금융 데이터가 준비되면 또래와의 차이를 보여드릴게요.", "지금은 홈에서 연결 상태를 먼저 확인해주세요.", "/home")
             ), Map.of("comparisonId", comparisonId));
         }
-        CoachResultV1 coach = latestOrFallbackCoach(userId);
-        return screen("compare:cmp-001", "비교 결과", "compare", List.of(
-                section("result", "coach", userName(userId) + "님, 또래와 비교해봤어요!", coach.summary(), null, "/assets/characters/finmate-main.png",
-                        metrics(metric("나의 종합 점수", coach.score() + "점", "상위 40%", "purple", coach.score())), null,
-                        actions(action("AI 코치의 분석 보기", "/compare/coach", "GET", "primary", null)), null),
-                compareBarsSection(coach)
-        ), Map.of("comparisonId", comparisonId));
+        CompareGroupRow group = findCompareGroup(userId, comparisonId);
+        List<CandidateRow> members = group == null
+                ? compareCandidates(userId, defaultCompareRequest(userId), 50)
+                : compareGroupMembers(group.id());
+        if (members.isEmpty()) {
+            return screen("compare:" + comparisonId, "비교 결과", "compare", List.of(
+                    emptyActionSection("compare-result-empty", "비교할 그룹이 비어 있어요", "필터 조건을 다시 선택하면 비교 가능한 그룹을 만들 수 있어요.", "지금은 조건을 조금 넓혀보세요.", "/compare/filter")
+            ), Map.of("comparisonId", comparisonId));
+        }
+        CompareStats mine = compareStats(userId, mySnapshot);
+        CompareStats groupStats = averageStats(members);
+        String title = group == null ? compareGroupTitle(defaultCompareRequest(userId)) : group.title();
+        return screen("compare:" + comparisonId, "그룹 비교", "compare", List.of(
+                section("lead", "lead", "비슷한 사람들과 비교해보세요", title + " " + members.size() + "명의 평균과 비교합니다.", null, null, null, null, null, null),
+                section("score", "scoreGrid", "금융 점수", null, null, null,
+                        metrics(metric("나의 금융 점수", mine.score() + "점", "내 데이터 기준", "purple", mine.score()),
+                                metric("비교 그룹 평균", groupStats.score() + "점", members.size() + "명 평균", "green", groupStats.score())),
+                        null, null, null),
+                compareBarsSection(mine, groupStats),
+                section("cta", "actionCard", "비교 그룹을 바꿔볼까요?", "필터를 다시 선택하면 새 그룹으로 저장할 수 있어요.", "/compare/filter", null, null, null,
+                        actions(action("비교 그룹 변경하기", "/compare/filter", "GET", "primary", null)), null)
+        ), Map.of("comparisonId", comparisonId, "memberCount", members.size()));
     }
 
     public AppScreenResponse getCoachFlow(String userId, String comparisonId) {
@@ -729,14 +761,24 @@ public class ProductAppService implements FinancialDataProvider {
 
     public AppScreenResponse getProfile(String userId) {
         UserMeResponse user = userMe(userId);
-        return screen("profile", "프로필", "profile", List.of(
-                section("profile", "profileHero", user.displayName() + "님의 금융 생활", "실제 계정 상태로 저장되는 프로필입니다.", null, null,
-                        metrics(metric("팔로잉", followingCount(userId) + "명", "최근 30일", "purple", null),
-                                metric("포인트", user.pointBalance() + "P", "가상머니 " + won(user.virtualMoneyBalance()), "green", null)),
-                        null, actions(action("공개 범위 확인", "/settings/privacy", "GET", "secondary", null), action("로그아웃", "/login", "POST", "danger", "logout")), null),
+        int following = followingCount(userId);
+        int followers = followerCount(userId);
+        return screen("profile", "팔로잉 금융 현황", "profile", List.of(
+                section("profile-tabs", "profileSegmented", "팔로잉", "팔로워", null, null, null,
+                        items(item("following-tab", "팔로잉", following + "명", null, "선택됨", "profile", "purple", null),
+                                item("followers-tab", "팔로워", followers + "명", null, null, "profile", "muted", "/profile/followers")),
+                        null, Map.of("active", "following")),
+                section("profile-following-hero", "profileFollowingHero", "내 팔로잉 " + following + "명의 최근 금융 활동이에요", "최근 30일 기준으로 공개된 금융 루틴만 집계합니다.", "/profile/following", null,
+                        metrics(metric("팔로잉", following + "명", "내가 보는 금융 생활", "purple", null),
+                                metric("팔로워", followers + "명", "나를 보는 사람", "green", null)),
+                        null, null, null),
                 followingSection(userId),
-                feedSection(userId)
-        ), Map.of());
+                followingDistributionSection(userId),
+                followingTopActivitiesSection(userId),
+                section("profile-settings", "actionCard", "계정 관리", user.displayName() + "님의 공개 범위와 세션을 관리합니다.", null, null,
+                        metrics(metric("포인트", user.pointBalance() + "P", "가상머니 " + won(user.virtualMoneyBalance()), "purple", null)),
+                        null, actions(action("공개 범위 확인", "/settings/privacy", "GET", "secondary", null), action("로그아웃", "/login", "POST", "danger", "logout")), null)
+        ), Map.of("followingCount", following, "followerCount", followers));
     }
 
     public AppScreenResponse getProfileSection(String userId, String section) {
@@ -1336,6 +1378,11 @@ public class ProductAppService implements FinancialDataProvider {
         return count == null ? 0 : count;
     }
 
+    private int followerCount(String userId) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM friendships WHERE followee_id = ? AND status = 'ACTIVE'", Integer.class, userId);
+        return count == null ? 0 : count;
+    }
+
     private FundRow availableBirthdayFund(String userId) {
         List<FundRow> funds = jdbc.query("""
                         SELECT b.*
@@ -1388,6 +1435,95 @@ public class ProductAppService implements FinancialDataProvider {
                         followingMetric("펀드 투자", fundCount, count, "purple"),
                         followingMetric("연금 준비", pensionCount, count, "green")),
                 null, null, null);
+    }
+
+    private AppSection followingDistributionSection(String userId) {
+        List<String> followeeIds = followeeIds(userId);
+        int count = followeeIds.size();
+        if (count == 0) {
+            return section("following-distribution", "distribution", "금융 생활 분포", "팔로잉 데이터가 쌓이면 분포를 보여드릴게요.", null, null, null,
+                    items(item("distribution-empty", "아직 분포 데이터가 없어요", "팔로잉한 친구의 공개 금융 활동이 필요합니다.", null, null, "chart", "purple", null, Map.of("mine", 0, "group", 0))),
+                    null, null);
+        }
+        int stockCount = countFolloweesWithSignal(userId, followeeIds, "investment_value", "주식", "투자", "ETF");
+        int savingCount = countFolloweesWithSignal(userId, followeeIds, "monthly_saving", "저축", "적금", "비상금", "자동이체");
+        int fundCount = countFolloweesWithSignal(userId, followeeIds, null, "펀드");
+        int pensionCount = countFolloweesWithSignal(userId, followeeIds, null, "연금", "IRP");
+        int studyCount = countFolloweesWithSignal(userId, followeeIds, null, "재테크", "공부", "금융 공부");
+        return section("following-distribution", "distribution", "금융 생활 분포", "팔로잉 " + count + "명의 공개 신호 기준입니다.", null, null, null,
+                items(distributionItem("dist-stock", "주식 투자", stockCount, count, "stocks", "purple"),
+                        distributionItem("dist-saving", "적금 가입", savingCount, count, "saving", "green"),
+                        distributionItem("dist-fund", "펀드 투자", fundCount, count, "fund", "purple"),
+                        distributionItem("dist-pension", "연금 준비", pensionCount, count, "pension", "green"),
+                        distributionItem("dist-study", "재테크 공부", studyCount, count, "study", "purple")),
+                null, null);
+    }
+
+    private AppItem distributionItem(String id, String title, int value, int total, String icon, String tone) {
+        int progress = percent(value, total);
+        return item(id, title, value + "명", progress + "%", null, icon, tone, null, Map.of("mine", progress, "group", 0));
+    }
+
+    private AppSection followingTopActivitiesSection(String userId) {
+        List<AppItem> items = jdbc.query("""
+                        SELECT f.id, u.display_name, f.title, f.amount, f.kind
+                        FROM feed_items f
+                        JOIN users u ON u.id = f.actor_user_id
+                        WHERE f.user_id = ? AND f.kind <> 'BIRTHDAY'
+                        ORDER BY f.created_at DESC
+                        LIMIT 5
+                        """,
+                (rs, rowNum) -> item(
+                        rs.getString("id"),
+                        rs.getString("display_name"),
+                        rs.getString("title"),
+                        rs.getObject("amount") == null ? null : signedWon(rs.getInt("amount")),
+                        rs.getString("kind"),
+                        iconForActivity(rs.getString("kind")),
+                        rowNum % 2 == 0 ? "purple" : "green",
+                        null
+                ), userId);
+        if (items.isEmpty()) {
+            items = derivedFollowingActivities(userId);
+        }
+        if (items.isEmpty()) {
+            items = items(item("top-empty", "아직 금융 활동이 없어요", "팔로잉한 친구의 공개 활동이 생기면 TOP 5로 보여드려요.", null, null, "feed", "purple", null));
+        }
+        return section("following-top", "rankList", "팔로잉 TOP 5 금융 활동", null, null, null, null, items, null, null);
+    }
+
+    private List<AppItem> derivedFollowingActivities(String userId) {
+        List<AppItem> items = new ArrayList<>();
+        for (String followeeId : followeeIds(userId)) {
+            SnapshotRow snapshot = findSnapshot(followeeId);
+            if (snapshot == null) {
+                continue;
+            }
+            String name = displayName(followeeId);
+            if (snapshot.monthlySaving() > 0 && items.size() < 5) {
+                items.add(item("derived-saving-" + followeeId, name, "적금·저축", signedWon(snapshot.monthlySaving()), "월 저축", "saving", "green", null));
+            }
+            if (snapshot.investmentValue() > 0 && items.size() < 5) {
+                items.add(item("derived-invest-" + followeeId, name, "투자 보유", won(snapshot.investmentValue()), "자산 요약", "stocks", "purple", null));
+            }
+            if (items.size() >= 5) {
+                break;
+            }
+        }
+        return items;
+    }
+
+    private String iconForActivity(String kind) {
+        if (kind == null) {
+            return "feed";
+        }
+        if (kind.contains("INVEST") || kind.contains("STOCK")) {
+            return "stocks";
+        }
+        if (kind.contains("SAVE") || kind.contains("MISSION")) {
+            return "saving";
+        }
+        return "feed";
     }
 
     private List<String> followeeIds(String userId) {
@@ -1594,13 +1730,558 @@ public class ProductAppService implements FinancialDataProvider {
         return amount;
     }
 
-    private AppSection compareBarsSection(CoachResultV1 coach) {
-        return section("comparison-bars", "compareBars", "항목별 비교", null, null, null, null,
-                items(item("saving", "저축 비율", "65%", "상위 30%", null, "saving", "purple", null, Map.of("mine", 65, "group", 30)),
-                        item("investment", "투자 비율", "15%", "하위 20%", null, "stocks", "orange", null, Map.of("mine", 15, "group", 20)),
-                        item("spending", "소비 절제력", "72%", "상위 50%", null, "spend", "green", null, Map.of("mine", 72, "group", 50)),
-                        item("score", "AI 코치 점수", coach.score() + "점", coach.source(), null, "target", "purple", null, Map.of("mine", coach.score(), "group", 68))),
-                actions(action("AI 코치의 분석 보기", "/compare/coach", "GET", "primary", null)), null);
+    private AppScreenResponse compareSearchScreen(String userId, AppCompareSearchRequest request, String screenId, String title) {
+        List<CandidateRow> matches = compareCandidates(userId, request, 200);
+        List<AppItem> resultItems = matches.stream()
+                .limit(20)
+                .map(candidate -> candidateItem(userId, candidate))
+                .toList();
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("filters", compareRequestMap(request));
+        meta.put("filterOptions", filterOptions());
+        meta.put("resultCount", matches.size());
+        return screen(screenId, title, "compare", List.of(
+                section("profiles", "compareProfileList", "검색 결과 " + matches.size() + "명", "선택한 조건과 가까운 익명 금융 프로필입니다.", null, null, null,
+                        resultItems.isEmpty()
+                                ? items(item("profile-empty", "조건에 맞는 사람이 없어요", "필터를 전체로 바꾸거나 조건을 넓혀보세요.", null, null, "search", "purple", null))
+                                : resultItems,
+                        null, Map.of("resultCount", matches.size()))
+        ), meta);
+    }
+
+    private List<AppItem> recommendedGroupItems(String userId) {
+        ProfileRow profile = profileRow(userId);
+        List<AppItem> groups = new ArrayList<>();
+        AppCompareSearchRequest ageJob = new AppCompareSearchRequest(decade(profile.ageBand()), "전체", profile.jobCategory(), "전체", "전체", "전체", "전체");
+        addRecommendedGroup(groups, "recommend-age-job", decade(profile.ageBand()) + " " + shortJob(profile.jobCategory()), ageJob, userId, "profile");
+        AppCompareSearchRequest job = new AppCompareSearchRequest("전체", "전체", profile.jobCategory(), profile.moneyStyle(), "전체", "전체", "전체");
+        addRecommendedGroup(groups, "recommend-job-style", shortJob(profile.jobCategory()) + " · " + valueOr(profile.moneyStyle(), "금융 성향"), job, userId, "spark");
+        AppCompareSearchRequest area = new AppCompareSearchRequest("전체", "전체", "전체", "전체", profile.area(), profile.householdType(), "전체");
+        addRecommendedGroup(groups, "recommend-area-home", valueOr(profile.area(), "생활권") + " " + valueOr(profile.householdType(), "가구"), area, userId, "home");
+        AppCompareSearchRequest income = new AppCompareSearchRequest("전체", profile.incomeBand(), "전체", "전체", "전체", "전체", "전체");
+        addRecommendedGroup(groups, "recommend-income", valueOr(profile.incomeBand(), "비슷한 소득"), income, userId, "wallet");
+        return groups;
+    }
+
+    private void addRecommendedGroup(List<AppItem> groups, String id, String title, AppCompareSearchRequest request, String userId, String icon) {
+        int count = compareCandidates(userId, normalizeCompareRequest(userId, request), 200).size();
+        if (count == 0) {
+            return;
+        }
+        groups.add(item(id, title, count + "명", null, "AI 추천", icon, "purple", "/compare/filter", compareRequestMap(normalizeCompareRequest(userId, request))));
+    }
+
+    private List<AppItem> savedCompareGroupItems(String userId) {
+        return jdbc.query("""
+                        SELECT id, title, member_count, updated_at
+                        FROM compare_groups
+                        WHERE user_id = ?
+                        ORDER BY updated_at DESC
+                        LIMIT 10
+                        """,
+                (rs, rowNum) -> item(
+                        rs.getString("id"),
+                        rs.getString("title"),
+                        "마지막 비교 " + rs.getObject("updated_at", OffsetDateTime.class).toLocalDate(),
+                        null,
+                        rs.getInt("member_count") + "명",
+                        "profile",
+                        "purple",
+                        "/compare/results/" + rs.getString("id")
+                ), userId);
+    }
+
+    private AppItem candidateItem(String viewerId, CandidateRow candidate) {
+        String subtitle = String.join(" · ",
+                compact(valueOr(candidate.ageBand(), "나이 미공개"), shortJob(candidate.jobCategory()), "연소득 " + valueOr(candidate.incomeBand(), "미공개")));
+        String caption = financialSignalCaption(viewerId, candidate);
+        return item(candidate.userId(), candidate.displayName(), subtitle, candidate.score() + "점", caption, "profile", "purple", null,
+                Map.of(
+                        "memberUserId", candidate.userId(),
+                        "ageBand", valueOr(candidate.ageBand(), ""),
+                        "jobCategory", valueOr(candidate.jobCategory(), ""),
+                        "incomeBand", valueOr(candidate.incomeBand(), ""),
+                        "area", valueOr(candidate.area(), ""),
+                        "moneyStyle", valueOr(candidate.moneyStyle(), ""),
+                        "score", candidate.score(),
+                        "stockSignal", candidate.investmentValue() > 0,
+                        "savingSignal", candidate.monthlySaving() > 0,
+                        "pensionSignal", hasTextSignal(viewerId, candidate.userId(), "연금", "IRP")
+                ));
+    }
+
+    private List<CandidateRow> compareCandidates(String userId, AppCompareSearchRequest request, int limit) {
+        AppCompareSearchRequest normalized = normalizeCompareRequest(userId, request);
+        ProfileRow viewerProfile = profileRow(userId);
+        Comparator<CandidateRow> candidateOrder = Comparator
+                .comparingInt((CandidateRow candidate) -> similarityScore(viewerProfile, candidate)).reversed()
+                .thenComparing(Comparator.comparingInt(CandidateRow::score).reversed())
+                .thenComparing(CandidateRow::displayName)
+                .thenComparing(CandidateRow::userId);
+        return allCompareCandidates(userId).stream()
+                .filter(candidate -> matchesFilter(candidate, normalized))
+                .sorted(candidateOrder)
+                .limit(limit)
+                .toList();
+    }
+
+    private List<CandidateRow> allCompareCandidates(String userId) {
+        return jdbc.query("""
+                        SELECT u.id, u.display_name,
+                               COALESCE(p.age_band, '') AS age_band,
+                               COALESCE(p.income_band, '') AS income_band,
+                               COALESCE(p.job_category, '') AS job_category,
+                               COALESCE(p.household_type, '') AS household_type,
+                               COALESCE(p.money_style, '') AS money_style,
+                               COALESCE(p.area, '') AS area,
+                               s.monthly_income, s.monthly_spending, s.monthly_saving,
+                               s.investment_value, s.cash_like_assets, s.emergency_fund_months,
+                               s.categories_json, COALESCE(s.lifestyle_tags, '') AS lifestyle_tags
+                        FROM users u
+                        JOIN user_profiles p ON p.user_id = u.id
+                        JOIN financial_snapshots s ON s.user_id = u.id AND s.month = '2026-06'
+                        LEFT JOIN privacy_settings ps ON ps.user_id = u.id
+                        WHERE u.id <> ? AND COALESCE(ps.anonymous_portfolio_opt_in, TRUE) = TRUE
+                        ORDER BY u.display_name
+                        """,
+                (rs, rowNum) -> {
+                    CandidateRow candidate = new CandidateRow(
+                            rs.getString("id"),
+                            rs.getString("display_name"),
+                            rs.getString("age_band"),
+                            rs.getString("income_band"),
+                            rs.getString("job_category"),
+                            rs.getString("household_type"),
+                            rs.getString("money_style"),
+                            rs.getString("area"),
+                            rs.getInt("monthly_income"),
+                            rs.getInt("monthly_spending"),
+                            rs.getInt("monthly_saving"),
+                            rs.getInt("investment_value"),
+                            rs.getInt("cash_like_assets"),
+                            number(rs.getObject("emergency_fund_months")),
+                            rs.getString("categories_json"),
+                            rs.getString("lifestyle_tags"),
+                            0
+                    );
+                    return candidate.withScore(financialScore(candidate.monthlyIncome(), candidate.monthlySpending(), candidate.monthlySaving(), candidate.investmentValue(), candidate.cashLikeAssets(), candidate.emergencyFundMonths()));
+                }, userId);
+    }
+
+    private boolean matchesFilter(CandidateRow candidate, AppCompareSearchRequest request) {
+        return matchesText(candidate.ageBand(), request.ageBand())
+                && matchesText(candidate.incomeBand(), request.incomeBand())
+                && matchesText(candidate.jobCategory(), request.jobCategory())
+                && matchesText(candidate.moneyStyle(), request.moneyStyle())
+                && matchesText(candidate.area(), request.area())
+                && matchesText(candidate.householdType(), request.householdType())
+                && matchesAssetRange(candidate.totalAsset(), request.assetRange());
+    }
+
+    private boolean matchesText(String value, String filter) {
+        if (filter == null || filter.isBlank() || "전체".equals(filter)) {
+            return true;
+        }
+        String safeValue = value == null ? "" : value;
+        return safeValue.equals(filter) || safeValue.contains(filter) || filter.contains(safeValue);
+    }
+
+    private boolean matchesAssetRange(int totalAsset, String range) {
+        if (range == null || range.isBlank() || "전체".equals(range)) {
+            return true;
+        }
+        if (range.contains("500만원 미만")) {
+            return totalAsset < 5_000_000;
+        }
+        if (range.contains("500만원~1,000만원")) {
+            return totalAsset >= 5_000_000 && totalAsset < 10_000_000;
+        }
+        if (range.contains("1,000만원 이상")) {
+            return totalAsset >= 10_000_000;
+        }
+        return true;
+    }
+
+    private int similarityScore(ProfileRow profile, CandidateRow candidate) {
+        int score = 0;
+        if (matchesText(candidate.ageBand(), decade(profile.ageBand()))) {
+            score += 25;
+        }
+        if (matchesText(candidate.jobCategory(), profile.jobCategory())) {
+            score += 25;
+        }
+        if (matchesText(candidate.incomeBand(), profile.incomeBand())) {
+            score += 20;
+        }
+        if (matchesText(candidate.moneyStyle(), profile.moneyStyle())) {
+            score += 15;
+        }
+        if (matchesText(candidate.area(), profile.area())) {
+            score += 10;
+        }
+        if (matchesText(candidate.householdType(), profile.householdType())) {
+            score += 5;
+        }
+        return score;
+    }
+
+    private AppCompareSearchRequest defaultCompareRequest(String userId) {
+        return allCompareRequest();
+    }
+
+    private AppCompareSearchRequest allCompareRequest() {
+        return new AppCompareSearchRequest(
+                "전체",
+                "전체",
+                "전체",
+                "전체",
+                "전체",
+                "전체",
+                "전체"
+        );
+    }
+
+    private AppCompareSearchRequest normalizeCompareRequest(String userId, AppCompareSearchRequest request) {
+        AppCompareSearchRequest defaults = allCompareRequest();
+        if (request == null) {
+            return defaults;
+        }
+        return new AppCompareSearchRequest(
+                valueOr(request.ageBand(), defaults.ageBand()),
+                valueOr(request.incomeBand(), defaults.incomeBand()),
+                valueOr(request.jobCategory(), defaults.jobCategory()),
+                valueOr(request.moneyStyle(), defaults.moneyStyle()),
+                valueOr(request.area(), defaults.area()),
+                valueOr(request.householdType(), defaults.householdType()),
+                valueOr(request.assetRange(), "전체")
+        );
+    }
+
+    private Map<String, Object> compareRequestMap(AppCompareSearchRequest request) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("ageBand", valueOr(request.ageBand(), "전체"));
+        map.put("incomeBand", valueOr(request.incomeBand(), "전체"));
+        map.put("jobCategory", valueOr(request.jobCategory(), "전체"));
+        map.put("moneyStyle", valueOr(request.moneyStyle(), "전체"));
+        map.put("area", valueOr(request.area(), "전체"));
+        map.put("householdType", valueOr(request.householdType(), "전체"));
+        map.put("assetRange", valueOr(request.assetRange(), "전체"));
+        return map;
+    }
+
+    private Map<String, Object> filterOptions() {
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("ageBand", distinctAgeOptions());
+        options.put("incomeBand", distinctProfileValues("income_band"));
+        options.put("jobCategory", distinctProfileValues("job_category"));
+        options.put("moneyStyle", distinctProfileValues("money_style"));
+        options.put("area", distinctProfileValues("area"));
+        options.put("householdType", distinctProfileValues("household_type"));
+        options.put("assetRange", List.of("전체", "500만원 미만", "500만원~1,000만원", "1,000만원 이상"));
+        return options;
+    }
+
+    private List<String> distinctAgeOptions() {
+        List<String> raw = distinctProfileValues("age_band").stream()
+                .map(this::decade)
+                .filter(value -> !"전체".equals(value))
+                .distinct()
+                .toList();
+        List<String> values = new ArrayList<>();
+        values.add("전체");
+        values.addAll(raw);
+        return values;
+    }
+
+    private List<String> distinctProfileValues(String column) {
+        String safeColumn = switch (column) {
+            case "age_band", "income_band", "job_category", "money_style", "area", "household_type" -> column;
+            default -> throw validation("filter", "Unsupported filter.");
+        };
+        List<String> values = jdbc.query("""
+                        SELECT DISTINCT %s AS value
+                        FROM user_profiles
+                        WHERE %s IS NOT NULL AND %s <> ''
+                        """.formatted(safeColumn, safeColumn, safeColumn, safeColumn),
+                (rs, rowNum) -> rs.getString("value"));
+        List<String> orderedValues = values.stream()
+                .map(value -> normalizeFilterOption(safeColumn, value))
+                .filter(value -> value != null && !value.isBlank() && !"전체".equals(value))
+                .distinct()
+                .sorted(filterOptionComparator(safeColumn))
+                .toList();
+        List<String> result = new ArrayList<>();
+        result.add("전체");
+        result.addAll(orderedValues);
+        return result;
+    }
+
+    private String normalizeFilterOption(String column, String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if ("money_style".equals(column)) {
+            return trimmed.replaceAll("\\s+", "");
+        }
+        return trimmed;
+    }
+
+    private Comparator<String> filterOptionComparator(String column) {
+        return switch (column) {
+            case "income_band" -> Comparator.comparingInt(this::incomeBandRank).thenComparing(value -> value);
+            case "money_style" -> Comparator.comparingInt(this::moneyStyleRank).thenComparing(value -> value);
+            case "age_band" -> Comparator.comparingInt(this::ageBandRank).thenComparing(value -> value);
+            default -> Comparator.naturalOrder();
+        };
+    }
+
+    private int incomeBandRank(String value) {
+        String normalized = value == null ? "" : value.replace(",", "");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(normalized);
+        if (!matcher.find()) {
+            return Integer.MAX_VALUE;
+        }
+        int firstNumber = Integer.parseInt(matcher.group());
+        if (normalized.contains("미만")) {
+            return Math.max(0, firstNumber - 1);
+        }
+        return firstNumber;
+    }
+
+    private int moneyStyleRank(String value) {
+        String normalized = value == null ? "" : value.replaceAll("\\s+", "");
+        return switch (normalized) {
+            case "원금보전형" -> 10;
+            case "안정추구형" -> 20;
+            case "중립형" -> 30;
+            case "성장추구형" -> 40;
+            case "공격투자형" -> 50;
+            default -> 100;
+        };
+    }
+
+    private int ageBandRank(String value) {
+        String normalized = value == null ? "" : value;
+        if (normalized.contains("20대")) {
+            return 20;
+        }
+        if (normalized.contains("30대")) {
+            return 30;
+        }
+        return 100;
+    }
+
+    private String compareGroupTitle(AppCompareSearchRequest request) {
+        List<String> labels = new ArrayList<>();
+        if (hasFilter(request.ageBand())) {
+            labels.add(request.ageBand());
+        }
+        if (hasFilter(request.jobCategory())) {
+            labels.add(shortJob(request.jobCategory()));
+        }
+        if (hasFilter(request.incomeBand()) && labels.size() < 2) {
+            labels.add(request.incomeBand());
+        }
+        if (hasFilter(request.area()) && labels.size() < 2) {
+            labels.add(request.area());
+        }
+        return labels.isEmpty() ? "나 vs 직접 만든 그룹 평균" : "나 vs " + String.join(" ", labels) + " 평균";
+    }
+
+    private boolean hasFilter(String value) {
+        return value != null && !value.isBlank() && !"전체".equals(value);
+    }
+
+    private CompareGroupRow findCompareGroup(String userId, String comparisonId) {
+        List<CompareGroupRow> groups = jdbc.query("""
+                        SELECT id, title, filters_json, member_count
+                        FROM compare_groups
+                        WHERE user_id = ? AND id = ?
+                        """,
+                (rs, rowNum) -> new CompareGroupRow(rs.getString("id"), rs.getString("title"), rs.getString("filters_json"), rs.getInt("member_count")),
+                userId, comparisonId);
+        return groups.isEmpty() ? null : groups.get(0);
+    }
+
+    private List<CandidateRow> compareGroupMembers(String groupId) {
+        return jdbc.query("""
+                        SELECT u.id, u.display_name,
+                               COALESCE(p.age_band, '') AS age_band,
+                               COALESCE(p.income_band, '') AS income_band,
+                               COALESCE(p.job_category, '') AS job_category,
+                               COALESCE(p.household_type, '') AS household_type,
+                               COALESCE(p.money_style, '') AS money_style,
+                               COALESCE(p.area, '') AS area,
+                               s.monthly_income, s.monthly_spending, s.monthly_saving,
+                               s.investment_value, s.cash_like_assets, s.emergency_fund_months,
+                               s.categories_json, COALESCE(s.lifestyle_tags, '') AS lifestyle_tags
+                        FROM compare_group_members gm
+                        JOIN users u ON u.id = gm.member_user_id
+                        JOIN user_profiles p ON p.user_id = u.id
+                        JOIN financial_snapshots s ON s.user_id = u.id AND s.month = '2026-06'
+                        WHERE gm.group_id = ?
+                        ORDER BY gm.rank_order
+                        """,
+                (rs, rowNum) -> {
+                    CandidateRow candidate = new CandidateRow(
+                            rs.getString("id"),
+                            rs.getString("display_name"),
+                            rs.getString("age_band"),
+                            rs.getString("income_band"),
+                            rs.getString("job_category"),
+                            rs.getString("household_type"),
+                            rs.getString("money_style"),
+                            rs.getString("area"),
+                            rs.getInt("monthly_income"),
+                            rs.getInt("monthly_spending"),
+                            rs.getInt("monthly_saving"),
+                            rs.getInt("investment_value"),
+                            rs.getInt("cash_like_assets"),
+                            number(rs.getObject("emergency_fund_months")),
+                            rs.getString("categories_json"),
+                            rs.getString("lifestyle_tags"),
+                            0
+                    );
+                    return candidate.withScore(financialScore(candidate.monthlyIncome(), candidate.monthlySpending(), candidate.monthlySaving(), candidate.investmentValue(), candidate.cashLikeAssets(), candidate.emergencyFundMonths()));
+                }, groupId);
+    }
+
+    private CompareStats compareStats(String userId, SnapshotRow snapshot) {
+        return new CompareStats(
+                snapshot.monthlySaving(),
+                snapshot.monthlySpending(),
+                ratePercent(snapshot.monthlySaving(), snapshot.monthlyIncome()),
+                ratePercent(snapshot.monthlySpending(), snapshot.monthlyIncome()),
+                ratePercent(snapshot.investmentValue(), snapshot.cashLikeAssets() + snapshot.investmentValue()),
+                debtRatio(userId),
+                financialScore(snapshot.monthlyIncome(), snapshot.monthlySpending(), snapshot.monthlySaving(), snapshot.investmentValue(), snapshot.cashLikeAssets(), snapshot.emergencyFundMonths())
+        );
+    }
+
+    private CompareStats averageStats(List<CandidateRow> members) {
+        int size = Math.max(1, members.size());
+        int saving = members.stream().mapToInt(CandidateRow::monthlySaving).sum() / size;
+        int spending = members.stream().mapToInt(CandidateRow::monthlySpending).sum() / size;
+        int savingRate = (int) Math.round(members.stream().mapToInt(candidate -> ratePercent(candidate.monthlySaving(), candidate.monthlyIncome())).average().orElse(0));
+        int spendingRate = (int) Math.round(members.stream().mapToInt(candidate -> ratePercent(candidate.monthlySpending(), candidate.monthlyIncome())).average().orElse(0));
+        int investmentRatio = (int) Math.round(members.stream().mapToInt(candidate -> ratePercent(candidate.investmentValue(), candidate.totalAsset())).average().orElse(0));
+        int debtRatio = (int) Math.round(members.stream().mapToInt(candidate -> debtRatio(candidate.userId())).average().orElse(0));
+        int score = (int) Math.round(members.stream().mapToInt(CandidateRow::score).average().orElse(0));
+        return new CompareStats(saving, spending, savingRate, spendingRate, investmentRatio, debtRatio, score);
+    }
+
+    private AppSection compareBarsSection(CompareStats mine, CompareStats group) {
+        return section("comparison-bars", "compareBars", "항목별 비교", "보라색은 나, 회색은 비교 그룹 평균입니다.", null, null, null,
+                items(item("saving", "저축", "월 평균 저축액", won(mine.monthlySaving()), "그룹 " + won(group.monthlySaving()), "saving", "purple", null, Map.of("mine", mine.savingRate(), "group", group.savingRate())),
+                        item("spending", "소비", "월 평균 소비액", won(mine.monthlySpending()), "그룹 " + won(group.monthlySpending()), "spend", "green", null, Map.of("mine", mine.spendingRate(), "group", group.spendingRate())),
+                        item("investment", "투자", "총자산 대비 투자 비율", mine.investmentRatio() + "%", "그룹 " + group.investmentRatio() + "%", "stocks", "purple", null, Map.of("mine", mine.investmentRatio(), "group", group.investmentRatio())),
+                        item("debt", "부채", "거래 내역의 대출/부채 신호", mine.debtRatio() + "%", "그룹 " + group.debtRatio() + "%", "debt", "orange", null, Map.of("mine", mine.debtRatio(), "group", group.debtRatio()))),
+                null, null);
+    }
+
+    private int financialScore(int income, int spending, int saving, int investment, int cashLikeAssets, double emergencyFundMonths) {
+        int savingScore = Math.min(28, (int) Math.round(ratePercent(saving, income) * 0.9));
+        int spendingScore = Math.max(0, 24 - Math.max(0, ratePercent(spending, income) - 55) / 3);
+        int emergencyScore = Math.min(24, (int) Math.round(emergencyFundMonths * 10));
+        int investmentScore = Math.min(18, (int) Math.round(ratePercent(investment, investment + cashLikeAssets) * 0.45));
+        return Math.max(0, Math.min(100, 30 + savingScore + spendingScore + emergencyScore + investmentScore));
+    }
+
+    private int debtRatio(String userId) {
+        Integer debt = jdbc.queryForObject("""
+                SELECT COALESCE(SUM(ABS(amount_krw)), 0)
+                FROM financial_transactions
+                WHERE user_id = ?
+                  AND (
+                    category LIKE '%대출%' OR category LIKE '%부채%'
+                    OR COALESCE(subcategory, '') LIKE '%대출%' OR COALESCE(subcategory, '') LIKE '%부채%'
+                    OR COALESCE(description, '') LIKE '%대출%' OR COALESCE(description, '') LIKE '%부채%'
+                  )
+                """, Integer.class, userId);
+        SnapshotRow snapshot = findSnapshot(userId);
+        int denominator = snapshot == null ? 0 : snapshot.monthlyIncome();
+        return ratePercent(debt == null ? 0 : debt, denominator);
+    }
+
+    private int ratePercent(int value, int total) {
+        if (total <= 0) {
+            return 0;
+        }
+        return Math.max(0, Math.min(100, (int) Math.round(value * 100.0 / total)));
+    }
+
+    private String financialSignalCaption(String viewerId, CandidateRow candidate) {
+        List<String> labels = new ArrayList<>();
+        if (candidate.investmentValue() > 0) {
+            labels.add("주식");
+        }
+        if (candidate.monthlySaving() > 0) {
+            labels.add("적금");
+        }
+        if (hasTextSignal(viewerId, candidate.userId(), "연금", "IRP")) {
+            labels.add("연금");
+        }
+        if (labels.isEmpty()) {
+            labels.add("공개 요약");
+        }
+        return String.join(" · ", labels);
+    }
+
+    private ProfileRow profileRow(String userId) {
+        List<ProfileRow> rows = jdbc.query("""
+                        SELECT COALESCE(age_band, '') AS age_band,
+                               COALESCE(income_band, '') AS income_band,
+                               COALESCE(job_category, '') AS job_category,
+                               COALESCE(household_type, '') AS household_type,
+                               COALESCE(money_style, '') AS money_style,
+                               COALESCE(area, '') AS area
+                        FROM user_profiles
+                        WHERE user_id = ?
+                        """,
+                (rs, rowNum) -> new ProfileRow(
+                        rs.getString("age_band"),
+                        rs.getString("income_band"),
+                        rs.getString("job_category"),
+                        rs.getString("household_type"),
+                        rs.getString("money_style"),
+                        rs.getString("area")
+                ), userId);
+        return rows.isEmpty() ? new ProfileRow("", "", "", "", "", "") : rows.get(0);
+    }
+
+    private String decade(String ageBand) {
+        if (ageBand == null || ageBand.isBlank()) {
+            return "전체";
+        }
+        if (ageBand.contains("10대")) {
+            return "10대";
+        }
+        if (ageBand.contains("20대")) {
+            return "20대";
+        }
+        if (ageBand.contains("30대")) {
+            return "30대";
+        }
+        return ageBand;
+    }
+
+    private String shortJob(String jobCategory) {
+        if (jobCategory == null || jobCategory.isBlank() || "전체".equals(jobCategory)) {
+            return "직업";
+        }
+        return jobCategory.replace("IT/", "IT ");
+    }
+
+    private String valueOr(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private List<String> compact(String... values) {
+        List<String> result = new ArrayList<>();
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                result.add(value);
+            }
+        }
+        return result;
     }
 
     private AppSection missionHero(MissionRow mission) {
@@ -1825,5 +2506,52 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private record PrivacyRow(String exposedFields) {
+    }
+
+    private record ProfileRow(String ageBand, String incomeBand, String jobCategory, String householdType, String moneyStyle, String area) {
+    }
+
+    private record CandidateRow(
+            String userId,
+            String displayName,
+            String ageBand,
+            String incomeBand,
+            String jobCategory,
+            String householdType,
+            String moneyStyle,
+            String area,
+            int monthlyIncome,
+            int monthlySpending,
+            int monthlySaving,
+            int investmentValue,
+            int cashLikeAssets,
+            double emergencyFundMonths,
+            String categoriesJson,
+            String lifestyleTags,
+            int score
+    ) {
+        private int totalAsset() {
+            return cashLikeAssets + investmentValue;
+        }
+
+        private CandidateRow withScore(int nextScore) {
+            return new CandidateRow(userId, displayName, ageBand, incomeBand, jobCategory, householdType, moneyStyle, area,
+                    monthlyIncome, monthlySpending, monthlySaving, investmentValue, cashLikeAssets, emergencyFundMonths,
+                    categoriesJson, lifestyleTags, nextScore);
+        }
+    }
+
+    private record CompareGroupRow(String id, String title, String filtersJson, int memberCount) {
+    }
+
+    private record CompareStats(
+            int monthlySaving,
+            int monthlySpending,
+            int savingRate,
+            int spendingRate,
+            int investmentRatio,
+            int debtRatio,
+            int score
+    ) {
     }
 }

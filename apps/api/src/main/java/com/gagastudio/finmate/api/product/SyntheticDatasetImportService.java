@@ -81,6 +81,9 @@ public class SyntheticDatasetImportService {
     }
 
     private void resetSyntheticUsers() {
+        jdbc.update("DELETE FROM compare_group_members WHERE group_id IN (SELECT id FROM compare_groups WHERE user_id LIKE ?)", USER_ID_PREFIX + "%");
+        jdbc.update("DELETE FROM compare_group_members WHERE member_user_id LIKE ?", USER_ID_PREFIX + "%");
+        jdbc.update("DELETE FROM compare_groups WHERE user_id LIKE ?", USER_ID_PREFIX + "%");
         jdbc.update("DELETE FROM birthday_fund_contributions WHERE fund_id IN (SELECT id FROM birthday_funds WHERE owner_user_id LIKE ?)", USER_ID_PREFIX + "%");
         jdbc.update("DELETE FROM birthday_funds WHERE owner_user_id LIKE ?", USER_ID_PREFIX + "%");
         jdbc.update("DELETE FROM users WHERE id LIKE ?", USER_ID_PREFIX + "%");
@@ -108,6 +111,9 @@ public class SyntheticDatasetImportService {
     }
 
     private void clearImportedRuntime(String userId) {
+        jdbc.update("DELETE FROM compare_group_members WHERE group_id IN (SELECT id FROM compare_groups WHERE user_id = ?)", userId);
+        jdbc.update("DELETE FROM compare_groups WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM compare_group_members WHERE member_user_id = ?", userId);
         jdbc.update("DELETE FROM birthday_fund_contributions WHERE contributor_user_id = ?", userId);
         jdbc.update("DELETE FROM birthday_fund_contributions WHERE fund_id IN (SELECT id FROM birthday_funds WHERE owner_user_id = ?)", userId);
         jdbc.update("DELETE FROM birthday_funds WHERE owner_user_id = ?", userId);
