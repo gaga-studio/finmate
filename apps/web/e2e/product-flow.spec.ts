@@ -26,10 +26,22 @@ test('p001 synthetic product flow and starter signup flow work end to end', asyn
   await page.getByText('고정 지출 5% 줄이기').click()
   await expect(page.getByRole('heading', { name: '완료 조건과 근거' })).toBeVisible()
   await expect(page.getByText(/데이터가 더 필요/)).toBeVisible()
+  await expect(page.getByText('평가 기간')).toBeVisible()
+
+  await page.getByRole('button', { name: '미션', exact: true }).click()
+  await page.getByRole('button', { name: '미션 추가하기' }).click()
+  await expect(page).toHaveURL(/\/missions\/add/)
+  await expect(page.getByRole('button', { name: /첫 추천 미션 추가하기/ })).toHaveCount(0)
+  await page.getByRole('button', { name: /이번 주 카페 2회 이하 이용하기/ }).click()
+  await expect(page).toHaveURL(/\/missions\/mission-cafe-limit-weekly/)
+  await expect(page.getByRole('heading', { name: '완료 조건과 근거' })).toBeVisible()
+  await expect(page.getByText(/미션 추가 이후 새 행동 데이터가 아직 없어요/)).toBeVisible()
+  await expect(page.getByText('평가 기간')).toBeVisible()
 
   await page.getByRole('button', { name: '기록', exact: true }).click()
   await expect(page).toHaveURL(/\/records/)
   await expect(page.getByRole('heading', { name: '기록', exact: true })).toBeVisible()
+  await expect(page.getByText('추가됨')).toHaveCount(0)
 
   await page.getByRole('button', { name: '홈' }).click()
   await page.getByRole('button', { name: '축하 펀드 참여하기' }).click()
@@ -76,6 +88,7 @@ test('p001 synthetic product flow and starter signup flow work end to end', asyn
   await page.getByRole('button', { name: '미션 추가하기' }).click()
   await expect(page).toHaveURL(/\/missions\/add/)
   await expect(page.getByRole('heading', { name: '추천 미션' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /첫 추천 미션 추가하기/ })).toHaveCount(0)
   await expectNoTechnicalCopy(page)
 
   await page.getByRole('button', { name: '프로필' }).click()

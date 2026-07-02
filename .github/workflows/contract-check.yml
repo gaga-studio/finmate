@@ -36,6 +36,9 @@ jobs:
           pip install pyyaml
           npm ci --prefix apps/web
 
+      - name: Validate legacy P0 contract archive
+        run: python3 tools/scripts/validate_contract.py
+
       - name: Validate current app contract
         run: python3 tools/scripts/validate_app_contract.py
 

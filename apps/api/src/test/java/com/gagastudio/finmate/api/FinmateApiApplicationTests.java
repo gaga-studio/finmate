@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -137,10 +138,38 @@ class FinmateApiApplicationTests {
                 .andExpect(jsonPath("$.birthdayFunds").value(1));
 
         String accessToken = login("p001@synthetic.finmate.local", "password123!");
-        mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
+        MvcResult homeResult = mockMvc.perform(get("/api/app/home").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("fund-p002-birthday")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("fund-jiwoo"))));
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("fund-jiwoo"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("18명"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("32명"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("9명"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("21명"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("+2.6%"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("D-7"))))
+                .andExpect(content().string(containsString("D-3")))
+                .andReturn();
+        JsonNode home = objectMapper.readTree(homeResult.getResponse().getContentAsString());
+        JsonNode followingSection = section(home, "following");
+        assertEquals("친구 1명의 공개 금융 활동 기준", followingSection.get("subtitle").asText());
+        for (JsonNode metric : followingSection.get("metrics")) {
+            String label = metric.get("label").asText();
+            String value = metric.get("value").asText();
+            int peopleCount = Integer.parseInt(metric.get("value").asText().replace("명", ""));
+            assertTrue(peopleCount <= 1, "following metric must not exceed the actual followee count");
+            if ("주식 투자".equals(label) || "적금 가입".equals(label)) {
+                assertEquals("1명", value);
+            }
+            if ("펀드 투자".equals(label) || "연금 준비".equals(label)) {
+                assertEquals("0명", value);
+            }
+        }
+        JsonNode assetSection = section(home, "asset");
+        JsonNode sparkline = assetSection.path("data").path("sparkline");
+        assertTrue(sparkline.isArray());
+        assertTrue(sparkline.size() >= 2, "asset sparkline should be derived from transaction movement");
+        assertTrue(!"[12,18,16,24,21,31,28,35]".equals(sparkline.toString()));
 
         mockMvc.perform(get("/api/app/missions").header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -174,6 +203,66 @@ class FinmateApiApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("데이터가 더 필요")))
                 .andExpect(jsonPath("$.sections[0].metrics[0].progress", greaterThanOrEqualTo(0)));
+
+        int missionPointTransactions = jdbc.queryForObject("""
+                SELECT count(*) FROM point_transactions
+                WHERE user_id = ? AND reference_type = 'MISSION'
+                """, Integer.class, userId);
+        int pointBalance = jdbc.queryForObject("""
+                SELECT point_balance FROM point_wallets WHERE user_id = ?
+                """, Integer.class, userId);
+        mockMvc.perform(post("/api/app/missions/add/MISSION_CAFE_LIMIT_WEEKLY")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ADDED"))
+                .andExpect(jsonPath("$.nextPath").value("/missions/mission-cafe-limit-weekly"));
+
+        mockMvc.perform(get("/api/app/missions/mission-cafe-limit-weekly").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("미션 추가 이후 새 행동 데이터가 아직 없어요")))
+                .andExpect(content().string(containsString("평가 기간")));
+
+        assertEquals("ACTIVE", jdbc.queryForObject("SELECT status FROM missions WHERE id = ?", String.class, userId + ":mission-cafe-limit-weekly"));
+        assertEquals(missionPointTransactions, jdbc.queryForObject("""
+                SELECT count(*) FROM point_transactions
+                WHERE user_id = ? AND reference_type = 'MISSION'
+                """, Integer.class, userId));
+        assertEquals(pointBalance, jdbc.queryForObject("SELECT point_balance FROM point_wallets WHERE user_id = ?", Integer.class, userId));
+
+        mockMvc.perform(get("/api/app/records?month=2026-06").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("추가됨"))));
+
+        jdbc.update("""
+                INSERT INTO financial_transactions (
+                  id, user_id, source_transaction_id, transaction_date, transaction_time,
+                  transaction_type, category, subcategory, description, amount_krw,
+                  cashflow_bucket, account_ref, api_ref, raw_json
+                )
+                VALUES (?, ?, ?, DATE '2026-06-12', '15:10', '지출', '카페/간식', '커피', '아메리카노', -4500, '소비', 'bank:P001', 'card:P001', '{}')
+                """, "txn-" + UUID.randomUUID(), userId, "P001-NEW-CAFE");
+
+        mockMvc.perform(get("/api/app/missions/mission-cafe-limit-weekly").header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("이번 주 카페/간식 결제가 2회 이하로 확인됐어요")));
+        assertEquals("COMPLETED", jdbc.queryForObject("SELECT status FROM missions WHERE id = ?", String.class, userId + ":mission-cafe-limit-weekly"));
+        assertEquals(missionPointTransactions + 1, jdbc.queryForObject("""
+                SELECT count(*) FROM point_transactions
+                WHERE user_id = ? AND reference_type = 'MISSION'
+                """, Integer.class, userId));
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT count(*) FROM mission_events
+                WHERE mission_id = ? AND event_type = 'DONE' AND source = 'DATA_EVALUATION' AND evaluation_result = 'SUCCESS'
+                """, Integer.class, userId + ":mission-cafe-limit-weekly"));
+
+        mockMvc.perform(post("/api/app/missions/add/MISSION_CAFE_LIMIT_WEEKLY")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ALREADY_ADDED"));
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT count(*) FROM missions
+                WHERE id = ?
+                """, Integer.class, userId + ":mission-cafe-limit-weekly"));
     }
 
     private ResultActions completeOnboarding(String accessToken) throws Exception {
@@ -245,6 +334,16 @@ class FinmateApiApplicationTests {
 
     private int count(String table, String userId) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table + " WHERE user_id = ?", Integer.class, userId);
+    }
+
+    private JsonNode section(JsonNode screen, String id) {
+        for (JsonNode section : screen.get("sections")) {
+            if (id.equals(section.get("id").asText())) {
+                return section;
+            }
+        }
+        fail("section not found: " + id);
+        return objectMapper.createObjectNode();
     }
 
     private String syntheticImportPayload() {

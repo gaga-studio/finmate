@@ -32,7 +32,7 @@ public class MissionEvaluationService {
     @Transactional
     public void evaluateUserMissions(String userId) {
         List<MissionSeed> missions = jdbc.query("""
-                        SELECT id, title, reward_points, progress
+                        SELECT id, title, reward_points, progress, source, created_at, evaluation_period_start, evaluation_period_end
                         FROM missions
                         WHERE user_id = ? AND status <> 'COMPLETED'
                         ORDER BY created_at
@@ -46,7 +46,7 @@ public class MissionEvaluationService {
     @Transactional
     public void evaluateMission(String userId, String routeId) {
         List<MissionSeed> missions = jdbc.query("""
-                        SELECT id, title, reward_points, progress
+                        SELECT id, title, reward_points, progress, source, created_at, evaluation_period_start, evaluation_period_end
                         FROM missions
                         WHERE id = ? AND user_id = ? AND status <> 'COMPLETED'
                         """,
@@ -76,30 +76,30 @@ public class MissionEvaluationService {
         String routeId = mission.routeId();
         String title = mission.title();
         if (routeId.contains("food") || title.contains("식비")) {
-            return foodResult(userId);
+            return foodResult(userId, mission);
         }
         if (routeId.contains("auto-transfer") || routeId.contains("saving") || title.contains("저축") || title.contains("비상금")) {
-            return savingResult(userId);
+            return savingResult(userId, mission);
         }
         if (routeId.contains("cafe") || title.contains("카페")) {
-            return cafeResult(userId);
+            return cafeResult(userId, mission);
         }
         if (routeId.contains("transport") || title.contains("교통")) {
-            return transportResult(userId);
+            return transportResult(userId, mission);
         }
         if (routeId.contains("subscription") || routeId.contains("fixed-cost") || title.contains("구독") || title.contains("고정")) {
-            return dataNeeded("데이터가 더 필요해요. 구독/고정비 미션은 반복 결제의 전월 대비 변화가 필요해요.", mission.progress());
+            return dataNeeded("데이터가 더 필요해요. 구독/고정비 미션은 반복 결제의 전월 대비 변화가 필요해요.", mission.progress(), mission);
         }
-        return dataNeeded("이 미션을 자동 검증할 행동 데이터가 아직 충분하지 않아요.", mission.progress());
+        return dataNeeded("이 미션을 자동 검증할 행동 데이터가 아직 충분하지 않아요.", mission.progress(), mission);
     }
 
-    private EvaluationResult foodResult(String userId) {
-        DailyRecord record = findDailyRecord(userId, APP_TODAY);
+    private EvaluationResult foodResult(String userId, MissionSeed mission) {
+        DailyRecord record = findDailyRecord(userId, APP_TODAY, behaviorCreatedAfter(mission));
         if (record == null) {
-            return dataNeeded("오늘 지출 기록이 아직 없어요.", 0);
+            return dataNeeded(noBehaviorMessage(mission, "오늘 지출 기록이 아직 없어요."), 0, mission);
         }
         int food = categoryAmount(record.categories(), "식비");
-        Map<String, Object> evidence = new LinkedHashMap<>();
+        Map<String, Object> evidence = baseEvidence(mission);
         evidence.put("rule", "식비 10,000원 이하");
         evidence.put("date", APP_TODAY.toString());
         evidence.put("foodSpending", food);
@@ -109,46 +109,49 @@ public class MissionEvaluationService {
                 : inProgress(Math.max(5, Math.min(95, 100 - (food - 10000) / 200)), "식비가 아직 목표보다 높아요.", evidence);
     }
 
-    private EvaluationResult savingResult(String userId) {
-        int monthlySaving = monthlySaving(userId);
-        int transferSaving = Math.abs(transactionSum(userId, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 7, 1), "저축", null));
+    private EvaluationResult savingResult(String userId, MissionSeed mission) {
+        int monthlySaving = behaviorCreatedAfter(mission) == null ? monthlySaving(userId) : 0;
+        int transferSaving = Math.abs(transactionSum(userId, periodStart(mission), periodEnd(mission).plusDays(1), "저축", null, behaviorCreatedAfter(mission)));
         int evidenceAmount = Math.max(monthlySaving, transferSaving);
-        Map<String, Object> evidence = new LinkedHashMap<>();
+        Map<String, Object> evidence = baseEvidence(mission);
         evidence.put("rule", "월 저축 또는 비상금 이체 100,000원 이상");
         evidence.put("monthlySaving", monthlySaving);
         evidence.put("savingTransferAmount", transferSaving);
         evidence.put("source", "financial_snapshots + financial_transactions");
+        if (behaviorCreatedAfter(mission) != null && transferSaving == 0) {
+            return dataNeeded(noBehaviorMessage(mission, "저축 데이터가 아직 충분하지 않아요."), 0, mission);
+        }
         return evidenceAmount >= 100000
                 ? success("저축/비상금 행동 데이터가 100,000원 이상으로 확인됐어요.", evidence)
                 : inProgress(Math.min(95, percent(evidenceAmount, 100000)), "저축 데이터가 목표 금액에 아직 부족해요.", evidence);
     }
 
-    private EvaluationResult cafeResult(String userId) {
-        LocalDate from = APP_TODAY.minusDays(4);
-        LocalDate to = APP_TODAY.plusDays(3);
-        int count = transactionCount(userId, from, to, "카페/간식");
-        int totalTransactions = transactionCount(userId, from, to, null);
-        Map<String, Object> evidence = new LinkedHashMap<>();
+    private EvaluationResult cafeResult(String userId, MissionSeed mission) {
+        LocalDate from = periodStart(mission);
+        LocalDate to = periodEnd(mission).plusDays(1);
+        int count = transactionCount(userId, from, to, "카페/간식", behaviorCreatedAfter(mission));
+        int totalTransactions = transactionCount(userId, from, to, null, behaviorCreatedAfter(mission));
+        Map<String, Object> evidence = baseEvidence(mission);
         evidence.put("rule", "이번 주 카페/간식 결제 2회 이하");
         evidence.put("from", from.toString());
         evidence.put("to", to.minusDays(1).toString());
         evidence.put("cafeTransactionCount", count);
         evidence.put("source", "financial_transactions");
         if (totalTransactions == 0) {
-            return dataNeeded("이번 주 거래 원장이 아직 없어 카페 횟수를 확인할 수 없어요.", 0);
+            return dataNeeded(noBehaviorMessage(mission, "이번 주 거래 원장이 아직 없어 카페 횟수를 확인할 수 없어요."), 0, mission);
         }
         return count <= 2
                 ? success("이번 주 카페/간식 결제가 2회 이하로 확인됐어요.", evidence)
                 : inProgress(Math.max(10, 100 - ((count - 2) * 20)), "카페/간식 결제 횟수가 아직 목표보다 많아요.", evidence);
     }
 
-    private EvaluationResult transportResult(String userId) {
-        DailyRecord record = findDailyRecord(userId, APP_TODAY);
+    private EvaluationResult transportResult(String userId, MissionSeed mission) {
+        DailyRecord record = findDailyRecord(userId, APP_TODAY, behaviorCreatedAfter(mission));
         if (record == null) {
-            return dataNeeded("오늘 교통비 기록이 아직 없어요.", 0);
+            return dataNeeded(noBehaviorMessage(mission, "오늘 교통비 기록이 아직 없어요."), 0, mission);
         }
         int transport = categoryAmount(record.categories(), "교통비");
-        Map<String, Object> evidence = new LinkedHashMap<>();
+        Map<String, Object> evidence = baseEvidence(mission);
         evidence.put("rule", "교통비 하루 3,000원 이하");
         evidence.put("date", APP_TODAY.toString());
         evidence.put("transportSpending", transport);
@@ -168,8 +171,8 @@ public class MissionEvaluationService {
         return new EvaluationResult(false, progress, "IN_PROGRESS", evidence);
     }
 
-    private EvaluationResult dataNeeded(String message, int progress) {
-        Map<String, Object> evidence = new LinkedHashMap<>();
+    private EvaluationResult dataNeeded(String message, int progress, MissionSeed mission) {
+        Map<String, Object> evidence = baseEvidence(mission);
         evidence.put("message", message);
         evidence.put("source", "insufficient_behavior_data");
         return new EvaluationResult(false, Math.max(0, Math.min(95, progress)), "DATA_NEEDED", evidence);
@@ -228,7 +231,19 @@ public class MissionEvaluationService {
         String dbId = rs.getString("id");
         String prefix = userId + ":";
         String routeId = dbId.startsWith(prefix) ? dbId.substring(prefix.length()) : dbId;
-        return new MissionSeed(dbId, routeId, rs.getString("title"), rs.getInt("reward_points"), rs.getInt("progress"));
+        java.sql.Date periodStart = rs.getDate("evaluation_period_start");
+        java.sql.Date periodEnd = rs.getDate("evaluation_period_end");
+        return new MissionSeed(
+                dbId,
+                routeId,
+                rs.getString("title"),
+                rs.getInt("reward_points"),
+                rs.getInt("progress"),
+                rs.getString("source"),
+                rs.getObject("created_at", OffsetDateTime.class),
+                periodStart == null ? null : periodStart.toLocalDate(),
+                periodEnd == null ? null : periodEnd.toLocalDate()
+        );
     }
 
     private int monthlySaving(String userId) {
@@ -240,7 +255,15 @@ public class MissionEvaluationService {
         return rows.isEmpty() ? 0 : rows.get(0);
     }
 
-    private DailyRecord findDailyRecord(String userId, LocalDate date) {
+    private DailyRecord findDailyRecord(String userId, LocalDate date, OffsetDateTime createdAfter) {
+        if (createdAfter != null) {
+            List<DailyRecord> rows = jdbc.query("""
+                            SELECT category_spending_json FROM daily_records
+                            WHERE user_id = ? AND record_date = ? AND created_at >= ?
+                            """,
+                    (rs, rowNum) -> new DailyRecord(readJson(rs.getString("category_spending_json"))), userId, date, createdAfter);
+            return rows.isEmpty() ? null : rows.get(0);
+        }
         List<DailyRecord> rows = jdbc.query("""
                         SELECT category_spending_json FROM daily_records
                         WHERE user_id = ? AND record_date = ?
@@ -249,7 +272,19 @@ public class MissionEvaluationService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    private int transactionCount(String userId, LocalDate from, LocalDate to, String category) {
+    private int transactionCount(String userId, LocalDate from, LocalDate to, String category, OffsetDateTime createdAfter) {
+        if (createdAfter != null) {
+            if (category == null) {
+                return count("""
+                        SELECT COUNT(*) FROM financial_transactions
+                        WHERE user_id = ? AND transaction_date >= ? AND transaction_date < ? AND created_at >= ?
+                        """, userId, from, to, createdAfter);
+            }
+            return count("""
+                    SELECT COUNT(*) FROM financial_transactions
+                    WHERE user_id = ? AND transaction_date >= ? AND transaction_date < ? AND category = ? AND created_at >= ?
+                    """, userId, from, to, category, createdAfter);
+        }
         if (category == null) {
             return count("""
                     SELECT COUNT(*) FROM financial_transactions
@@ -262,9 +297,19 @@ public class MissionEvaluationService {
                 """, userId, from, to, category);
     }
 
-    private int transactionSum(String userId, LocalDate from, LocalDate to, String cashflowBucket, String category) {
+    private int transactionSum(String userId, LocalDate from, LocalDate to, String cashflowBucket, String category, OffsetDateTime createdAfter) {
         Integer value;
-        if (category != null) {
+        if (createdAfter != null && category != null) {
+            value = jdbc.queryForObject("""
+                    SELECT COALESCE(SUM(amount_krw), 0) FROM financial_transactions
+                    WHERE user_id = ? AND transaction_date >= ? AND transaction_date < ? AND category = ? AND created_at >= ?
+                    """, Integer.class, userId, from, to, category, createdAfter);
+        } else if (createdAfter != null) {
+            value = jdbc.queryForObject("""
+                    SELECT COALESCE(SUM(amount_krw), 0) FROM financial_transactions
+                    WHERE user_id = ? AND transaction_date >= ? AND transaction_date < ? AND cashflow_bucket = ? AND created_at >= ?
+                    """, Integer.class, userId, from, to, cashflowBucket, createdAfter);
+        } else if (category != null) {
             value = jdbc.queryForObject("""
                     SELECT COALESCE(SUM(amount_krw), 0) FROM financial_transactions
                     WHERE user_id = ? AND transaction_date >= ? AND transaction_date < ? AND category = ?
@@ -276,6 +321,48 @@ public class MissionEvaluationService {
                     """, Integer.class, userId, from, to, cashflowBucket);
         }
         return value == null ? 0 : value;
+    }
+
+    private Map<String, Object> baseEvidence(MissionSeed mission) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("periodStart", periodStart(mission).toString());
+        evidence.put("periodEnd", periodEnd(mission).toString());
+        OffsetDateTime createdAfter = behaviorCreatedAfter(mission);
+        if (createdAfter != null) {
+            evidence.put("dataCreatedAfter", createdAfter.toString());
+        }
+        return evidence;
+    }
+
+    private LocalDate periodStart(MissionSeed mission) {
+        if (mission.periodStart() != null) {
+            return mission.periodStart();
+        }
+        if (mission.routeId().contains("cafe")) {
+            return APP_TODAY.minusDays(4);
+        }
+        return LocalDate.of(2026, 6, 1);
+    }
+
+    private LocalDate periodEnd(MissionSeed mission) {
+        if (mission.periodEnd() != null) {
+            return mission.periodEnd();
+        }
+        if (mission.routeId().contains("cafe")) {
+            return APP_TODAY.plusDays(2);
+        }
+        return APP_TODAY;
+    }
+
+    private OffsetDateTime behaviorCreatedAfter(MissionSeed mission) {
+        return "USER_ADDED_TEMPLATE".equals(mission.source()) ? mission.createdAt() : null;
+    }
+
+    private String noBehaviorMessage(MissionSeed mission, String defaultMessage) {
+        if (behaviorCreatedAfter(mission) == null) {
+            return defaultMessage;
+        }
+        return "미션 추가 이후 새 행동 데이터가 아직 없어요.";
     }
 
     private int count(String sql, Object... args) {
@@ -318,7 +405,17 @@ public class MissionEvaluationService {
         return userId + ":" + routeId;
     }
 
-    private record MissionSeed(String dbId, String routeId, String title, int rewardPoints, int progress) {
+    private record MissionSeed(
+            String dbId,
+            String routeId,
+            String title,
+            int rewardPoints,
+            int progress,
+            String source,
+            OffsetDateTime createdAt,
+            LocalDate periodStart,
+            LocalDate periodEnd
+    ) {
     }
 
     private record DailyRecord(Map<String, Integer> categories) {

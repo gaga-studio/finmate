@@ -741,6 +741,22 @@
   height: 70px;
 }
 
+.chart-empty-label {
+  min-width: 112px;
+  min-height: 54px;
+  display: inline-grid;
+  place-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  background: var(--color-page);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .illustrated-card.coach {
   border-color: var(--color-coach-border);
   background: var(--color-coach-soft);
@@ -829,7 +845,7 @@
 .list-item {
   width: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) max-content;
   align-items: center;
   gap: var(--space-3);
   min-height: 68px;
@@ -865,7 +881,7 @@
   line-height: 1.5;
 }
 
-.list-item > div {
+.list-copy {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -900,13 +916,34 @@
 }
 
 .list-trailing {
-  display: inline-grid;
-  grid-auto-flow: column;
+  display: inline-flex;
   align-items: center;
   justify-content: end;
-  gap: var(--space-1);
-  max-width: 88px;
+  gap: 6px;
+  min-width: max-content;
+  max-width: none;
   color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.list-trailing.has-action {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 76px;
+}
+
+.list-meta-pair,
+.list-action-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: max-content;
+}
+
+.list-action-label {
+  color: var(--color-primary);
 }
 
 .feed-card .list-stack,
@@ -948,9 +985,9 @@
 
 .list-trailing b,
 .list-trailing em {
-  max-width: 66px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 

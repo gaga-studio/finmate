@@ -150,6 +150,7 @@ function HomeSpendingCard({ section, navigate }: SectionProps) {
 }
 
 function HomeAssetCard({ section, navigate }: SectionProps) {
+  const sparkline = arrayFromData(section.data, 'sparkline')
   return (
     <article className="home-card home-asset-card">
       <HomeCardHeader section={section} navigate={navigate} />
@@ -158,7 +159,7 @@ function HomeAssetCard({ section, navigate }: SectionProps) {
           {section.metrics?.map((metric) => <MetricView metric={metric} key={metric.label} />)}
           {section.subtitle ? <p>{section.subtitle}</p> : null}
         </div>
-        <MiniLineChart values={arrayFromData(section.data, 'sparkline')} />
+        {sparkline.length >= 2 ? <MiniLineChart values={sparkline} /> : <ChartEmptyLabel />}
       </div>
     </article>
   )
@@ -385,6 +386,7 @@ function GridSection({ section, navigate }: SectionProps) {
 }
 
 function AssetSection({ section, navigate }: SectionProps) {
+  const sparkline = arrayFromData(section.data, 'sparkline')
   return (
     <Card section={section} navigate={navigate} className="asset-card">
       <div className="asset-layout">
@@ -393,10 +395,14 @@ function AssetSection({ section, navigate }: SectionProps) {
             <MetricView metric={metric} key={metric.label} />
           ))}
         </div>
-        <MiniLineChart values={arrayFromData(section.data, 'sparkline')} />
+        {sparkline.length >= 2 ? <MiniLineChart values={sparkline} /> : <ChartEmptyLabel />}
       </div>
     </Card>
   )
+}
+
+function ChartEmptyLabel() {
+  return <span className="chart-empty-label">추세 데이터 부족</span>
 }
 
 function CompareBarsSection({ section, navigate }: SectionProps) {
@@ -628,23 +634,51 @@ function ListItem({
   navigate: Navigate
 }) {
   const inferred = inferItemPresentation(item, variant)
+  const templateId = templateIdFromItem(item)
 
   return (
-    <button className={`list-item ${variant === 'feed' ? 'feed-item' : ''}`} type="button" onClick={() => item.detailPath && navigate(item.detailPath)}>
+    <button
+      className={`list-item ${variant === 'feed' ? 'feed-item' : ''}`}
+      type="button"
+      onClick={() => { void handleListItemClick(item, navigate, templateId) }}
+    >
       {rank ? <span className="rank-dot">{index + 1}</span> : <IconBadge icon={inferred.icon} tone={inferred.tone} />}
-      <div>
+      <div className="list-copy">
         <strong>{item.title}</strong>
         {item.subtitle ? <small>{cleanCaption(item.subtitle)}</small> : null}
       </div>
-      {item.value || item.caption || item.detailPath ? (
-        <span className="list-trailing">
-          {item.value ? <b>{cleanCaption(item.value)}</b> : null}
-          {item.caption ? <em>{cleanCaption(item.caption)}</em> : null}
-          {item.detailPath ? <Chevron /> : null}
+      {item.value || item.caption || item.detailPath || templateId ? (
+        <span className={`list-trailing ${templateId ? 'has-action' : ''}`}>
+          {item.value || item.caption ? (
+            <span className="list-meta-pair">
+              {item.value ? <b>{cleanCaption(item.value)}</b> : null}
+              {item.caption ? <em>{cleanCaption(item.caption)}</em> : null}
+            </span>
+          ) : null}
+          <span className="list-action-row">
+            {templateId ? <em className="list-action-label">추가</em> : null}
+            {item.detailPath || templateId ? <Chevron /> : null}
+          </span>
         </span>
       ) : null}
     </button>
   )
+}
+
+async function handleListItemClick(item: AppItem, navigate: Navigate, templateId: string | null) {
+  if (templateId) {
+    const result = await api.addAppMissionFromTemplate(templateId)
+    navigate(result.nextPath)
+    return
+  }
+  if (item.detailPath) {
+    navigate(item.detailPath)
+  }
+}
+
+function templateIdFromItem(item: AppItem): string | null {
+  const value = item.data?.templateId
+  return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 function ActionButtons({ actions, navigate }: { actions?: AppAction[] | null; navigate: Navigate }) {

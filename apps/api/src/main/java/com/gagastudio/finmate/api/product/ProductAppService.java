@@ -17,6 +17,7 @@ import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -431,6 +432,7 @@ public class ProductAppService implements FinancialDataProvider {
 
     public AppScreenResponse getHome(String userId) {
         bootstrapUser(userId, displayName(userId));
+        missionEvaluationService.evaluateUserMissions(userId);
         UserMeResponse user = userMe(userId);
         DailyRecordRow record = findDailyRecord(userId);
         SnapshotRow snapshot = findSnapshot(userId);
@@ -447,7 +449,7 @@ public class ProductAppService implements FinancialDataProvider {
         if (birthdayFund != null) {
             sections.add(section("birthday-alert", "actionCard", birthdayFund.title() + "가 열렸어요", "친구들이 함께 모으는 생일 펀드가 열렸어요.", "/birthdays/" + birthdayFund.id(), "/assets/characters/finmate-birthday.png",
                     metrics(metric("현재 모금", won(birthdayFund.currentAmount()), "목표 " + won(birthdayFund.targetAmount()), "green", percent(birthdayFund.currentAmount(), birthdayFund.targetAmount())),
-                            metric("남은 기간", "D-7", birthdayFund.dueDate().toString(), "purple", null)),
+                            metric("남은 기간", dDayLabel(birthdayFund.dueDate()), birthdayFund.dueDate().toString(), "purple", null)),
                     null, actions(action("축하 펀드 참여하기", "/birthday-funds/" + birthdayFund.id() + "/contribute", "GET", "primary", null)), null));
         }
         sections.add(record == null
@@ -455,7 +457,7 @@ public class ProductAppService implements FinancialDataProvider {
                 : spendingSection(record));
         sections.add(snapshot == null
                 ? emptyActionSection("asset-empty", "자산 현황", "연결된 자산 데이터가 없어요.", "마이데이터 연결 또는 샘플 데이터가 준비되면 자산 흐름을 보여드릴게요.", "/profile")
-                : assetSection(snapshot));
+                : assetSection(userId, snapshot));
         sections.add(followingSection(userId));
         return screen("home", "", "home", sections, Map.of("version", "product-mvp"));
     }
@@ -562,12 +564,16 @@ public class ProductAppService implements FinancialDataProvider {
         sections.add(todayMission == null
                 ? emptyActionSection("mission-empty", "오늘의 미션이 아직 없어요", "비교와 기록이 쌓이면 맞춤 미션을 만들 수 있어요.", "지금은 홈에서 데이터 연결 상태를 확인해주세요.", "/home")
                 : missionHero(todayMission));
+        List<AppItem> activeMissionItems = missions.stream()
+                .filter(mission -> !"COMPLETED".equals(mission.status()))
+                .filter(mission -> todayMission == null || !mission.dbId().equals(todayMission.dbId()))
+                .map(this::missionItem)
+                .toList();
+        if (activeMissionItems.isEmpty()) {
+            activeMissionItems = items(item("active-empty", "진행 중인 미션을 더 추가해보세요", "추천 미션을 선택하면 이 영역에서 상태를 계속 확인할 수 있어요.", null, "추천 보기", "target", "purple", "/missions/add"));
+        }
         sections.add(section("active", "list", "진행 중인 미션", null, null, null, null,
-                missions.stream()
-                        .filter(mission -> !"COMPLETED".equals(mission.status()))
-                        .filter(mission -> todayMission == null || !mission.dbId().equals(todayMission.dbId()))
-                        .map(this::missionItem)
-                        .toList(),
+                activeMissionItems,
                 null, null));
         sections.add(section("completed", "list", "완료된 미션", null, null, null, null,
                 missions.stream().filter(mission -> "COMPLETED".equals(mission.status())).map(this::completedMissionItem).toList(),
@@ -607,6 +613,7 @@ public class ProductAppService implements FinancialDataProvider {
                 missionHero(mission),
                 section("evidence", "checkList", "완료 조건과 근거", "미션은 버튼이 아니라 행동 데이터가 조건을 만족할 때 자동 완료돼요.", null, null, null,
                         items(item("condition", "완료 조건", mission.description(), null, null, "check", "purple", null),
+                                item("period", "평가 기간", mission.periodSummary(), null, null, "calendar", "purple", null),
                                 item("status", "현재 판정", mission.evaluationStatus(), null, mission.evaluatedAt(), "target", "green", null),
                                 item("evidence", "근거 데이터", mission.evidenceSummary(), null, null, "records", "purple", null)),
                         null, null)
@@ -636,7 +643,7 @@ public class ProductAppService implements FinancialDataProvider {
         return screen("missions:add", "미션 추가", "mission", List.of(
                 section("recommendations", "list", "추천 미션", "내 금융 기록에서 바로 시작하기 좋은 목표예요.", null, null, null,
                         recommendations,
-                        actions(action("첫 추천 미션 추가하기", "/missions/add/" + templates.get(0).id(), "POST", "primary", "mission-add")), null)
+                        null, null)
         ), Map.of("recommendationCount", recommendations.size()));
     }
 
@@ -646,15 +653,19 @@ public class ProductAppService implements FinancialDataProvider {
         String missionDbId = missionDbId(userId, template.missionId());
         Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM missions WHERE id = ?", Integer.class, missionDbId);
         if (exists != null && exists > 0) {
-            return new AppActionResultResponse("ALREADY_ADDED", "이미 추가된 미션이에요", "진행 중인 미션 목록에서 확인할 수 있어요.", "/missions/" + template.missionId(), Map.of("missionId", template.missionId()));
+            return new AppActionResultResponse("ALREADY_ADDED", "이미 추가된 미션이에요", "미션 상세에서 상태와 근거를 확인할 수 있어요.", "/missions/" + template.missionId(), Map.of("missionId", template.missionId()));
         }
         jdbc.update("""
-                INSERT INTO missions (id, user_id, title, description, status, difficulty, reward_points, progress, due_date, source)
-                VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, 0, ?, 'USER_ADDED_TEMPLATE')
-                """, missionDbId, userId, template.title(), template.description(), template.difficulty(), template.rewardPoints(), APP_TODAY.plusDays(7));
+                INSERT INTO missions (
+                  id, user_id, title, description, status, difficulty, reward_points, progress,
+                  due_date, source, template_id, verification_type, evaluation_period_start, evaluation_period_end
+                )
+                VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, 0, ?, 'USER_ADDED_TEMPLATE', ?, 'BEHAVIOR_DATA', ?, ?)
+                """, missionDbId, userId, template.title(), template.description(), template.difficulty(),
+                template.rewardPoints(), APP_TODAY.plusDays(7), template.id(), APP_TODAY, APP_TODAY.plusDays(7));
         jdbc.update("""
-                INSERT INTO mission_events (id, mission_id, user_id, event_type, note, reward_points, event_date)
-                VALUES (?, ?, ?, 'ADDED', ?, 0, ?)
+                INSERT INTO mission_events (id, mission_id, user_id, event_type, note, reward_points, event_date, source)
+                VALUES (?, ?, ?, 'ADDED', ?, 0, ?, 'USER_ACTION')
                 """, "event-" + UUID.randomUUID(), missionDbId, userId, "추천 미션 추가", APP_TODAY);
         return new AppActionResultResponse("ADDED", "미션을 추가했어요", template.title() + " 미션이 진행 중 목록에 들어갔습니다.", "/missions/" + template.missionId(), Map.of("missionId", template.missionId()));
     }
@@ -760,7 +771,7 @@ public class ProductAppService implements FinancialDataProvider {
         return screen("birthdays", "생일 펀드", "home", List.of(
                 section("fund", "birthday", fund.title(), "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", "/birthdays/" + fund.id(), "/assets/characters/finmate-birthday.png",
                         metrics(metric("모금 금액", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
-                                metric("남은 기간", "D-7", fund.dueDate().toString(), "purple", null)),
+                                metric("남은 기간", dDayLabel(fund.dueDate()), fund.dueDate().toString(), "purple", null)),
                         null, actions(action("참여하기", "/birthday-funds/" + fund.id() + "/contribute", "GET", "primary", null), action("내 생일 펀드 열기", "/birthday-funds/me/open", "GET", "secondary", null)), null)
         ), Map.of());
     }
@@ -775,7 +786,7 @@ public class ProductAppService implements FinancialDataProvider {
         return screen("birthdays:" + fund.id(), fund.title(), "home", List.of(
                 section("fund", "birthday", "생일 축하 펀드란?", "친구의 생일을 함께 축하하며 모아주는 특별한 선물이에요.", null, "/assets/characters/finmate-birthday.png",
                         metrics(metric("모금 금액", won(fund.currentAmount()), "목표 " + won(fund.targetAmount()), "green", percent(fund.currentAmount(), fund.targetAmount())),
-                                metric("남은 기간", "D-7", fund.dueDate().toString(), "purple", null)),
+                                metric("남은 기간", dDayLabel(fund.dueDate()), fund.dueDate().toString(), "purple", null)),
                         null, actions(action("참여하기", "/birthday-funds/" + fund.id() + "/contribute", "GET", "primary", null)), null),
                 section("participants", "list", "실시간 참여 현황", null, null, null, null,
                         contributionItems(fund.id()).isEmpty()
@@ -1061,14 +1072,14 @@ public class ProductAppService implements FinancialDataProvider {
         return missions.stream()
                 .filter(mission -> !"COMPLETED".equals(mission.status()))
                 .max(Comparator.comparingInt(MissionRow::progress))
-                .orElse(missions.stream().findFirst().orElse(null));
+                .orElse(null);
     }
 
     private List<MissionEventRow> missionEvents(String userId, YearMonth month) {
         LocalDate from = month.atDay(1);
         LocalDate to = month.plusMonths(1).atDay(1);
         return jdbc.query("""
-                        SELECT e.id, e.event_type, e.note, e.reward_points, e.event_date, m.title
+                        SELECT e.id, e.event_type, e.note, e.reward_points, e.event_date, e.source, e.evaluation_result, m.title
                         FROM mission_events e
                         JOIN missions m ON m.id = e.mission_id
                         WHERE e.user_id = ? AND e.event_date >= ? AND e.event_date < ?
@@ -1080,13 +1091,15 @@ public class ProductAppService implements FinancialDataProvider {
                         rs.getString("title"),
                         rs.getString("note"),
                         rs.getInt("reward_points"),
-                        rs.getDate("event_date").toLocalDate()
+                        rs.getDate("event_date").toLocalDate(),
+                        rs.getString("source"),
+                        rs.getString("evaluation_result")
                 ), userId, from, to);
     }
 
     private List<MissionEventRow> missionEvents(String userId, LocalDate date) {
         return jdbc.query("""
-                        SELECT e.id, e.event_type, e.note, e.reward_points, e.event_date, m.title
+                        SELECT e.id, e.event_type, e.note, e.reward_points, e.event_date, e.source, e.evaluation_result, m.title
                         FROM mission_events e
                         JOIN missions m ON m.id = e.mission_id
                         WHERE e.user_id = ? AND e.event_date = ?
@@ -1098,7 +1111,9 @@ public class ProductAppService implements FinancialDataProvider {
                         rs.getString("title"),
                         rs.getString("note"),
                         rs.getInt("reward_points"),
-                        rs.getDate("event_date").toLocalDate()
+                        rs.getDate("event_date").toLocalDate(),
+                        rs.getString("source"),
+                        rs.getString("evaluation_result")
                 ), userId, date);
     }
 
@@ -1171,7 +1186,7 @@ public class ProductAppService implements FinancialDataProvider {
         }
         Set<LocalDate> successDates = new HashSet<>();
         for (MissionEventRow event : events) {
-            if ("DONE".equals(event.eventType())) {
+            if (event.isDataEvaluationSuccess()) {
                 successDates.add(event.eventDate());
             }
         }
@@ -1190,20 +1205,23 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private AppSection missionEventsSection(String id, String title, List<MissionEventRow> events) {
-        if (events.isEmpty()) {
+        List<MissionEventRow> successEvents = events.stream()
+                .filter(MissionEventRow::isDataEvaluationSuccess)
+                .toList();
+        if (successEvents.isEmpty()) {
             return section(id, "list", title, null, null, null, null,
-                    items(item("mission-events-empty", "아직 미션 기록이 없어요", "미션을 추가하거나 행동 데이터가 검증되면 여기에 쌓입니다.", null, null, "target", "purple", "/missions")),
+                    items(item("mission-events-empty", "아직 성공한 미션 기록이 없어요", "행동 데이터가 조건을 만족하면 성공 기록과 포인트가 여기에 쌓입니다.", null, null, "target", "purple", "/missions")),
                     null, null);
         }
-        List<AppItem> items = events.stream()
+        List<AppItem> items = successEvents.stream()
                 .map(event -> item(
                         event.id(),
                         event.title(),
-                        "DONE".equals(event.eventType()) ? "성공" : "추가됨",
+                        "성공",
                         event.rewardPoints() > 0 ? "+" + event.rewardPoints() + "P" : null,
                         event.eventDate().toString(),
                         "check",
-                        "DONE".equals(event.eventType()) ? "green" : "purple",
+                        "green",
                         null
                 ))
                 .toList();
@@ -1248,6 +1266,8 @@ public class ProductAppService implements FinancialDataProvider {
 
     private MissionRow missionRow(ResultSet rs, String routeId) throws java.sql.SQLException {
         OffsetDateTime evaluatedAt = rs.getObject("evaluated_at", OffsetDateTime.class);
+        java.sql.Date periodStart = rs.getDate("evaluation_period_start");
+        java.sql.Date periodEnd = rs.getDate("evaluation_period_end");
         return new MissionRow(
                 rs.getString("id"),
                 routeId,
@@ -1259,8 +1279,18 @@ public class ProductAppService implements FinancialDataProvider {
                 rs.getInt("progress"),
                 rs.getString("evaluation_status"),
                 evaluatedAt == null ? "아직 평가 전" : evaluatedAt.toLocalDate().toString(),
-                evidenceSummary(rs.getString("evaluation_rule_json"))
+                evidenceSummary(rs.getString("evaluation_rule_json")),
+                periodSummary(periodStart, periodEnd)
         );
+    }
+
+    private String periodSummary(java.sql.Date periodStart, java.sql.Date periodEnd) {
+        if (periodStart == null && periodEnd == null) {
+            return "기존 행동 데이터 기준";
+        }
+        String start = periodStart == null ? "시작일 미정" : periodStart.toLocalDate().toString();
+        String end = periodEnd == null ? "종료일 미정" : periodEnd.toLocalDate().toString();
+        return start + " ~ " + end;
     }
 
     private WalletRow wallet(String userId) {
@@ -1343,16 +1373,87 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private AppSection followingSection(String userId) {
-        int count = followingCount(userId);
+        List<String> followeeIds = followeeIds(userId);
+        int count = followeeIds.size();
         if (count == 0) {
             return emptyActionSection("following-empty", "팔로잉 금융 근황", "아직 팔로잉한 친구가 없어요.", "친구 금융 활동이 생기면 지출, 저축, 투자 근황을 한눈에 볼 수 있어요.", "/profile");
         }
-        return section("following", "signalGrid", "팔로잉 금융 근황", "친구 " + followingCount(userId) + "명의 금융 활동 요약", "/profile/following", null,
-                metrics(metric("주식 투자", "18명", "36%", "purple", 36),
-                        metric("적금 가입", "32명", "64%", "green", 64),
-                        metric("펀드 투자", "9명", "18%", "purple", 18),
-                        metric("연금 준비", "21명", "42%", "green", 42)),
+        int stockCount = countFolloweesWithSignal(userId, followeeIds, "investment_value", "주식", "투자", "ETF");
+        int savingCount = countFolloweesWithSignal(userId, followeeIds, "monthly_saving", "저축", "적금", "비상금", "자동이체");
+        int fundCount = countFolloweesWithSignal(userId, followeeIds, null, "펀드");
+        int pensionCount = countFolloweesWithSignal(userId, followeeIds, null, "연금", "IRP");
+        return section("following", "signalGrid", "팔로잉 금융 근황", "친구 " + count + "명의 공개 금융 활동 기준", "/profile/following", null,
+                metrics(followingMetric("주식 투자", stockCount, count, "purple"),
+                        followingMetric("적금 가입", savingCount, count, "green"),
+                        followingMetric("펀드 투자", fundCount, count, "purple"),
+                        followingMetric("연금 준비", pensionCount, count, "green")),
                 null, null, null);
+    }
+
+    private List<String> followeeIds(String userId) {
+        return jdbc.query("""
+                        SELECT followee_id
+                        FROM friendships
+                        WHERE follower_id = ? AND status = 'ACTIVE'
+                        ORDER BY created_at
+                        """,
+                (rs, rowNum) -> rs.getString("followee_id"), userId);
+    }
+
+    private AppMetric followingMetric(String label, int value, int total, String tone) {
+        int progress = percent(value, total);
+        return metric(label, value + "명", progress + "%", tone, progress);
+    }
+
+    private int countFolloweesWithSignal(String viewerId, List<String> followeeIds, String positiveSnapshotColumn, String... keywords) {
+        int count = 0;
+        for (String followeeId : followeeIds) {
+            if (hasPositiveSnapshotValue(followeeId, positiveSnapshotColumn) || hasTextSignal(viewerId, followeeId, keywords)) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private boolean hasPositiveSnapshotValue(String userId, String column) {
+        if (column == null) {
+            return false;
+        }
+        if (!Set.of("investment_value", "monthly_saving").contains(column)) {
+            return false;
+        }
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM financial_snapshots
+                WHERE user_id = ? AND month = '2026-06' AND %s > 0
+                """.formatted(column), Integer.class, userId);
+        return count != null && count > 0;
+    }
+
+    private boolean hasTextSignal(String viewerId, String followeeId, String... keywords) {
+        for (String keyword : keywords) {
+            String like = "%" + keyword + "%";
+            Integer feedMatches = jdbc.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM feed_items
+                    WHERE user_id = ? AND actor_user_id = ?
+                      AND kind <> 'BIRTHDAY'
+                      AND (kind LIKE ? OR title LIKE ? OR body LIKE ?)
+                    """, Integer.class, viewerId, followeeId, like, like, like);
+            if (feedMatches != null && feedMatches > 0) {
+                return true;
+            }
+            Integer transactionMatches = jdbc.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM financial_transactions
+                    WHERE user_id = ?
+                      AND (category LIKE ? OR COALESCE(subcategory, '') LIKE ? OR COALESCE(description, '') LIKE ? OR COALESCE(cashflow_bucket, '') LIKE ?)
+                    """, Integer.class, followeeId, like, like, like, like);
+            if (transactionMatches != null && transactionMatches > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private AppSection feedSection(String userId) {
@@ -1387,7 +1488,7 @@ public class ProductAppService implements FinancialDataProvider {
         if (snapshot == null) {
             return emptyActionSection("asset-empty", "자산 현황", "연결된 자산 데이터가 없어요.", "마이데이터 연결 또는 샘플 데이터가 준비되면 자산 흐름을 보여드릴게요.", "/profile");
         }
-        return assetSection(snapshot);
+        return assetSection(userId, snapshot);
     }
 
     private AppSection emptyActionSection(String id, String title, String subtitle, String body, String path) {
@@ -1414,10 +1515,83 @@ public class ProductAppService implements FinancialDataProvider {
         return section("spending", "spendingGrid", "오늘의 지출 요약", null, "/home/spending", null, null, items, null, null);
     }
 
-    private AppSection assetSection(SnapshotRow snapshot) {
-        return section("asset", "asset", "자산 현황", "이번 달 +" + won(snapshot.monthlySaving()) + " (+2.6%)", "/home/assets", null,
-                metrics(metric("총 자산", won(snapshot.cashLikeAssets() + snapshot.investmentValue()), "비상금 " + snapshot.emergencyFundMonths() + "개월", "purple", 40)),
-                null, null, Map.of("sparkline", List.of(12, 18, 16, 24, 21, 31, 28, 35)));
+    private AppSection assetSection(String userId, SnapshotRow snapshot) {
+        int totalAsset = snapshot.cashLikeAssets() + snapshot.investmentValue();
+        List<Integer> sparkline = assetSparkline(userId, snapshot, totalAsset);
+        return section("asset", "asset", "자산 현황", assetSubtitle(snapshot, totalAsset), "/home/assets", null,
+                metrics(metric("총 자산", won(totalAsset), "비상금 " + formatMonths(snapshot.emergencyFundMonths()) + "개월", "purple", emergencyFundProgress(snapshot))),
+                null, null, Map.of("sparkline", sparkline));
+    }
+
+    private String assetSubtitle(SnapshotRow snapshot, int totalAsset) {
+        int previousAsset = totalAsset - snapshot.monthlySaving();
+        if (previousAsset <= 0) {
+            return "이번 달 " + signedWon(snapshot.monthlySaving());
+        }
+        double percent = snapshot.monthlySaving() * 100.0 / previousAsset;
+        return "이번 달 " + signedWon(snapshot.monthlySaving()) + " (" + signedDecimal(percent) + "%)";
+    }
+
+    private int emergencyFundProgress(SnapshotRow snapshot) {
+        int target = snapshot.monthlySpending() * 3;
+        if (target > 0) {
+            return percent(snapshot.cashLikeAssets(), target);
+        }
+        return Math.max(0, Math.min(100, (int) Math.round(snapshot.emergencyFundMonths() / 3.0 * 100)));
+    }
+
+    private List<Integer> assetSparkline(String userId, SnapshotRow snapshot, int currentAsset) {
+        YearMonth month = parseMonth(snapshot.month());
+        LocalDate start = month.atDay(1);
+        LocalDate end = APP_TODAY.isAfter(month.atEndOfMonth()) ? month.atEndOfMonth() : APP_TODAY;
+        List<FinancialTransactionMovement> transactions = jdbc.query("""
+                        SELECT transaction_date, amount_krw, transaction_type, cashflow_bucket
+                        FROM financial_transactions
+                        WHERE user_id = ? AND transaction_date >= ? AND transaction_date <= ?
+                        ORDER BY transaction_date
+                        """,
+                (rs, rowNum) -> new FinancialTransactionMovement(
+                        rs.getDate("transaction_date").toLocalDate(),
+                        rs.getInt("amount_krw"),
+                        rs.getString("transaction_type"),
+                        rs.getString("cashflow_bucket")
+                ), userId, start, end);
+        Map<LocalDate, Integer> movementByDate = new LinkedHashMap<>();
+        int netMovement = 0;
+        for (FinancialTransactionMovement transaction : transactions) {
+            int movement = assetMovement(transaction);
+            if (movement == 0) {
+                continue;
+            }
+            movementByDate.merge(transaction.date(), movement, Integer::sum);
+            netMovement += movement;
+        }
+        if (movementByDate.isEmpty()) {
+            return List.of();
+        }
+        int runningAsset = currentAsset - netMovement;
+        List<Integer> values = new ArrayList<>();
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            runningAsset += movementByDate.getOrDefault(date, 0);
+            values.add(Math.max(0, runningAsset));
+        }
+        return values;
+    }
+
+    private int assetMovement(FinancialTransactionMovement transaction) {
+        String bucket = transaction.cashflowBucket() == null ? "" : transaction.cashflowBucket();
+        String type = transaction.transactionType() == null ? "" : transaction.transactionType();
+        int amount = transaction.amount();
+        if (bucket.contains("수입") || type.contains("수입")) {
+            return Math.abs(amount);
+        }
+        if (bucket.contains("소비") || type.contains("지출")) {
+            return amount < 0 ? amount : -amount;
+        }
+        if (bucket.contains("저축") || bucket.contains("투자") || type.contains("저축") || type.contains("투자")) {
+            return 0;
+        }
+        return amount;
     }
 
     private AppSection compareBarsSection(CoachResultV1 coach) {
@@ -1530,6 +1704,31 @@ public class ProductAppService implements FinancialDataProvider {
         return "₩" + String.format("%,d", amount);
     }
 
+    private String signedWon(int amount) {
+        String sign = amount >= 0 ? "+" : "-";
+        return sign + won(Math.abs(amount));
+    }
+
+    private String signedDecimal(double value) {
+        String sign = value >= 0 ? "+" : "-";
+        return sign + String.format("%.1f", Math.abs(value));
+    }
+
+    private String formatMonths(double months) {
+        return String.format("%.1f", months);
+    }
+
+    private String dDayLabel(LocalDate dueDate) {
+        long days = ChronoUnit.DAYS.between(APP_TODAY, dueDate);
+        if (days == 0) {
+            return "D-day";
+        }
+        if (days > 0) {
+            return "D-" + days;
+        }
+        return "종료";
+    }
+
     private int percent(int value, int total) {
         if (total == 0) {
             return 0;
@@ -1604,10 +1803,13 @@ public class ProductAppService implements FinancialDataProvider {
     private record DailyRecordRow(LocalDate date, int budget, int spent, String categorySpendingJson, String missionStatus, int pointDelta) {
     }
 
-    private record MissionRow(String dbId, String routeId, String title, String description, String status, String difficulty, int rewardPoints, int progress, String evaluationStatus, String evaluatedAt, String evidenceSummary) {
+    private record MissionRow(String dbId, String routeId, String title, String description, String status, String difficulty, int rewardPoints, int progress, String evaluationStatus, String evaluatedAt, String evidenceSummary, String periodSummary) {
     }
 
-    private record MissionEventRow(String id, String eventType, String title, String note, int rewardPoints, LocalDate eventDate) {
+    private record MissionEventRow(String id, String eventType, String title, String note, int rewardPoints, LocalDate eventDate, String source, String evaluationResult) {
+        private boolean isDataEvaluationSuccess() {
+            return "DONE".equals(eventType) && "DATA_EVALUATION".equals(source) && "SUCCESS".equals(evaluationResult);
+        }
     }
 
     private record MissionTemplate(String id, String missionId, String title, String description, String difficulty, String difficultyLabel, int rewardPoints, String icon, String tone, boolean active) {
@@ -1617,6 +1819,9 @@ public class ProductAppService implements FinancialDataProvider {
     }
 
     private record FundRow(String id, String title, int targetAmount, int currentAmount, LocalDate dueDate, String status) {
+    }
+
+    private record FinancialTransactionMovement(LocalDate date, int amount, String transactionType, String cashflowBucket) {
     }
 
     private record PrivacyRow(String exposedFields) {

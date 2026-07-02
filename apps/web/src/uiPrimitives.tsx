@@ -108,7 +108,10 @@ export function ProgressLine({ value, tone }: { value: number; tone: 'purple' | 
 
 export function MiniLineChart({ values }: { values: number[] }) {
   const points = useMemo(() => {
-    const safeValues = values.length ? values : [18, 24, 32, 28, 40, 36, 48]
+    if (values.length < 2) {
+      return ''
+    }
+    const safeValues = values
     const max = Math.max(...safeValues)
     const min = Math.min(...safeValues)
     return safeValues
@@ -119,6 +122,10 @@ export function MiniLineChart({ values }: { values: number[] }) {
       })
       .join(' ')
   }, [values])
+
+  if (values.length < 2) {
+    return null
+  }
 
   return (
     <svg className="mini-chart" viewBox="0 0 120 64" role="img" aria-label="자산 변화 그래프">
